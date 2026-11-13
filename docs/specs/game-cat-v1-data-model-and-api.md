@@ -26,29 +26,29 @@ folded into the spec, the issue comment remains the stable reference.
 
 The decisions below were settled on #3 on 2026-11-13.
 
-| Topic | Decision |
-|---|---|
-| Library roster | The MVP requires the **full owned game list**. Ownership comes from the Steam Web API (`IPlayerService/GetOwnedGames`). Local Steam files remain the source of truth for installed state, playtime, and Steam Collections. The stored Library is the union, with an explicit ownership status per Game. |
-| Account binding | One Steam account per data directory. The database records the SteamID64 on the first account-scoped refresh and refuses to open or use it under a different account. Switching accounts requires a new data directory; v1 has no in-place reset. |
-| Smart Collection identity | Opaque UUIDv4 text IDs. Names are unique case-insensitively. |
-| Rule persistence | Ordered rows. A PATCH replaces the whole Rules array atomically. `value` is opaque JSON to this layer. |
-| Enrichment storage | A separate `game_enrichment` row per Game, with raw payloads and per-source status. Tags are normalized into `tags` and `game_tags`. |
-| HTTP conventions | `/api` prefix, consistent envelope, camelCase fields, ISO-8601 UTC timestamps, integer minutes, `page`/`pageSize`, one error shape. No API version segment in v1. |
-| Refresh | Asynchronous runs, an aggregate status endpoint, and deduplication of a running refresh. |
-| Migrations | `schema_migrations`, forward-only numbered migrations, a pre-migration backup, and a hard refusal to open a newer schema. |
-| Library search | Game name only. Tag/genre/developer matching belongs to Rules. |
+| Topic                     | Decision                                                                                                                                                                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Library roster            | The MVP requires the **full owned game list**. Ownership comes from the Steam Web API (`IPlayerService/GetOwnedGames`). Local Steam files remain the source of truth for installed state, playtime, and Steam Collections. The stored Library is the union, with an explicit ownership status per Game. |
+| Account binding           | One Steam account per data directory. The database records the SteamID64 on the first account-scoped refresh and refuses to open or use it under a different account. Switching accounts requires a new data directory; v1 has no in-place reset.                                                       |
+| Smart Collection identity | Opaque UUIDv4 text IDs. Names are unique case-insensitively.                                                                                                                                                                                                                                            |
+| Rule persistence          | Ordered rows. A PATCH replaces the whole Rules array atomically. `value` is opaque JSON to this layer.                                                                                                                                                                                                  |
+| Enrichment storage        | A separate `game_enrichment` row per Game, with raw payloads and per-source status. Tags are normalized into `tags` and `game_tags`.                                                                                                                                                                    |
+| HTTP conventions          | `/api` prefix, consistent envelope, camelCase fields, ISO-8601 UTC timestamps, integer minutes, `page`/`pageSize`, one error shape. No API version segment in v1.                                                                                                                                       |
+| Refresh                   | Asynchronous runs, an aggregate status endpoint, and deduplication of a running refresh.                                                                                                                                                                                                                |
+| Migrations                | `schema_migrations`, forward-only numbered migrations, a pre-migration backup, and a hard refusal to open a newer schema.                                                                                                                                                                               |
+| Library search            | Game name only. Tag/genre/developer matching belongs to Rules.                                                                                                                                                                                                                                          |
 
 ## 2. Sources of truth
 
-| Data | Source | Notes |
-|---|---|---|
-| Ownership roster | Steam Web API `IPlayerService/GetOwnedGames/v1` | Requires a user Web API key and the selected account's SteamID64. One request per ownership refresh. |
-| Installed state, install path, size | `appmanifest_<appid>.acf` in every library | `installed` is derived with the `StateFlags`/install-dir/depot test from the local-library note. |
-| Playtime, last played | `localconfig.vdf`, plus `appmanifest.LastPlayed` | Minutes and Unix seconds; never stored as float hours. |
-| Steam Collections | `userdata/<account-id>/config/cloudstorage/cloud-storage-namespace-1.json` plus the `.modified.json` overlay | Read-only mirror. If the overlay exists, merge it over the base by key, preferring the overlay entry. Dynamic collections are stored as opaque metadata, not as membership. |
-| Tags | SteamSpy `appdetails` | Tag names with per-Game vote counts. |
-| Canonical metadata | Steam storefront `appdetails` | Name, type, developers, publishers, genres, categories, release data, Metacritic, platforms. |
-| game-cat state | SQLite | Smart Collections, Rules, refresh history, source health, account binding. |
+| Data                                | Source                                                                                                       | Notes                                                                                                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ownership roster                    | Steam Web API `IPlayerService/GetOwnedGames/v1`                                                              | Requires a user Web API key and the selected account's SteamID64. One request per ownership refresh.                                                                        |
+| Installed state, install path, size | `appmanifest_<appid>.acf` in every library                                                                   | `installed` is derived with the `StateFlags`/install-dir/depot test from the local-library note.                                                                            |
+| Playtime, last played               | `localconfig.vdf`, plus `appmanifest.LastPlayed`                                                             | Minutes and Unix seconds; never stored as float hours.                                                                                                                      |
+| Steam Collections                   | `userdata/<account-id>/config/cloudstorage/cloud-storage-namespace-1.json` plus the `.modified.json` overlay | Read-only mirror. If the overlay exists, merge it over the base by key, preferring the overlay entry. Dynamic collections are stored as opaque metadata, not as membership. |
+| Tags                                | SteamSpy `appdetails`                                                                                        | Tag names with per-Game vote counts.                                                                                                                                        |
+| Canonical metadata                  | Steam storefront `appdetails`                                                                                | Name, type, developers, publishers, genres, categories, release data, Metacritic, platforms.                                                                                |
+| game-cat state                      | SQLite                                                                                                       | Smart Collections, Rules, refresh history, source health, account binding.                                                                                                  |
 
 ### 2.1 The Library is a union
 
@@ -65,11 +65,11 @@ must not drop a Game because one source is missing.
 
 Each Game carries one of three ownership values:
 
-| `ownership_status` | Meaning |
-|---|---|
-| `owned` | Present in the most recent **conclusive** GetOwnedGames response. An empty response is inconclusive and does not change ownership. |
-| `local_only` | Not present in the latest successful response, but has local evidence: an install, an entry in `localconfig.vdf`, or Steam Collection membership. Before the first successful ownership refresh, this applies to installed Games and Games present in `localconfig.vdf`. |
-| `unknown` | No ownership refresh has succeeded yet and the only evidence is Steam Collection membership. After the first successful ownership refresh, a collection-only row absent from the response becomes `local_only`. |
+| `ownership_status` | Meaning                                                                                                                                                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `owned`            | Present in the most recent **conclusive** GetOwnedGames response. An empty response is inconclusive and does not change ownership.                                                                                                                                       |
+| `local_only`       | Not present in the latest successful response, but has local evidence: an install, an entry in `localconfig.vdf`, or Steam Collection membership. Before the first successful ownership refresh, this applies to installed Games and Games present in `localconfig.vdf`. |
+| `unknown`          | No ownership refresh has succeeded yet and the only evidence is Steam Collection membership. After the first successful ownership refresh, a collection-only row absent from the response becomes `local_only`.                                                          |
 
 If the Web API is unavailable, `local_only` and `unknown` Games remain browsable, and
 `GET /api/status` says why the roster may be incomplete. game-cat never claims a full Library
@@ -77,27 +77,27 @@ when ownership refresh has not succeeded.
 
 ### 2.2 Field precedence
 
-| Field | Precedence |
-|---|---|
-| Display name | Storefront `name` → GetOwnedGames `name` → `appmanifest.name` → SteamSpy `name` → `Game <appid>` |
-| Playtime | `localconfig.Playtime` when present; otherwise GetOwnedGames `playtime_forever`; `0` when neither exists |
-| Recent playtime | `localconfig.Playtime2wks` when present; otherwise GetOwnedGames `playtime_2weeks`; `NULL` when neither exists |
-| Last played | `max(appmanifest.LastPlayed, localconfig.LastPlayed)`, `NULL` when neither exists |
-| Installed | Local manifest only. `1` when a manifest is present, `0` when a successful scan finds none, `NULL` before any successful scan. A failed or unavailable scan leaves prior values intact. |
-| Tags | SteamSpy only. No fallback; an empty or missing tag payload is recorded as `missing`, not `ok`. |
-| Release year | Parsed storefront `release_date`; `NULL` when unparseable. The raw string is retained. |
+| Field           | Precedence                                                                                                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Display name    | Storefront `name` → GetOwnedGames `name` → `appmanifest.name` → SteamSpy `name` → `Game <appid>`                                                                                        |
+| Playtime        | `localconfig.Playtime` when present; otherwise GetOwnedGames `playtime_forever`; `0` when neither exists                                                                                |
+| Recent playtime | `localconfig.Playtime2wks` when present; otherwise GetOwnedGames `playtime_2weeks`; `NULL` when neither exists                                                                          |
+| Last played     | `max(appmanifest.LastPlayed, localconfig.LastPlayed)`, `NULL` when neither exists                                                                                                       |
+| Installed       | Local manifest only. `1` when a manifest is present, `0` when a successful scan finds none, `NULL` before any successful scan. A failed or unavailable scan leaves prior values intact. |
+| Tags            | SteamSpy only. No fallback; an empty or missing tag payload is recorded as `missing`, not `ok`.                                                                                         |
+| Release year    | Parsed storefront `release_date`; `NULL` when unparseable. The raw string is retained.                                                                                                  |
 
 Storefront enrichment must never hide or delete a Game. Local scan must never overwrite a
 storefront name with a stale local name.
 
 Name updates by source:
 
-| Source | May replace `name` when current `name_source` is |
-|---|---|
-| Local scan | `placeholder`, `steamspy` |
-| Ownership refresh | `placeholder`, `local`, `steamspy` |
-| SteamSpy enrichment | `placeholder` |
-| Storefront enrichment | any value except `storefront` |
+| Source                | May replace `name` when current `name_source` is |
+| --------------------- | ------------------------------------------------ |
+| Local scan            | `placeholder`, `steamspy`                        |
+| Ownership refresh     | `placeholder`, `local`, `steamspy`               |
+| SteamSpy enrichment   | `placeholder`                                    |
+| Storefront enrichment | any value except `storefront`                    |
 
 The winning write sets `name_source` to its own source. Any write that changes `name` also
 recomputes `name_key`. An empty or missing incoming name never changes `name`.
@@ -558,26 +558,26 @@ so it is not used for these rules.
 
 ### 4.5 Stored versus computed
 
-| Value | Stored | Computed at read time |
-|---|---|---|
-| Game identity, display name, ownership status | `games` | — |
-| Bound Steam account | `account_state.steam_id64` | — |
-| Normalized name keys | `games.name_key`, `tags.name_key`, `smart_collections.name_key` | — (recomputed on write) |
-| Installed state, install paths, size | `games` | — |
-| Resolved playtime and recent playtime | `games` | — |
-| Raw local/API playtime provenance | `games` | — |
-| Last played | raw `manifest_*` and `localconfig_*` columns | `MAX(...)` in `v_games` |
-| Canonical metadata, raw payloads, per-source status | `game_enrichment` | — |
-| Tag vocabulary and votes | `tags`, `game_tags` | Tag `gameCount` |
-| Genre, category, developer, and publisher pickers | `game_enrichment` JSON arrays | Distinct values and `gameCount` |
-| Steam Collection metadata and static membership | `steam_collections`, `steam_collection_games` | Static `gameCount` |
-| Steam Collection dynamic flag | `steam_collections.is_dynamic` | — (derived from `filter_spec_json` at import) |
-| Smart Collection names and ordered Rules | `smart_collections`, `rules` | — |
-| Smart Collection membership | — | Rule evaluation (#4) |
-| Rule preview | — | Rule evaluation (#4) |
-| Library/installed/enrichment counts | — | `GET /api/status` aggregates |
-| Playtime in hours | — | UI formatting only |
-| Dynamic Steam Collection membership | — | Never computed in v1 |
+| Value                                               | Stored                                                          | Computed at read time                         |
+| --------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------- |
+| Game identity, display name, ownership status       | `games`                                                         | —                                             |
+| Bound Steam account                                 | `account_state.steam_id64`                                      | —                                             |
+| Normalized name keys                                | `games.name_key`, `tags.name_key`, `smart_collections.name_key` | — (recomputed on write)                       |
+| Installed state, install paths, size                | `games`                                                         | —                                             |
+| Resolved playtime and recent playtime               | `games`                                                         | —                                             |
+| Raw local/API playtime provenance                   | `games`                                                         | —                                             |
+| Last played                                         | raw `manifest_*` and `localconfig_*` columns                    | `MAX(...)` in `v_games`                       |
+| Canonical metadata, raw payloads, per-source status | `game_enrichment`                                               | —                                             |
+| Tag vocabulary and votes                            | `tags`, `game_tags`                                             | Tag `gameCount`                               |
+| Genre, category, developer, and publisher pickers   | `game_enrichment` JSON arrays                                   | Distinct values and `gameCount`               |
+| Steam Collection metadata and static membership     | `steam_collections`, `steam_collection_games`                   | Static `gameCount`                            |
+| Steam Collection dynamic flag                       | `steam_collections.is_dynamic`                                  | — (derived from `filter_spec_json` at import) |
+| Smart Collection names and ordered Rules            | `smart_collections`, `rules`                                    | —                                             |
+| Smart Collection membership                         | —                                                               | Rule evaluation (#4)                          |
+| Rule preview                                        | —                                                               | Rule evaluation (#4)                          |
+| Library/installed/enrichment counts                 | —                                                               | `GET /api/status` aggregates                  |
+| Playtime in hours                                   | —                                                               | UI formatting only                            |
+| Dynamic Steam Collection membership                 | —                                                               | Never computed in v1                          |
 
 `filter_spec_json`, raw SteamSpy/store payloads, `retry_after_at`, and `stats_json` are retained
 for diagnostics and forward compatibility (v3 and future Fields). No v1 read path depends on
@@ -699,9 +699,7 @@ exposes the per-Game source statuses so a client can find Games that need a targ
     { "name": "Puzzle", "votes": 31415 },
     { "name": "Co-op", "votes": 21000 }
   ],
-  "steamCollections": [
-    { "id": "favorite", "name": "Favorites", "kind": "favorite" }
-  ],
+  "steamCollections": [{ "id": "favorite", "name": "Favorites", "kind": "favorite" }],
   "sizeOnDiskBytes": 13200000000,
   "enrichment": {
     "tagsStatus": "ok",
@@ -873,23 +871,23 @@ while a phase is still discovering its size, and `done` is monotonically increas
 
 ### 5.3 Endpoints
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/status` | Application, Steam, ownership, library, enrichment, source, and refresh state |
-| `GET` | `/api/games` | Library listing and name search |
-| `GET` | `/api/games/{appId}` | Game detail |
-| `GET` | `/api/tags` | Tag typeahead |
-| `GET` | `/api/rule-values` | Existing genre, category, developer, and publisher values for Rule pickers |
-| `GET` | `/api/steam-collections` | Read-only Steam Collection list |
-| `POST` | `/api/rules/preview` | Evaluate an unsaved Rules array |
-| `GET` | `/api/smart-collections` | List Smart Collections |
-| `POST` | `/api/smart-collections` | Create a Smart Collection |
-| `GET` | `/api/smart-collections/{id}` | Get a Smart Collection |
-| `PATCH` | `/api/smart-collections/{id}` | Rename and/or replace Rules |
-| `DELETE` | `/api/smart-collections/{id}` | Delete a Smart Collection |
-| `GET` | `/api/smart-collections/{id}/games` | Evaluate a saved Smart Collection |
-| `POST` | `/api/refresh` | Start a refresh run |
-| `GET` | `/api/refresh/{id}` | Poll a refresh run |
+| Method   | Path                                | Purpose                                                                       |
+| -------- | ----------------------------------- | ----------------------------------------------------------------------------- |
+| `GET`    | `/api/status`                       | Application, Steam, ownership, library, enrichment, source, and refresh state |
+| `GET`    | `/api/games`                        | Library listing and name search                                               |
+| `GET`    | `/api/games/{appId}`                | Game detail                                                                   |
+| `GET`    | `/api/tags`                         | Tag typeahead                                                                 |
+| `GET`    | `/api/rule-values`                  | Existing genre, category, developer, and publisher values for Rule pickers    |
+| `GET`    | `/api/steam-collections`            | Read-only Steam Collection list                                               |
+| `POST`   | `/api/rules/preview`                | Evaluate an unsaved Rules array                                               |
+| `GET`    | `/api/smart-collections`            | List Smart Collections                                                        |
+| `POST`   | `/api/smart-collections`            | Create a Smart Collection                                                     |
+| `GET`    | `/api/smart-collections/{id}`       | Get a Smart Collection                                                        |
+| `PATCH`  | `/api/smart-collections/{id}`       | Rename and/or replace Rules                                                   |
+| `DELETE` | `/api/smart-collections/{id}`       | Delete a Smart Collection                                                     |
+| `GET`    | `/api/smart-collections/{id}/games` | Evaluate a saved Smart Collection                                             |
+| `POST`   | `/api/refresh`                      | Start a refresh run                                                           |
+| `GET`    | `/api/refresh/{id}`                 | Poll a refresh run                                                            |
 
 The Tag and Steam Collection lists are inputs to the Rule editor. The saved Smart Collection games
 endpoint is the read side of a Smart Collection; the preview endpoint evaluates an unsaved Rules
@@ -911,16 +909,16 @@ refresh.
 
 Query parameters:
 
-| Name | Type | Default | Rules |
-|---|---|---|---|
-| `search` | string | — | Trimmed and normalized; case-insensitive substring of `games.name_key`; max 200 characters. |
-| `sort` | enum | `name` | `name`, `playtime`, `lastPlayed`, `releaseYear`, `metacritic`, `appId`. |
-| `order` | enum | `asc` | `asc` or `desc`. |
-| `installed` | boolean | — | `true` → installed = 1; `false` → installed = 0; omitted → any, including `null`. |
-| `tagsStatus` | enum | — | `ok`, `missing`, `stale`, or `error`. |
-| `storeStatus` | enum | — | `ok`, `unavailable`, `missing`, `stale`, or `error`. |
-| `page` | integer | `1` | `>= 1`. |
-| `pageSize` | integer | `60` | `1..200`. |
+| Name          | Type    | Default | Rules                                                                                       |
+| ------------- | ------- | ------- | ------------------------------------------------------------------------------------------- |
+| `search`      | string  | —       | Trimmed and normalized; case-insensitive substring of `games.name_key`; max 200 characters. |
+| `sort`        | enum    | `name`  | `name`, `playtime`, `lastPlayed`, `releaseYear`, `metacritic`, `appId`.                     |
+| `order`       | enum    | `asc`   | `asc` or `desc`.                                                                            |
+| `installed`   | boolean | —       | `true` → installed = 1; `false` → installed = 0; omitted → any, including `null`.           |
+| `tagsStatus`  | enum    | —       | `ok`, `missing`, `stale`, or `error`.                                                       |
+| `storeStatus` | enum    | —       | `ok`, `unavailable`, `missing`, `stale`, or `error`.                                        |
+| `page`        | integer | `1`     | `>= 1`.                                                                                     |
+| `pageSize`    | integer | `60`    | `1..200`.                                                                                   |
 
 Response: `{ data: GameSummary[], pagination, meta: { dataAsOf } }`.
 
@@ -965,12 +963,12 @@ library search box remains name-only.
 
 Query parameters:
 
-| Name | Type | Default | Rules |
-|---|---|---|---|
-| `field` | enum | — | Required: `genre`, `category`, `developer`, or `publisher`. |
-| `query` | string | — | Trimmed and normalized; case-insensitive substring; max 80 characters. |
-| `page` | integer | `1` | `>= 1`. |
-| `pageSize` | integer | `20` | `1..100`. |
+| Name       | Type    | Default | Rules                                                                  |
+| ---------- | ------- | ------- | ---------------------------------------------------------------------- |
+| `field`    | enum    | —       | Required: `genre`, `category`, `developer`, or `publisher`.            |
+| `query`    | string  | —       | Trimmed and normalized; case-insensitive substring; max 80 characters. |
+| `page`     | integer | `1`     | `>= 1`.                                                                |
+| `pageSize` | integer | `20`    | `1..100`.                                                              |
 
 Returns the distinct values already present in the matching `game_enrichment` JSON array, with
 `gameCount` as the number of distinct Games:
@@ -1010,9 +1008,7 @@ Body:
 
 ```json
 {
-  "rules": [
-    { "prefix": "AND", "field": "tag", "operator": "has", "value": "Roguelike" }
-  ],
+  "rules": [{ "prefix": "AND", "field": "tag", "operator": "has", "value": "Roguelike" }],
   "page": 1,
   "pageSize": 60,
   "sort": "name",
@@ -1114,37 +1110,37 @@ Returns `{ data: RefreshRun }` or `404 NOT_FOUND`.
 
 ### 5.4 Validation limits
 
-| Field | Limit |
-|---|---|
-| Smart Collection name | 1-80 Unicode code points after trim; no control characters |
-| Rules per Smart Collection | 0-100 |
-| Rule `field` / `operator` | 1-64 characters, non-blank |
-| Serialized Rule `value` | 16 KiB |
-| Request body | 256 KiB |
-| `search` | 200 characters |
-| Tag `query` | 80 characters |
-| Tag `pageSize` | 1-100 |
-| Rule value `query` | 80 characters |
-| Rule value `pageSize` | 1-100 |
-| `pageSize` | 1-200 |
-| Refresh `appIds` | 1-5000 |
+| Field                      | Limit                                                      |
+| -------------------------- | ---------------------------------------------------------- |
+| Smart Collection name      | 1-80 Unicode code points after trim; no control characters |
+| Rules per Smart Collection | 0-100                                                      |
+| Rule `field` / `operator`  | 1-64 characters, non-blank                                 |
+| Serialized Rule `value`    | 16 KiB                                                     |
+| Request body               | 256 KiB                                                    |
+| `search`                   | 200 characters                                             |
+| Tag `query`                | 80 characters                                              |
+| Tag `pageSize`             | 1-100                                                      |
+| Rule value `query`         | 80 characters                                              |
+| Rule value `pageSize`      | 1-100                                                      |
+| `pageSize`                 | 1-200                                                      |
+| Refresh `appIds`           | 1-5000                                                     |
 
 Validation happens at the HTTP boundary. Internal code trusts the parsed values. Third-party
 responses (Steam Web API, SteamSpy, storefront) are untrusted and are validated before storage.
 
 ### 5.5 Error codes
 
-| HTTP | Code | When |
-|---|---|---|
-| `400` | `MALFORMED_JSON` | The body is not valid JSON. |
-| `404` | `NOT_FOUND` | Unknown Game, Smart Collection, or refresh run. |
-| `409` | `NAME_CONFLICT` | A Smart Collection name already exists (case-insensitive). |
-| `409` | `REFRESH_IN_PROGRESS` | A different refresh scope is already running. |
+| HTTP  | Code                       | When                                                       |
+| ----- | -------------------------- | ---------------------------------------------------------- |
+| `400` | `MALFORMED_JSON`           | The body is not valid JSON.                                |
+| `404` | `NOT_FOUND`                | Unknown Game, Smart Collection, or refresh run.            |
+| `409` | `NAME_CONFLICT`            | A Smart Collection name already exists (case-insensitive). |
+| `409` | `REFRESH_IN_PROGRESS`      | A different refresh scope is already running.              |
 | `409` | `OWNERSHIP_NOT_CONFIGURED` | An ownership-only refresh has no Web API key or SteamID64. |
-| `413` | `PAYLOAD_TOO_LARGE` | The request body exceeds 256 KiB. |
-| `415` | `UNSUPPORTED_MEDIA_TYPE` | A POST/PATCH body is not JSON. |
-| `422` | `VALIDATION_ERROR` | Schema or semantic validation failed. |
-| `500` | `INTERNAL_ERROR` | Unexpected server failure. |
+| `413` | `PAYLOAD_TOO_LARGE`        | The request body exceeds 256 KiB.                          |
+| `415` | `UNSUPPORTED_MEDIA_TYPE`   | A POST/PATCH body is not JSON.                             |
+| `422` | `VALIDATION_ERROR`         | Schema or semantic validation failed.                      |
+| `500` | `INTERNAL_ERROR`           | Unexpected server failure.                                 |
 
 `NAME_CONFLICT` details include `{ "conflictingId": "..." }`. `NOT_FOUND` details include the
 looked-up identifier. `OWNERSHIP_NOT_CONFIGURED` details include
@@ -1153,20 +1149,20 @@ keyed by dotted path (for example `rules.0.prefix`).
 
 ### 5.6 Empty and degraded states
 
-| Situation | Response | UI signal |
-|---|---|---|
-| Fresh database, no scan | `200` list with `data: []` | `status.library.lastScanStatus = "never"` |
-| Steam not installed | `200`; Games may still exist from a previous scan or the Web API | `status.steam.state = "not_found"` |
-| No account selected | `200`; local files may still be readable | `status.steam.state = "no_account"` |
-| Web API key missing | `200` with local-only Games | `status.ownership.state = "not_configured"` |
-| Ownership API returns zero Games | `200` with existing rows unchanged | `status.ownership.state = "empty"`; warn about a private profile |
-| Ownership API fails | `200` with cached rows | `status.ownership.state = "error"` |
-| No search/rule matches | `200` with `data: []`, `totalItems: 0` | Empty collection state, not an error |
-| No Smart Collections | `200` with `data: []` | Create CTA |
-| Enrichment missing | Game still returned; `tags: []`, metadata `null` | "no tags yet" / "metadata unavailable" |
-| Refresh running | `200` with cached data | `status.activeRefresh` drives a progress indicator |
-| Unknown id | `404 NOT_FOUND` | Route-level error |
-| Validation failure | `422 VALIDATION_ERROR` | Field-level messages |
+| Situation                        | Response                                                         | UI signal                                                        |
+| -------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Fresh database, no scan          | `200` list with `data: []`                                       | `status.library.lastScanStatus = "never"`                        |
+| Steam not installed              | `200`; Games may still exist from a previous scan or the Web API | `status.steam.state = "not_found"`                               |
+| No account selected              | `200`; local files may still be readable                         | `status.steam.state = "no_account"`                              |
+| Web API key missing              | `200` with local-only Games                                      | `status.ownership.state = "not_configured"`                      |
+| Ownership API returns zero Games | `200` with existing rows unchanged                               | `status.ownership.state = "empty"`; warn about a private profile |
+| Ownership API fails              | `200` with cached rows                                           | `status.ownership.state = "error"`                               |
+| No search/rule matches           | `200` with `data: []`, `totalItems: 0`                           | Empty collection state, not an error                             |
+| No Smart Collections             | `200` with `data: []`                                            | Create CTA                                                       |
+| Enrichment missing               | Game still returned; `tags: []`, metadata `null`                 | "no tags yet" / "metadata unavailable"                           |
+| Refresh running                  | `200` with cached data                                           | `status.activeRefresh` drives a progress indicator               |
+| Unknown id                       | `404 NOT_FOUND`                                                  | Route-level error                                                |
+| Validation failure               | `422 VALIDATION_ERROR`                                           | Field-level messages                                             |
 
 An empty list is not an error. `404` is reserved for a specific resource that does not exist.
 
@@ -1233,14 +1229,14 @@ SQLite, returned by the API, or written to logs. The SteamID64 comes from the se
 
 Response handling:
 
-| Upstream result | Stored effect | `source_state` / `ownership.state` |
-|---|---|---|
-| `200`, `game_count > 0`, `games.length == game_count` | Upsert every returned Game as `owned`; reconcile absent rows (§6.2.1). | `ok` |
-| `200`, `game_count > 0`, shorter `games` array | Upsert returned Games; do **not** delete absent rows. | `partial` |
-| `200`, `game_count == 0` or no `games` | Do not delete anything. Record `empty`. | `empty` |
-| `401` / `403` | Keep cached data. | `invalid_key` |
-| `429` | Keep cached data; honour `Retry-After`. | `rate_limited` |
-| `5xx`, timeout, network error | Keep cached data; retry with backoff. | `error` |
+| Upstream result                                       | Stored effect                                                          | `source_state` / `ownership.state` |
+| ----------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------- |
+| `200`, `game_count > 0`, `games.length == game_count` | Upsert every returned Game as `owned`; reconcile absent rows (§6.2.1). | `ok`                               |
+| `200`, `game_count > 0`, shorter `games` array        | Upsert returned Games; do **not** delete absent rows.                  | `partial`                          |
+| `200`, `game_count == 0` or no `games`                | Do not delete anything. Record `empty`.                                | `empty`                            |
+| `401` / `403`                                         | Keep cached data.                                                      | `invalid_key`                      |
+| `429`                                                 | Keep cached data; honour `Retry-After`.                                | `rate_limited`                     |
+| `5xx`, timeout, network error                         | Keep cached data; retry with backoff.                                  | `error`                            |
 
 A successful upsert sets `ownership_status = 'owned'`, fills `api_playtime_minutes` and
 `api_playtime_2weeks_minutes`, and updates `last_seen_at`. Local playtime wins when present; the
@@ -1337,7 +1333,7 @@ released; a correction is a new numbered migration.
 
 These checks are intended to become part of the v1 acceptance criteria in #8.
 
-**Schema and migrations**
+### Schema and migrations
 
 - [ ] A fresh database applies migration 0001 and `schema_migrations` contains version 1.
 - [ ] All tables, indexes, and `v_games` exist; `PRAGMA foreign_keys` is on.
@@ -1347,7 +1343,7 @@ These checks are intended to become part of the v1 acceptance criteria in #8.
 - [ ] Deleting a Smart Collection deletes its Rules; deleting a Game cascades its tags,
       enrichment, and Steam Collection membership.
 
-**Ownership and library**
+### Ownership and library
 
 - [ ] A database bound to account A refuses to start under account B with `DB_ACCOUNT_MISMATCH`;
       a refresh under account B fails with `ACCOUNT_MISMATCH` and leaves all rows intact.
@@ -1369,7 +1365,7 @@ These checks are intended to become part of the v1 acceptance criteria in #8.
       removed from every Steam Collection no longer carries source bit 8.
 - [ ] A negative local playtime is clamped to 0; the scan still succeeds and records a warning.
 
-**Steam Collections**
+### Steam Collections
 
 - [ ] A static Steam Collection stores its `added` membership; `removed` is ignored.
 - [ ] A dynamic Steam Collection is stored with `isDynamic = true`, `filterSpec` metadata, and no
@@ -1377,7 +1373,7 @@ These checks are intended to become part of the v1 acceptance criteria in #8.
 - [ ] Renaming or deleting a Steam Collection in Steam is reflected by the next successful scan;
       a failed scan leaves the mirror unchanged.
 
-**Smart Collections and rules**
+### Smart Collections and rules
 
 - [ ] Creating a Smart Collection returns a UUID, stores rules in order, and returns 201 with a
       `Location` header.
@@ -1391,7 +1387,7 @@ These checks are intended to become part of the v1 acceptance criteria in #8.
 - [ ] A Smart Collection with no matches returns `200`, `data: []`, and `totalItems: 0`.
 - [ ] No table or column stores Smart Collection membership.
 
-**HTTP contract**
+### HTTP contract
 
 - [ ] Every list response contains `data`, `pagination`, and, where specified, `meta`.
 - [ ] Pagination is stable across pages: Game lists include `appId ASC`; other lists use their
@@ -1406,7 +1402,7 @@ These checks are intended to become part of the v1 acceptance criteria in #8.
 - [ ] `GET /api/status` returns 200 for every combination of missing Steam, missing account, and
       missing ownership key.
 
-**Enrichment**
+### Enrichment
 
 - [ ] Missing enrichment never removes a Game from any list.
 - [ ] A Game with a missing or empty SteamSpy tag payload returns `tags: []` and

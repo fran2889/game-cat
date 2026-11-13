@@ -7,7 +7,7 @@ note that local Steam files are the sole source of library data.
 
 ## Context
 
-#1 originally made local Steam files the source of truth for the Library. Local files only
+Issue #1 originally made local Steam files the source of truth for the Library. Local files only
 reveal installed Games, Games with playtime, and Steam Collection members; they do not enumerate
 every owned Game. The v1 MVP requires the full game list, so local evidence alone cannot supply
 the roster.

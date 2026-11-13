@@ -6,7 +6,7 @@ Steam-only for now. Later phases add How Long To Beat times, writing Smart Colle
 
 ## Status
 
-Pre-implementation. The v1 spec is being charted in the issue tracker: https://github.com/fran2889/game-cat/issues
+Pre-implementation. The v1 spec is being charted in the [issue tracker](https://github.com/fran2889/game-cat/issues).
 
 ## Planning
 
