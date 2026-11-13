@@ -2,7 +2,7 @@
 
 A better way to browse and filter a Steam library: a locally-run web app that reads local Steam data, enriches it with tags, and saves reusable Smart Collections.
 
-Steam-only for now. Later phases add How Long To Beat times, writing Smart Collections back to Steam as Steam Categories, and a desktop wrapper.
+Steam-only for now. Later phases add How Long To Beat times, writing Smart Collections back to Steam as Steam Collections, and a desktop wrapper.
 
 ## Status
 
