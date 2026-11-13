@@ -22,6 +22,19 @@ are also pinned in [#2](https://github.com/fran2889/game-cat/issues/2),
 [#14](https://github.com/fran2889/game-cat/issues/14). If a branch is deleted after the notes are
 folded into the spec, the issue comment remains the stable reference.
 
+## Contents
+
+- [1. Decisions](#1-decisions)
+- [2. Sources of truth](#2-sources-of-truth)
+- [3. Domain model](#3-domain-model)
+- [4. SQLite schema](#4-sqlite-schema)
+- [5. HTTP API](#5-http-api)
+- [6. Refresh flows](#6-refresh-flows)
+- [7. Migrations](#7-migrations)
+- [8. Security and privacy](#8-security-and-privacy)
+- [9. Acceptance checks](#9-acceptance-checks)
+- [10. Dependencies and open questions](#10-dependencies-and-open-questions)
+
 ## 1. Decisions
 
 The decisions below were settled on #3 on 2026-11-13.
