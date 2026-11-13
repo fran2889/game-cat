@@ -7,9 +7,12 @@ this file covers the judgements a linter cannot make.
 
 - `GLOSSARY.md` is canonical. Read it before naming anything.
 - Add a glossary entry before a new domain term appears in a spec.
-- Use the preferred terms: Refresh (not sync), Account (not user or login), Genre and Storefront
-  Category (not bare category), Steam Collection (not Steam category).
+- Use the preferred terms: Metadata (not enrichment), Refresh (not sync), Account (not user or
+  login), Genre and Storefront Category (not bare category), Steam Collection (not Steam
+  category).
 - A term's definition, its storage column, and its API field describe the same concept.
+- Name a metadata table after its source: `steamspy_appdetails`, `storefront_appdetails`, or
+  `steam_review_summaries`. Do not add a catch-all `game_enrichment` or `game_metadata` table.
 
 ## Specs
 

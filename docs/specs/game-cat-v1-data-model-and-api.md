@@ -3,6 +3,12 @@
 Status: draft for [#3](https://github.com/fran2889/game-cat/issues/3), ready to fold into the
 v1 spec ([#8](https://github.com/fran2889/game-cat/issues/8)).
 
+> **Pending #4 deltas.** [#4](https://github.com/fran2889/game-cat/issues/4) replaces
+> Enrichment with **Metadata**, splits `game_enrichment` into `steamspy_appdetails`,
+> `storefront_appdetails`, and `steam_review_summaries`, removes metadata TTLs, and adds Steam
+> reviews as a third metadata source. The decisions and deltas are in
+> [the rule grammar section](game-cat-v1-rule-grammar.md); #8 folds them in.
+
 This section defines the persistent model and the HTTP contract for game-cat v1. It does **not**
 define the rule grammar, the rule evaluator, the run contract, or the UI. Those belong to
 [#4](https://github.com/fran2889/game-cat/issues/4), [#6](https://github.com/fran2889/game-cat/issues/6),
@@ -12,7 +18,7 @@ here, but their `field`, `operator`, and `value` semantics are owned by #4.
 Related contracts:
 
 - [Steam local library: file formats and discovery](https://github.com/fran2889/game-cat/blob/research/steam-local-library/docs/research/steam-local-library.md)
-- [Steam metadata sources: the v1 enrichment contract](https://github.com/fran2889/game-cat/blob/research/metadata-sources/docs/research/metadata-sources.md)
+- [Steam metadata sources: the v1 metadata contract](https://github.com/fran2889/game-cat/blob/research/metadata-sources/docs/research/metadata-sources.md)
 - [Steam dynamic collections: `filterSpec`](https://github.com/fran2889/game-cat/blob/research/steam-filterspec/docs/research/steam-filterspec.md)
 - [Architecture decision: Steam Web API for the full library roster](../adr/0001-steam-web-api-for-library-ownership.md)
 

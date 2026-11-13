@@ -48,6 +48,10 @@ _Avoid_: column, property
 The comparison a Rule applies between a Field and a Value.
 _Avoid_: predicate
 
+**Value**:
+The literal a Rule compares a Field against. Its type is defined by the Field's operator set.
+_Avoid_: operand
+
 **Tag**:
 A community-assigned descriptor for a Game, with a vote count. Sourced from SteamSpy in v1.
 _Avoid_: label, genre
@@ -60,17 +64,29 @@ _Avoid_: tag, category
 A Steam storefront feature label for a Game, such as Single-player or Steam Achievements, stored in `categories_json`. Storefront metadata, not a Steam Collection.
 _Avoid_: category, Steam category, collection
 
-**Enrichment**:
-Metadata about Games that comes from outside the local Steam installation and is cached by game-cat.
-_Avoid_: sync, scrape
+**Metadata**:
+Game attributes fetched from external sources and cached by game-cat, such as Tags, Genres, storefront details, and review summaries. Missing Metadata never hides a Game.
+_Avoid_: enrichment, sync, scrape
 
 **Refresh**:
-A run that reads Steam or enrichment sources and updates game-cat's stored data. Scopes are `library`, `ownership`, `enrichment`, and `all`.
+A run that reads Steam or external Metadata sources and updates game-cat's stored data. Scopes are `library`, `ownership`, `metadata`, and `all`.
 _Avoid_: sync, sync job
 
 **Playtime**:
 Total time a Game has been played, as recorded by Steam.
 _Avoid_: hours
+
+**Last Played**:
+The most recent time a Game was played, as recorded by Steam. A v1 Field; null means never played or not yet known.
+_Avoid_: recent playtime
+
+**Review Score**:
+The percentage of positive user reviews in Steam's review summary, 0-100. A v1 Field; null when the Game has no usable review summary.
+_Avoid_: rating, userscore
+
+**Review Tier**:
+Steam's official user-review label, such as Very Positive or Mixed. A v1 Field.
+_Avoid_: review rating, review label
 
 **Installed**:
 Whether a Game's content is present on the local disk, derived from Steam's app manifest.
