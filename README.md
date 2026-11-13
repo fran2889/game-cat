@@ -11,4 +11,6 @@ Pre-implementation. The v1 spec is being charted in the issue tracker: https://g
 ## Planning
 
 - [GLOSSARY.md](GLOSSARY.md) - the project's vocabulary.
+- [docs/specs/](docs/specs/) - draft spec sections.
+- [docs/adr/](docs/adr/) - architecture decisions.
 - [docs/research/](docs/research/) - research notes, one file per question, each on its own `research/<slug>` branch.
