@@ -22,6 +22,7 @@ The decisions below were settled on #4 on 2026-11-13.
 
 - [1. Decisions](#1-decisions)
 - [2. Rule object](#2-rule-object)
+- [2.1 Grammar](#21-grammar)
 - [3. Field registry](#3-field-registry)
 - [4. Field semantics](#4-field-semantics)
 - [5. Evaluation](#5-evaluation)
@@ -47,11 +48,11 @@ The decisions below were settled on #4 on 2026-11-13.
 | Steam Collection Field    | The value is a Steam Collection ID. Only static membership matches; dynamic and unknown IDs never match.                                                                                                |
 | Game Field                | Field `game`, operator `in`, a list of 1-1000 unique positive App IDs. Unknown App IDs are allowed and never match.                                                                                     |
 | Validation                | Field and Operator IDs are strict. Vocabulary values (Tag, Genre, Developer, and so on) are free text and may match nothing. Unknown `type` and `reviewTier` labels are accepted.                       |
-| Metadata terminology      | Replace "Enrichment" with **Metadata** in the v1 specification, API, glossary, and refresh scope.                                                                                                       |
+| Metadata terminology      | Replace "Enrichment" with **Metadata** in the final v1 specification (#8), the API, glossary, and refresh scope. This draft records the delta; #3's sections remain until #8 applies it.                |
 | Metadata storage          | Replace the catch-all `game_enrichment` table with source-named tables: `steamspy_appdetails`, `storefront_appdetails`, and `steam_review_summaries`.                                                   |
 | Metadata refresh          | No TTL for any external metadata source. Every explicit `metadata` refresh fetches SteamSpy, the storefront, and Steam reviews for the selected Games.                                                  |
 | Review fields             | `reviewScore` (0-100 percent positive), `reviewTier` (Steam's `review_score_desc`), and `reviewCount` (`total_reviews`) are v1 Fields.                                                                  |
-| Review source             | Official Steam reviews from `store.steampowered.com/appreviews/<appid>`. It is a third metadata source and shares the storefront host budget.                                                           |
+| Review source             | Steam user reviews from `store.steampowered.com/appreviews/<appid>`. It is a third metadata source and shares the storefront host budget.                                                               |
 | Evaluation implementation | A pure, deterministic evaluator over the current Library. It may run in memory or compile to SQL, but the semantics below are the contract.                                                             |
 
 ## 2. Rule object
@@ -77,6 +78,29 @@ The decisions below were settled on #4 on 2026-11-13.
   `value` is at most 16 KiB and the request body is at most 256 KiB.
 - There is no `isNot`, `notHas`, or `notIn` operator. Negation is the `NOT` Prefix.
 - A Rule has no ID in the API; array position is the client-side identity while editing.
+
+### 2.1 Grammar
+
+The JSON object in [§2](#2-rule-object) encodes this abstract grammar:
+
+```ebnf
+rules       ::= "[" [ rule { "," rule } ] "]"
+rule        ::= prefix field operator value
+prefix      ::= "AND" | "OR" | "NOT"
+field       ::= "name" | "playtime" | "installed" | "ownershipStatus" | "lastPlayed"
+              | "releaseYear" | "metacriticScore" | "reviewScore" | "reviewTier"
+              | "reviewCount" | "type" | "platform" | "genre" | "category"
+              | "developer" | "publisher" | "tag" | "steamCollection" | "game"
+operator    ::= "is" | "contains" | "has" | "in" | "lt" | "lte" | "gt" | "gte"
+value       ::= string | integer | boolean | app-id-list
+app-id-list ::= "[" app-id { "," app-id } "]"
+app-id      ::= positive-integer
+```
+
+The grammar fixes the vocabulary, not the pairing: [§3](#3-field-registry) constrains which
+Operators each Field accepts, and [§7](#7-validation) rejects a disallowed pair. `value` is typed
+by its Field; validation rejects a string for a numeric Field, an array outside `game`, and a
+boolean outside `installed`.
 
 ## 3. Field registry
 
@@ -179,6 +203,10 @@ former. A `NULL` timestamp never matches.
 membership tests. The value is a single string; multiple values require multiple Rules with
 `AND` or `OR` as appropriate. This is deliberate: the only list-valued Field in v1 is `game`.
 
+- `platform` is stored as a JSON object of boolean flags
+  (`{"windows": true, "mac": false, "linux": true}`). Its set is the keys whose value is `true`.
+  A missing row, `NULL`, or `{}` yields the empty set. The API's `platforms` object may be `null`
+  for unknown Metadata, and the evaluator treats that as the empty set.
 - A Game with no storefront metadata has an empty set for `platform`, `genre`, `category`,
   `developer`, and `publisher`. A positive `has` fails; `NOT` can match.
 - A Game with no usable Tag payload has an empty set for `tag`.
@@ -496,23 +524,25 @@ different contract.
 
 ### 9.2 Response handling
 
-| Upstream result                                           | Stored effect                                                                  | `review_status` | Source state         |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------- | -------------------- |
-| `200`, `success = 1`, `total_reviews > 0`, non-empty tier | Store counts and tier; compute score; set `review_fetched_at`                  | `ok`            | `ok`                 |
-| `200`, `success = 1`, `total_reviews = 0`                 | Store `review_total = 0`; clear score and tier                                 | `unavailable`   | `ok` or `partial`    |
-| `200`, `success = 0` or missing `query_summary`           | Keep last-known-good values if any; otherwise clear them; record the response  | `unavailable`   | `ok` or `partial`    |
-| `200`, malformed JSON or inconsistent counts              | Keep last-known-good values if any; record a short error                       | `error`         | `error` or `partial` |
-| `3xx`, HTML instead of JSON, or `403`                     | Treat as blocked; do not parse; keep cached values; stop the source for 15 min | `stale`/`error` | `blocked`            |
-| `429`                                                     | Honour `Retry-After`; keep cached values                                       | `stale`/`error` | `rate_limited`       |
-| `5xx`, timeout, or network error                          | Retry with backoff; keep cached values                                         | `stale`/`error` | `error` or `offline` |
+| Upstream result                                           | Stored effect                                                                  | `review_status`       | Source state         |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------- | -------------------- |
+| `200`, `success = 1`, `total_reviews > 0`, non-empty tier | Store counts and tier; compute score; set `review_fetched_at`                  | `ok`                  | `ok`                 |
+| `200`, `success = 1`, `total_reviews = 0`                 | Store `review_total = 0`; clear score and tier                                 | `unavailable`         | `ok` or `partial`    |
+| `200`, `success = 0` or missing `query_summary`           | Keep last-known-good values if any; otherwise clear them; record the response  | `stale`/`unavailable` | `ok` or `partial`    |
+| `200`, malformed JSON or inconsistent counts              | Keep last-known-good values if any; record a short error                       | `stale`/`error`       | `error` or `partial` |
+| `3xx`, HTML instead of JSON, or `403`                     | Treat as blocked; do not parse; keep cached values; stop the source for 15 min | `stale`/`error`       | `blocked`            |
+| `429`                                                     | Honour `Retry-After`; keep cached values                                       | `stale`/`error`       | `rate_limited`       |
+| `5xx`, timeout, or network error                          | Retry with backoff; keep cached values                                         | `stale`/`error`       | `error` or `offline` |
 
 Rules:
 
 - `success` must be the integer `1`, and `query_summary` must be an object.
 - Counts must be non-negative integers. `total_positive + total_negative` must equal
   `total_reviews`; a mismatch is a malformed response, not a silent correction.
-- `stale` is used when last-known-good review values exist; use `error` when there is no cache.
-  The source state still records `blocked`, `rate_limited`, or `error` independently.
+- `stale` is used when last-known-good review values exist and the last attempt failed. With no
+  cache, a transport or parse failure is `error`, while a successful response with no usable
+  summary is `unavailable`. The source state still records `blocked`, `rate_limited`, or `error`
+  independently.
 - `reviewScore` is computed from `total_positive / total_reviews`; `reviewCount` is
   `total_reviews`; `reviewTier` is the exact `review_score_desc`.
 - A known zero is stored as `review_total = 0`, with `reviewScore` and `reviewTier` null.
@@ -524,7 +554,8 @@ Rules:
 
 - There is **no TTL** for any external metadata source. Every explicit `metadata` refresh fetches
   SteamSpy, the storefront, and Steam reviews for the selected Games. `appIds` narrows the
-  selection; an omitted `appIds` means all Games.
+  selection; an omitted `appIds` means all Games. This supersedes #5's 7-day metadata TTL and its
+  no-third-source decision.
 - There is no scheduler in v1. "On demand" means the user's explicit `metadata` or `all` refresh.
   Ownership (Steam Web API) and the local Steam scan remain their own `ownership` and `library`
   scopes; neither has a TTL, and both are already fetched only on explicit refresh.
@@ -538,8 +569,7 @@ Rules:
 - `tags_fetched_at`, `store_fetched_at`, and `review_fetched_at` remain diagnostic and API
   timestamps. They no longer drive a TTL or an automatic skip.
 - `stale` is now a failure state, not an age state: the last attempt failed and cached values are
-  being served. `error` means the last attempt failed with no usable cached values, or the
-  response was malformed.
+  being served. `error` means the last attempt failed with no usable cached values.
 - `metadata` and `all` are the only scopes that fetch metadata. `all` runs `library`, then
   `ownership`, then `metadata`. `appIds` is valid only with `metadata`.
 
@@ -550,9 +580,10 @@ v1 specification; the existing draft sections remain readable until then.
 
 ### 10.1 Metadata instead of Enrichment
 
-Replace "Enrichment" with **Metadata** throughout the v1 specification, glossary, API, and
-refresh contract. The domain term is defined in [GLOSSARY.md](../../GLOSSARY.md). The source-named
-tables below replace the catch-all `game_enrichment` table.
+Replace "Enrichment" with **Metadata** in the final v1 specification (#8), the API, the glossary,
+and the refresh contract. This draft records the delta; the #3 draft sections remain readable and
+are superseded where they conflict. The domain term is defined in [GLOSSARY.md](../../GLOSSARY.md).
+The source-named tables below replace the catch-all `game_enrichment` table.
 
 Specific API changes:
 
@@ -564,7 +595,7 @@ Specific API changes:
   `GameDetail.metadata` also contains `tagsFetchedAt`, `storeFetchedAt`, and `reviewFetchedAt`.
 - `Status.metadata` contains `tags`, `store`, and `reviews` count objects plus `lastSuccessAt`.
 - `GET /api/games` keeps the flat `tagsStatus` and `storeStatus` filters and adds
-  `reviewStatus`.
+  `reviewStatus` with values `ok`, `unavailable`, `missing`, `stale`, and `error`.
 - `Status.sources` contains five entries, ordered `steam_local`, `steam_web_api`, `steamspy`,
   `storefront`, and `steam_reviews`.
 - The response's top-level `meta` object is unrelated to the per-Game `metadata` object.
@@ -574,23 +605,67 @@ The `Refresh` glossary entry's scopes become `library`, `ownership`, `metadata`,
 ### 10.2 Source-named metadata tables
 
 `game_enrichment` is replaced by three tables, each keyed by `app_id` with
-`ON DELETE CASCADE`:
+`ON DELETE CASCADE`. The DDL below is normative for #8.
 
-`steamspy_appdetails`:
+#### `steamspy_appdetails`
 
-- `app_id`, `steamspy_name`
-- `tags_status`, `tags_fetched_at`, `tags_error`
-- `raw_steamspy_json`, `updated_at`
+Holds the SteamSpy name and the normalized Tag fetch state for each Game. A missing row means
+SteamSpy has not been fetched; readers treat it as `tags_status = 'missing'`.
 
-`storefront_appdetails`:
+```sql
+CREATE TABLE steamspy_appdetails (
+    app_id            INTEGER PRIMARY KEY REFERENCES games(app_id) ON DELETE CASCADE,
+    steamspy_name     TEXT,
+    tags_status       TEXT NOT NULL DEFAULT 'missing'
+                      CHECK (tags_status IN ('ok', 'missing', 'stale', 'error')),
+    tags_fetched_at   INTEGER,
+    tags_error        TEXT,
+    raw_steamspy_json TEXT,
+    updated_at        INTEGER NOT NULL
+);
+```
 
-- `app_id`, `type`
-- `developers_json`, `publishers_json`, `genres_json`, `categories_json`, `platforms_json`
-- `release_date_raw`, `release_year`, `metacritic_score`
-- `store_status`, `store_fetched_at`, `store_error`
-- `raw_store_json`, `updated_at`
+#### `storefront_appdetails`
 
-`steam_review_summaries`:
+Holds storefront details and the storefront fetch state for each Game. A missing row means the
+storefront has not been fetched; readers treat it as `store_status = 'missing'` and unknown
+metadata.
+
+```sql
+CREATE TABLE storefront_appdetails (
+    app_id           INTEGER PRIMARY KEY REFERENCES games(app_id) ON DELETE CASCADE,
+    type             TEXT,
+    developers_json  TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(developers_json)),
+    publishers_json  TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(publishers_json)),
+    genres_json      TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(genres_json)),
+    categories_json  TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(categories_json)),
+    platforms_json   TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(platforms_json)),
+    release_date_raw TEXT,
+    release_year     INTEGER,
+    metacritic_score INTEGER,
+    store_status     TEXT NOT NULL DEFAULT 'missing'
+                     CHECK (store_status IN ('ok', 'unavailable', 'missing', 'stale', 'error')),
+    store_fetched_at INTEGER,
+    store_error      TEXT,
+    raw_store_json   TEXT,
+    updated_at       INTEGER NOT NULL
+);
+```
+
+#### `steam_review_summaries`
+
+Holds the latest review summary and its fetch state for each Game. A missing row means reviews
+have not been fetched; readers treat it as `review_status = 'missing'` and a null score, tier, and
+count.
+
+`review_status` is one of:
+
+- `ok`: a usable summary was stored; counts and tier are present.
+- `unavailable`: the source returned a successful response with no usable summary, including zero
+  reviews or `success = 0` when no cached values existed.
+- `missing`: no review summary has been fetched yet.
+- `stale`: a later attempt failed and the last-known-good values are being served.
+- `error`: the last attempt failed and no usable cached values existed.
 
 ```sql
 CREATE TABLE steam_review_summaries (
@@ -609,8 +684,10 @@ CREATE TABLE steam_review_summaries (
 ```
 
 `tags` and `game_tags` stay as the normalized Tag vocabulary. `source_state` stays and gains
-`steam_reviews` as a fifth name. `source_state`'s `steam_reviews` status vocabulary is `unknown`,
-`ok`, `partial`, `stale`, `rate_limited`, `blocked`, `offline`, and `error`.
+`steam_reviews` as a fifth name; its `name` check becomes
+`CHECK (name IN ('steam_local', 'steam_web_api', 'steamspy', 'storefront', 'steam_reviews'))`.
+`source_state`'s `steam_reviews` status vocabulary is `unknown`, `ok`, `partial`, `stale`,
+`rate_limited`, `blocked`, `offline`, and `error`.
 
 ### 10.3 View and indexes
 
@@ -659,8 +736,10 @@ in the detail payload.
 ### 10.5 Refresh delta
 
 - The `metadata` scope replaces `enrichment` in `POST /api/refresh`, `refresh_runs.scope`, the
-  deduplication rule, and the `appIds` restriction. `refresh_runs.app_ids_json` has the same
-  meaning: the normalized selection, or `NULL` for all Games.
+  deduplication rule, and the `appIds` restriction. The `refresh_runs.scope` check becomes
+  `CHECK (scope IN ('library', 'ownership', 'metadata', 'all'))`.
+  `refresh_runs.app_ids_json` has the same meaning: the normalized selection, or `NULL` for all
+  Games.
 - A `metadata` run on an unbound database stores `steam_id64 = NULL`; it does not bind an Account.
 - No TTL: every explicit refresh fetches every selected Game from every metadata source.
 - The storefront and review passes share the store-host budget. They are serialized; SteamSpy is
@@ -693,8 +772,13 @@ in the detail payload.
 
 ### Metadata and review source
 
-- [ ] `game_enrichment` no longer exists; the three source-named tables do, and `v_games` joins
-      them.
+- [ ] `game_enrichment` no longer exists; `v_games` joins the three source-named tables.
+- [ ] `steamspy_appdetails` stores one row per Game with SteamSpy data and defaults
+      `tags_status` to `missing` when absent.
+- [ ] `storefront_appdetails` stores one row per Game with storefront data and defaults
+      `store_status` to `missing` when absent.
+- [ ] `steam_review_summaries` stores one row per Game with a review fetch and defines all five
+      `review_status` values.
 - [ ] `source_state` contains `steam_reviews`; `Status.sources` contains five entries in the
       documented order.
 - [ ] `POST /api/refresh` accepts `metadata`; `refresh_runs.scope` uses `metadata`; `appIds` is
@@ -711,7 +795,8 @@ in the detail payload.
       `reviewCount = null`, and `reviewStatus = "missing"`.
 - [ ] A Game with a successful zero-review summary returns `reviewScore = null`,
       `reviewTier = null`, `reviewCount = 0`, and `reviewStatus = "unavailable"`.
-- [ ] `GET /api/games?reviewStatus=missing` returns only Games with that status.
+- [ ] `GET /api/games?reviewStatus=` accepts exactly `ok`, `unavailable`, `missing`, `stale`, and
+      `error`, and returns only Games with that status.
 - [ ] `Status.metadata.reviews` classifies every Game exactly once, including missing rows.
 
 ### Terminology

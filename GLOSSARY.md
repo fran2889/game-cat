@@ -88,6 +88,16 @@ _Avoid_: rating, userscore
 Steam's official user-review label, such as Very Positive or Mixed. A v1 Field.
 _Avoid_: review rating, review label
 
+**Review Count**:
+The total number of user reviews in Steam's review summary. A v1 Field; `0` is a known no-review
+Game and null is unknown.
+_Avoid_: total reviews, review total
+
+**Review Status**:
+The last review-summary fetch state for a Game: `ok`, `unavailable`, `missing`, `stale`, or
+`error`.
+_Avoid_: review state
+
 **Installed**:
 Whether a Game's content is present on the local disk, derived from Steam's app manifest.
 
