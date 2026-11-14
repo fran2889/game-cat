@@ -888,6 +888,10 @@ the database is unbound and the first account-scoped Refresh claims it. `bound_a
 - `scope` is `library`, `ownership`, `metadata`, or `all`.
 - `mode` is `null` for `library` and `ownership`, `fetch` or `full` for `metadata`, and `fetch` for
   `all`.
+- `status` is `queued` (accepted but not started), `running`, `succeeded` (all selected work was
+  attempted with no failure or skip), `partial` (finished with failed or skipped work, missing Games,
+  or unconfigured ownership), or `failed` (could not complete). A source failure is `partial`, not
+  `failed`.
 - `app_ids_json` is the explicit, normalized Full Refresh selection, or `null` for every other
   combination. Fetch does not store the computed pending set; the next Fetch recomputes it from the
   source tables.
@@ -901,12 +905,18 @@ the database is unbound and the first account-scoped Refresh claims it. `bound_a
   `warnings.negativePlaytime`; warnings are internal diagnostics and are not exposed by the API.
 - `source_state` is one row per source and is never deleted. `last_error` is a short, user-safe
   message; never a raw response body or an API key.
-- `source_state.status` uses the shared 11-value CHECK. Per-source subsets are:
+- `source_state.status` uses the shared 11-value CHECK: `unknown` (never attempted), `ok` (the last
+  attempt succeeded), `partial` (the last attempt read some but not all data), `empty` (a successful
+  ownership response with zero Games), `stale` (reserved; v1 records per-Game staleness on the
+  Metadata row and does not emit it here), `not_configured` (no Web API key or SteamID64),
+  `invalid_key` (the key was rejected), `rate_limited` (backing off after `429`), `blocked` (the
+  source was stopped after a block challenge), `offline` (the network is unavailable), or `error`
+  (the attempt failed with no usable fallback). Per-source subsets are:
   - `steam_local`: `unknown`, `ok`, `partial`, `error`.
   - `steam_web_api`: `unknown`, `not_configured`, `ok`, `partial`, `empty`, `invalid_key`,
     `rate_limited`, `error`.
-  - `steamspy`, `storefront`, `steam_reviews`: `unknown`, `ok`, `partial`, `stale`, `rate_limited`,
-    `blocked`, `offline`, `error`.
+  - `steamspy`, `storefront`, `steam_reviews`: `unknown`, `ok`, `partial`, `rate_limited`, `blocked`,
+    `offline`, `error`.
 - The five rows are created on first start with `status = 'unknown'`; `steam_web_api` becomes
   `not_configured` when no key or SteamID64 is configured.
 - `source_state` is source-level. A per-Game `stale` or `error` does not by itself change the source
