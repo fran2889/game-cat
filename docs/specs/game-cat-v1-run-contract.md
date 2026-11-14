@@ -575,7 +575,7 @@ A source is **pending** for a Game when:
 
 ### 7.5 Run record and progress
 
-`refresh_runs` keeps its existing shape and adds one column:
+`refresh_runs` keeps its existing columns and adds one:
 
 ```sql
 mode TEXT CHECK (mode IN ('fetch', 'full') OR mode IS NULL)
