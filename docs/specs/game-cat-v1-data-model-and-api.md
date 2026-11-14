@@ -1314,7 +1314,6 @@ genuinely empty library look identical. Never treat it as permission to delete.
 - `all` runs `library`, then `ownership`, then `enrichment`.
 - An `enrichment` run stores its normalized, ascending `appIds` selection in
   `refresh_runs.app_ids_json`; `NULL` means all Games.
-- Progress is persisted in `refresh_runs` at most every 25 items to avoid write amplification.
 - `partial` means the run completed with some per-Game or per-source failures; it is not a fatal
   error.
 - On process start, stale `queued`/`running` rows become `failed` with `INTERRUPTED`. Recovery
