@@ -529,8 +529,11 @@ A source is **pending** for a Game when:
 | `error`                                                                       | yes      |
 | `stale` (the last attempt failed and last-known-good data is served)          | yes      |
 | `ok`                                                                          | no       |
-| `unavailable` (storefront's settled delisted/region-blocked answer)           | no       |
+| `unavailable` (a successful answer with no usable summary)                    | no       |
 
+- `unavailable` is settled because the source answered: the storefront reported the Game as
+  delisted or region-blocked, or reviews returned zero or an empty summary. Fetch does not
+  re-request it; Full Refresh does, because availability can change.
 - Fetch skips a source whose `source_state.retry_after_at` is in the future. The skipped work stays
   pending; the run records it and finishes `partial`.
 - Fetch runs across the whole Library. It does not take `appIds`; a narrowed retry is a Full
