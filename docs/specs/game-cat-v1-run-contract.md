@@ -292,9 +292,11 @@ loopback-only and require the request-trust checks in [§4.3](#43-request-trust)
 - Changing `steamId64` when the database is bound to a different account returns
   `409 ACCOUNT_BOUND` with `details.boundSteamId64`. The write is rejected; the UI explains that
   switching accounts requires a new data directory.
-- `GET /api/steam/accounts` returns `{ data: [{ steamId64, accountId, personaName }] }` from
-  `loginusers.vdf`. It never returns `AccountName`. An empty array is a normal `no_account` state,
-  not an error. A missing Steam root returns an empty array and the status endpoint reports
+- `GET /api/steam/accounts` returns
+  `{ data: [{ steamId64, accountId, personaName }], pagination }` from `loginusers.vdf`. The list is
+  always a single page: `page` is `1`, `pageSize` equals `totalItems`, and `totalPages` is `1`, or
+  `0` for an empty list. It never returns `AccountName`. An empty array is a normal `no_account`
+  state, not an error. A missing Steam root returns an empty array and the status endpoint reports
   `steam.state`.
 
 The onboarding flow is: read `GET /api/status` and `GET /api/config`, choose or confirm the Steam
@@ -851,6 +853,8 @@ selection. #8 must state that distinction next to the #4 acceptance check.
 - [ ] An invalid key produces `ownership.state = "invalid_key"`, keeps cached data, and the UI can
       replace the key.
 - [ ] The account list never contains `AccountName`.
+- [ ] `GET /api/steam/accounts` returns `data` and `pagination`; an empty list reports
+      `totalItems: 0` and `totalPages: 0`.
 
 ### Run model
 
