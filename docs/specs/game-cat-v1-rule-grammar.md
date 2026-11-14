@@ -563,10 +563,11 @@ Rules:
 
 - There is **no TTL** for any external metadata source. Every explicit `metadata` refresh fetches
   SteamSpy, the storefront, and Steam reviews for the selected Games. `appIds` narrows the
-  selection; an omitted `appIds` means all Games. This supersedes #5's 7-day metadata TTL and its
-  no-third-source decision. This rule describes **Full Refresh**. **Pending #7 delta:** Full
-  Refresh requires an explicit `appIds` selection and there is no global all-Games Full Refresh;
-  **Fetch** is the all-Games gap fill defined in [the run contract](game-cat-v1-run-contract.md).
+  selection; under the pre-#7 rule, an omitted `appIds` means all Games. This supersedes #5's
+  7-day metadata TTL and its no-third-source decision. This rule describes **Full Refresh**.
+  **Pending #7 delta:** Full Refresh requires an explicit `appIds` selection and there is no global
+  all-Games Full Refresh; **Fetch** is the all-Games gap fill defined in
+  [the run contract](game-cat-v1-run-contract.md).
   Fetch selects only `(Game, source)` pairs with no usable current data and does not skip work
   inside a Full Refresh selection.
 - There is no scheduler in v1. "On demand" means the user's explicit `metadata` or `all` refresh.
