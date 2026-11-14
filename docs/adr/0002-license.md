@@ -30,20 +30,16 @@ grant specifies version 3 only: the stock GPLv3 text retained in [LICENSE](../..
 contains the appendix's "or any later version" sample notice, but that sample is not this project's
 grant. The clean-slate destination forbids copying `steam-cat` code until a deliberate decision
 says otherwise; if such reuse were ever approved, the existing GPLv3 license would need no
-relicensing. The license covers only original project material: Steam metadata, SteamSpy data, and
-Cover Art are fetched at runtime and never redistributed with the project, so they remain subject
-to SteamSpy's and Valve's unresolved terms and are outside the scope of this license.
+relicensing. The license covers only original project material; SteamSpy data, store metadata, and
+Cover Art are excluded from it and handled under the runtime-only policy in the [README's license
+section](../../README.md#license).
 
 ## Consequences
 
 - Distributing source or binaries, including a packaged desktop build, must comply with GPLv3:
   complete corresponding source, the license text, and no additional restrictions.
-- No contribution process exists yet. Contributions, when accepted, will be inbound under GPLv3
-  with no contributor license agreement planned, so relicensing to a later GPL version would
-  require the consent of every contributor.
 - The GPLv3-only choice keeps the option of reusing `steam-cat` code without relicensing, but any
   such reuse must still be a separate, explicit decision.
 - Third-party dependency licenses and notices are preserved; all current dependencies are
   permissive and compatible with GPLv3.
-- No SteamSpy data, store metadata, or Cover Art is committed or bundled. Test fixtures should use
-  synthetic data, and any cache stays in the Account's data directory outside the repository.
+- No SteamSpy data, store metadata, or Cover Art is committed or bundled.

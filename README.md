@@ -23,6 +23,6 @@ game-cat is licensed under the [GNU General Public License, version 3 only](LICE
 `GPL-3.0-only`. The license covers the application code, tooling, and documentation in this
 repository. See [ADR 0002](docs/adr/0002-license.md) for the rationale.
 
-SteamSpy data, store metadata, and Cover Art are fetched at runtime and are not redistributed with
-this project. They remain subject to SteamSpy's and Valve's unresolved terms, and this project's
-license grants no rights to them.
+SteamSpy data, store metadata, and Cover Art are fetched at runtime and never redistributed (see
+[Metadata and Cover Art](GLOSSARY.md)); they remain subject to SteamSpy's and Valve's unresolved
+terms, and this project's license grants no rights to them.
