@@ -50,7 +50,7 @@ The decisions below were settled on #7 on 2026-11-14.
 | Topic             | Decision                                                                                                                                                                                                                                                                                                            |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Install           | `npm install -g github:fran2889/game-cat#<tag-or-commit>`, then `game-cat`. A source checkout is the contributor path. No npm registry publish, installers, or Docker in v1.                                                                                                                                        |
-| Runtime           | Node `>=24` and npm with the committed lockfile. `.nvmrc` is 24; app CI tests 24 and 26. The CLI refuses to start on an older Node.                                                                                                                                                                                 |
+| Runtime           | Node `>=24` and npm with the committed lockfile. v1 declares `.nvmrc` 24; app CI tests 24 and 26. The CLI refuses to start on an older Node.                                                                                                                                                                        |
 | Data directory    | OS-standard per-user directory, overridable with `--data-dir` or `GAME_CAT_DATA_DIR`. The database is fixed at `<data-dir>/game-cat.sqlite`; there is no separate `--db` path.                                                                                                                                      |
 | Configuration     | `<data-dir>/config.json`, JSON, mode 0600 on POSIX, validated at startup. Precedence is CLI, then environment, then config file, then defaults.                                                                                                                                                                     |
 | Steam Web API key | Stored in `config.json` or supplied by `GAME_CAT_STEAM_API_KEY`. It never enters SQLite, API responses, or logs. The browser onboarding writes it.                                                                                                                                                                  |
@@ -81,7 +81,7 @@ game-cat
   browser, and shows onboarding or starts the automatic Fetch.
 - `game-cat --help` lists the flags; `game-cat --version` prints the app version and bundled
   database schema version.
-- The package is publish-ready (a `bin` entry, a `files` whitelist, and a `prepare` build), but
+- v1 ships a publish-ready package (a `bin` entry, a `files` whitelist, and a `prepare` build), but
   publishing to the npm registry is not part of v1. A future publish changes only the install
   command.
 - The GPL-3.0-only license applies. The GitHub repository is the corresponding source.
@@ -106,7 +106,7 @@ npm run dev
 
 | Requirement   | Value                                                                                                                               |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Node          | 24 or newer (`engines.node: ">=24"`). The CLI checks `process.versions.node` and exits `NODE_VERSION` if older.                     |
+| Node          | 24 or newer (v1 declares `engines.node: ">=24"`). The CLI checks `process.versions.node` and exits `NODE_VERSION` if older.         |
 | npm           | The npm shipped with Node 24, using the committed `package-lock.json`. No pnpm or yarn.                                             |
 | Git           | Required for the supported GitHub install. Not required after installation.                                                         |
 | Steam API key | A Steam Web API key, required before the first Fetch. Stored in `config.json` or `GAME_CAT_STEAM_API_KEY`; never in SQLite or logs. |
