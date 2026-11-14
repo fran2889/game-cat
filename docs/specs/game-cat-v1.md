@@ -1208,7 +1208,7 @@ For a dynamic Collection, `gameCount` is `null` and `isDynamic` is `true`.
   },
   "steam": {
     "state": "ready",
-    "root": "/home/fran/.local/share/Steam",
+    "root": "/home/<user>/.local/share/Steam",
     "account": {
       "steamId64": "76561198000000000",
       "accountId": "39734272",
@@ -1286,8 +1286,8 @@ For a dynamic Collection, `gameCount` is `null` and `isDynamic` is `true`.
 
 ```json
 {
-  "dataDir": "/home/fran/.local/share/game-cat",
-  "steamRoot": "/home/fran/.local/share/Steam",
+  "dataDir": "/home/<user>/.local/share/game-cat",
+  "steamRoot": "/home/<user>/.local/share/Steam",
   "steamId64": "76561198000000000",
   "port": 4780,
   "listeningUrl": "http://127.0.0.1:4780/",
@@ -2930,7 +2930,7 @@ are uniform.
 ```json
 {
   "steamApiKey": "REDACTED",
-  "steamRoot": "/home/fran/.local/share/Steam",
+  "steamRoot": "/home/<user>/.local/share/Steam",
   "steamId64": "76561198000000000",
   "port": 4780,
   "openBrowser": true,
