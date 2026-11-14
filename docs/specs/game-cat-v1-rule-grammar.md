@@ -57,9 +57,9 @@ The decisions below were settled on #4 on 2026-11-13.
 | Evaluation implementation | A pure, deterministic evaluator over the current Library. It may run in memory or compile to SQL, but the semantics below are the contract.                                                             |
 
 > **Pending #7 delta.** [#7](https://github.com/fran2889/game-cat/issues/7) splits metadata
-> refreshes into **Fetch** (a completion-based selection of missing or failed sources) and **Full
-> Refresh** (an explicit `appIds` selection with no per-Game skip). The no-TTL decision above
-> describes Full Refresh; Fetch is not a TTL. See
+> refreshes into **Fetch** (a completion-based selection of sources with no usable current data)
+> and **Full Refresh** (an explicit `appIds` selection with no per-Game skip). The no-TTL decision
+> above describes Full Refresh; Fetch is not a TTL. See
 > [the run contract](game-cat-v1-run-contract.md).
 
 ## 2. Rule object
