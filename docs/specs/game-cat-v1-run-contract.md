@@ -738,8 +738,9 @@ and `HOST_NOT_ALLOWED` / `ORIGIN_NOT_ALLOWED` for request-trust failures.
   3. let the current short database transaction finish;
   4. mark the active run `failed` with `INTERRUPTED`, or finish a run that is already complete;
   5. close SQLite, release the lock, and exit 0.
-- The graceful budget is 5 seconds. If cleanup has not finished by 10 seconds, the process logs a
-  warning and exits non-zero. A second signal during shutdown exits immediately.
+- The graceful budget is 5 seconds: if cleanup has not finished by then, the process logs a warning
+  and keeps waiting. At 10 seconds it exits non-zero. A second signal during shutdown exits
+  immediately.
 - A hard kill (`SIGKILL`, crash, power loss) cannot run cleanup. SQLite WAL keeps committed data
   safe; the next start marks the stale run `INTERRUPTED` and the next Fetch resumes pending work.
 - A terminal close is a normal stop in v1. Users who want the server to outlive the terminal can
@@ -891,7 +892,8 @@ selection. #8 must state that distinction next to the #4 acceptance check.
       progress time; no data is rolled back.
 - [ ] The next Fetch requests only the still-pending sources; it does not re-request `ok` sources.
 - [ ] A Full Refresh is not auto-started after an interruption; its selection remains in history.
-- [ ] A graceful SIGTERM marks the run immediately and exits 0 within 5 seconds.
+- [ ] A graceful SIGTERM marks the run immediately and exits 0 within 5 seconds; cleanup still
+      running at 10 seconds exits non-zero.
 - [ ] A run that is `queued` but never started is marked `failed` with `INTERRUPTED` on the next
       start.
 
