@@ -282,8 +282,9 @@ loopback-only and require the request-trust checks in [§4.3](#43-request-trust)
 - `steamRoot` and `steamId64` are `null` when neither configured nor detected.
 - `PATCH /api/config` accepts any subset of `steamApiKey`, `steamRoot`, `steamId64`, `port`,
   `openBrowser`, and `logLevel`. It validates, writes atomically through a same-directory temporary
-  file with 0600 permissions, and returns the new `Config`.
-- Changing `port` returns `restartRequired: true`; the listening socket does not move until the
+  file with 0600 permissions, and returns `{ data: Config, meta: { restartRequired } }` with the
+  same `Config` shape as `GET`. `restartRequired` is a boolean.
+- `restartRequired` is `true` when `port` changes; the listening socket does not move until the
   next start. `logLevel` applies immediately. `openBrowser` applies to the next start. `steamRoot`
   and `steamId64` apply to the next discovery and run; an in-flight run keeps its snapshot.
 - Writing `steamApiKey` when `GAME_CAT_STEAM_API_KEY` is set returns `422 VALIDATION_ERROR` with
