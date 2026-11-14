@@ -104,13 +104,14 @@ npm run dev
 
 ### 2.3 Runtime prerequisites
 
-| Requirement | Value                                                                                                             |
-| ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| Node        | 24 or newer (`engines.node: ">=24"`). The CLI checks `process.versions.node` and exits `NODE_VERSION` if older.   |
-| npm         | The npm shipped with Node 24, using the committed `package-lock.json`. No pnpm or yarn.                           |
-| Git         | Required for the supported GitHub install. Not required after installation.                                       |
-| Disk        | A writable local data directory. Network shares are unsupported because SQLite WAL needs shared-memory semantics. |
-| Network     | Required for the first Fetch and for Full Refresh. Cached data remains browsable offline.                         |
+| Requirement   | Value                                                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Node          | 24 or newer (`engines.node: ">=24"`). The CLI checks `process.versions.node` and exits `NODE_VERSION` if older.                     |
+| npm           | The npm shipped with Node 24, using the committed `package-lock.json`. No pnpm or yarn.                                             |
+| Git           | Required for the supported GitHub install. Not required after installation.                                                         |
+| Steam API key | A Steam Web API key, required before the first Fetch. Stored in `config.json` or `GAME_CAT_STEAM_API_KEY`; never in SQLite or logs. |
+| Disk          | A writable local data directory. Network shares are unsupported because SQLite WAL needs shared-memory semantics.                   |
+| Network       | Required for the first Fetch and for Full Refresh. Cached data remains browsable offline.                                           |
 
 The app CI matrix is Node 24 and Node 26. The docs-only workflow is not the app runtime and may
 stay on its current Node version until application code lands. Native modules in the app must
