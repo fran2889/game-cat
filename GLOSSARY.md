@@ -17,7 +17,7 @@ The Steam account whose local Steam files and owned-games roster game-cat reads.
 _Avoid_: user, login
 
 **Ownership**:
-A Game's relationship to the Steam account: `owned` when the Steam Web API roster confirms it, `local_only` when only local Steam evidence exists, or `unknown` when neither is conclusive. Ownership is one property of a Library Game, not the definition of the Library.
+A Game's relationship to the Steam account: `owned` when the Steam Web API roster confirms it, `local_only` when an install or `localconfig` entry exists but the roster does not confirm it, or `unknown` when the only evidence is Steam Collection membership and no conclusive roster has completed. After a conclusive roster, a Collection-only Game absent from it is `local_only`. Ownership is one property of a Library Game, not the definition of the Library.
 _Avoid_: license, entitlement
 
 **Steam Collection**:
