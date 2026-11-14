@@ -335,15 +335,15 @@ database failure, or an internal fatal error. A source failure is `partial`, not
 
 ### 2.7 Field precedence and name updates
 
-| Field           | Precedence                                                                                                                                                                                                            |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Display name    | Storefront `name` → `GetOwnedGames` `name` → `appmanifest.name` → SteamSpy `name` → `Game <appid>`                                                                                                                    |
-| Playtime        | `localconfig.Playtime` when present; otherwise `GetOwnedGames` `playtime_forever`; `0` when neither exists                                                                                                            |
-| Recent playtime | `localconfig.Playtime2wks` when present; otherwise `GetOwnedGames` `playtime_2weeks`; `null` when neither exists                                                                                                      |
-| Last played     | `max(appmanifest.LastPlayed, localconfig.LastPlayed)`, `null` when neither exists                                                                                                                                     |
-| Installed       | Local manifest only. `1` when a manifest is present and the installed test passes, `0` when a successful scan finds none, `null` before any successful scan. A failed or unavailable scan leaves prior values intact. |
-| Tags            | SteamSpy only. No fallback; an empty or missing tag payload is recorded as `missing`, not `ok`.                                                                                                                       |
-| Release year    | Parsed storefront `release_date`; `null` when unparseable. The raw string is retained.                                                                                                                                |
+| Field           | Precedence                                                                                                                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Display name    | Storefront `name` → `GetOwnedGames` `name` → `appmanifest.name` → SteamSpy `name` → `Game <appid>`                                                                                                                                                           |
+| Playtime        | `localconfig.Playtime` when present; otherwise `GetOwnedGames` `playtime_forever`; `0` when neither exists                                                                                                                                                   |
+| Recent playtime | `localconfig.Playtime2wks` when present; otherwise `GetOwnedGames` `playtime_2weeks`; `null` when neither exists                                                                                                                                             |
+| Last played     | `max(appmanifest.LastPlayed, localconfig.LastPlayed)`, `null` when neither exists                                                                                                                                                                            |
+| Installed       | Local manifest only. `1` when a manifest is present and the installed test passes, `0` when a fully successful scan finds none, `null` before any fully successful scan. A failed, unavailable, or partial scan preserves prior values for unseen manifests. |
+| Tags            | SteamSpy only. No fallback; an empty or missing tag payload is recorded as `missing`, not `ok`.                                                                                                                                                              |
+| Release year    | Parsed storefront `release_date`; `null` when unparseable. The raw string is retained.                                                                                                                                                                       |
 
 Storefront Metadata must never hide or delete a Game. A local scan must never overwrite a storefront
 name with a stale local name.
@@ -2204,7 +2204,9 @@ A source is **pending** for a Game when:
   removed by its library and ownership phases.
 - A `metadata` + Fetch with no pending work creates a `succeeded` run with `total: 0`, makes no
   Metadata requests, and lets the UI say "up to date". An `all` + Fetch still performs its library
-  scan and its one ownership request; only its Metadata phase is a no-op.
+  scan; when ownership is configured it also makes one ownership request. When ownership is not
+  configured or the selected Account is missing, it skips that phase and finishes `partial`. Only its
+  Metadata phase is a no-op.
 
 ### 6.3 Full Refresh selection
 
@@ -2352,9 +2354,15 @@ guard and the run record.
    name only when [§2.7](#27-field-precedence-and-name-updates) permits it.
    - For a new row, set `ownership_status` per [§2.1](#21-game-library-and-ownership): `local_only`
      when it has local evidence, except a Collection-only row before the first conclusive ownership
-     refresh, which is `unknown`. A local scan never changes `ownership_status` on an existing row.
+     refresh, which is `unknown`.
+   - For an existing row before the first conclusive ownership refresh, `unknown` becomes `local_only`
+     when local evidence appears. A local scan never demotes `owned` or `local_only`; after a
+     conclusive ownership response, reconciliation alone changes Ownership.
    - Recompute `playtime_minutes` as local playtime when present, otherwise API playtime, otherwise
      `0`; recompute `playtime_2weeks_minutes` the same way, with `null` when neither exists.
+   - For a Game absent from a fully read `localconfig.vdf` Apps block, clear
+     `local_playtime_minutes`, `local_playtime_2weeks_minutes`, and `localconfig_last_played_at`. If the
+     file was unreadable, preserve them. Recompute the resolved values after clearing.
 4. Derive `installed`: `(StateFlags & 4) == 4`, the install directory exists under
    `<library>/steamapps/common/<installdir>`, and `InstalledDepots` is non-empty. Do not test
    `StateFlags == 4` exactly; an app running or with missing files can still be installed. If a
@@ -2366,14 +2374,24 @@ guard and the run record.
    recompute local `source_mask` bits 2, 4, and 8 for every Game from the evidence just read, and set
    `installed` to `1` when the test passes or `0` otherwise. Do not clear bit 1 (ownership). Delete a
    row whose status is not `owned` when its local bits all become `0`.
-6. On a **partial** scan (one or more libraries or required Account files were unreadable), update rows
-   for the evidence that was read, but do not clear local bits, do not set `installed = 0` for unseen
-   manifests, and do not delete rows. An unreadable library or file is unknown evidence, not absence.
-   The next fully successful scan reconciles the missing evidence.
+6. On a **partial** scan (one or more libraries or required Account files were unreadable), process each
+   evidence source independently: update and clear a source's bit and derived values only when that
+   source was read completely; otherwise preserve them. In particular:
+   - Manifest evidence (bit 2): update Games seen in readable libraries. Clear bit 2 for unseen Games
+     only when every library was read completely; otherwise preserve it.
+   - `localconfig` evidence (bit 4): update or clear it only when `localconfig.vdf` was read completely;
+     otherwise preserve it.
+   - Steam Collection evidence (bit 8): governed by step 7.
+   - `installed`: update Games with a readable manifest; preserve it for unseen Games when any library
+     was unreadable.
+
+   Do not delete rows on a partial scan. Deletion requires every local evidence source to be read
+   completely. The next fully successful scan reconciles the missing evidence.
+
 7. Replace the Steam Collection mirror only when the cloud-storage base and overlay were read
-   successfully: upsert Collections, replace static membership, and delete Collections that no longer
-   exist. If they were unreadable, preserve the mirror and source bit 8. Dynamic Collections get
-   metadata only.
+   successfully: upsert Collections, replace static membership, delete Collections that no longer
+   exist, and recompute/clear source bit 8 for every Game. If they were unreadable, preserve the mirror
+   and bit 8. Dynamic Collections get metadata only.
 8. Update `refresh_runs` and `source_state`. A fully successful scan is `ok`; a partial scan updates
    what it read and marks the scan `partial`; a failed or unavailable scan leaves all prior values and
    the mirror intact and marks the scan `failed`.
@@ -2594,9 +2612,9 @@ The counts update as Rules are added, removed, or have their prefix changed. The
 - Invalid Rules do not trigger a preview. The count area shows the validation state and the last valid
   result remains visible.
 - The preview uses `POST /api/rules/preview` with the current Rules, the current results page, and
-  `pageSize=60`. The total comes from `pagination.totalItems`; the pane shows the current page and
-  `first 60 of N` when there are more matches. Changing the page re-requests immediately; changing a
-  Rule resets the page to 1.
+  `pageSize=60`. The total comes from `pagination.totalItems`; the pane shows the current range (for
+  example `1-60 of 240`) and page controls. Changing the page re-requests immediately; changing a Rule
+  resets the page to 1.
 - Empty Rules show the copy in [§1.7](#17-decisions-this-document-makes) and match every Game.
 - No matches show the copy in [§1.7](#17-decisions-this-document-makes).
 
@@ -2687,7 +2705,7 @@ The Library, search, detail, and editor remain usable. Cached data is never bloc
 
 - `succeeded`: show a `Library up to date` toast; the banner clears.
 - `partial`: show a persistent banner. If `error` is non-null, show its code and message; otherwise say
-  `Fetch finished with some source failures.` Always include **View refresh errors** and **Retry**
+  `Fetch finished with some work incomplete.` Always include **View refresh errors** and **Retry**
   (same request shape). The Library remains usable.
 - `failed`: show the run error, **View refresh errors**, and **Retry** (same request shape). If the
   failure was `INTERRUPTED`, say the run was interrupted and the next Fetch will resume pending work.
@@ -2730,7 +2748,7 @@ and `pagination.totalItems`. Per-Game error text is not exposed; the view uses s
 | Dynamic Steam Collection      | `Steam computes this Collection's membership. game-cat treats dynamic Collections as opaque metadata in v1.` | None                                    |
 | Metadata Refresh running      | Banner with progress; Library usable                                                                         | View refresh errors                     |
 | Ownership invalid key         | `Ownership incomplete`; owned/local-only/unknown counts                                                      | View refresh errors, Fix API key, Retry |
-| Fetch partial                 | Banner with the run error or `Fetch finished with some source failures.`                                     | View refresh errors, Retry              |
+| Fetch partial                 | Banner with the run error or `Fetch finished with some work incomplete.`                                     | View refresh errors, Retry              |
 | Fetch failed                  | Banner with the run error                                                                                    | View refresh errors, Retry              |
 | Save failed                   | `Save failed` next to the name; edits retained                                                               | Retry, Keep editing                     |
 | Server disconnected           | `Cannot reach game-cat. Is the server still running?` with the last known data where possible                | Retry connection                        |
@@ -3101,8 +3119,10 @@ This section defines the run record, triggers, and recovery.
   user selects them and uses Refresh selected.
 - There is no timer, periodic job, watch loop, cron, or background scheduler in v1. Closing and
   reopening the app is the only automatic retry. No Full Refresh is ever automatic.
-- A startup `all` + Fetch with no pending Metadata work is a cheap zero-item Metadata phase, but it
-  still scans local Steam files and makes its one ownership request. It does not call Metadata sources.
+- A startup `all` + Fetch with no pending Metadata work is a cheap zero-item Metadata phase. It still
+  scans local Steam files; when ownership is configured it makes one ownership request, and when it is
+  not configured or the Account is missing it skips that phase and finishes `partial`. It does not call
+  Metadata sources.
 
 #### Deduplication and concurrency
 
@@ -3264,8 +3284,9 @@ issues, PRs, and test names.
 - [ ] `AC-L6` `playtimeMinutes` uses local playtime when present, otherwise API playtime;
       `lastPlayedAt` equals the maximum of manifest and localconfig timestamps, or `null` when both are
       absent.
-- [ ] `AC-L7` `installed` is `null` when no local scan has succeeded, `0` for an owned Game with no
-      manifest after a successful scan, and never silently becomes `false` because Steam is missing.
+- [ ] `AC-L7` `installed` is `null` when no fully successful local scan has completed, `0` for an owned
+      Game with no manifest after a fully successful scan, and never silently becomes `false` because
+      Steam is missing; a partial scan preserves `installed` for unseen manifests.
 - [ ] `AC-L8` The Library union includes App IDs from ownership, appmanifests, `localconfig.vdf`, and
       static Steam Collection membership; a fully successful scan updates `source_mask` bits 2, 4, and
       8 and deletes a non-owned row only when all local bits become zero.
@@ -3291,16 +3312,23 @@ issues, PRs, and test names.
       `include_played_free_games=1`, `language=english`, and `format=json`.
 - [ ] `AC-L17` With one of two library folders unmounted, the scan is `partial`, Games from the
       readable library are updated, Games from the unreadable library keep their `installed` state,
-      manifest fields, local bits, and rows, and no Metadata or Tag rows cascade away.
+      manifest fields, bit 2, and rows, and no Metadata or Tag rows cascade away.
 - [ ] `AC-L18` Before the first conclusive ownership refresh, a new installed or `localconfig` Game is
-      `local_only`, a Collection-only Game is `unknown`, and a local scan does not change an existing
-      `owned` status.
+      `local_only`, a Collection-only Game is `unknown`, an existing `unknown` Game becomes `local_only`
+      when local evidence appears, and a local scan does not change an existing `owned` or `local_only`
+      status.
 - [ ] `AC-L19` When a Game loses its manifest after a fully successful scan, `installed` becomes `0`,
       the manifest-derived fields become `null`, `playtimeMinutes` falls back to API playtime or `0`,
       and `lastPlayedAt` recomputes from `localconfig` or becomes `null`.
 - [ ] `AC-L20` An unbound database binds `account_state` on the first `library`, `ownership`, or `all`
       run that writes; a `metadata` run on an unbound database leaves `account_state` empty and stores
       `refresh_runs.steam_id64 = NULL`.
+- [ ] `AC-L21` During a partial scan caused by an unmounted library, readable cloudstorage is replaced:
+      a Game removed from a readable static Collection loses its membership row and bit 8, while an
+      unseen Game retains bit 2 and no row is deleted.
+- [ ] `AC-L22` When a Game is absent from a fully read `localconfig.vdf` Apps block, its local playtime,
+      recent playtime, and `localconfig_last_played_at` are cleared; `playtimeMinutes` falls back to API
+      playtime or `0`, and `lastPlayedAt` falls back to the manifest or `null`.
 
 ### 9.3 Metadata and Refresh
 
@@ -3342,9 +3370,10 @@ issues, PRs, and test names.
       source row.
 - [ ] `AC-M17` `GET /api/games?tagsStatus=`, `?storeStatus=`, and `?reviewStatus=` accept exactly the
       documented values and return only Games with that status.
-- [ ] `AC-M18` An `all` + Fetch with no pending Metadata still scans local files and makes exactly one
-      ownership request; its Metadata candidates are 0 and no Metadata source is called. Its terminal
-      status reflects the library and ownership phases.
+- [ ] `AC-M18` An `all` + Fetch with no pending Metadata still scans local files; when ownership is
+      configured it makes exactly one ownership request. Without a key or Account it skips ownership
+      and finishes `partial`. Its Metadata candidates are 0, no Metadata source is called, and its
+      terminal status reflects the library and ownership phases.
 
 ### 9.4 Rule grammar and evaluation
 
@@ -3507,8 +3536,9 @@ issues, PRs, and test names.
 - [ ] `AC-U11` A failed save keeps local edits, retries at 2 s, 5 s, and 15 s, shows Retry, and asks
       for confirmation before navigation.
 - [ ] `AC-U12` Delete asks for confirmation, removes the Collection, and treats `404` as success.
-- [ ] `AC-U13` Steam Collections are read-only; a dynamic Collection shows `dynamic`, no count, and
-      the explanatory state; a static empty Collection shows the empty state.
+- [ ] `AC-U13` Steam Collections are read-only; a static Collection with members renders its count and
+      paged member Games; a static empty Collection shows the empty state; a dynamic Collection shows
+      `dynamic`, no count, and the explanatory state.
 - [ ] `AC-U14` Game detail shows the documented fields and status copy; Launch is enabled only for
       installed Games, opens `steam://rungameid/<appId>`, shows the `Opening Steam…` toast, performs no
       Steam write, and produces no unhandled rejection on click. A missing protocol handler cannot be
