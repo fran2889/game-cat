@@ -2234,8 +2234,8 @@ A source is **pending** for a Game when:
   `unavailable` is also re-requested, because storefront availability can change.
 - There is no per-Game skip. Only a source-wide `retry_after_at` can skip a source; the run then
   finishes `partial` and the UI can retry.
-- A selected App ID that no longer exists is skipped and counted in `stats_json`; the run finishes
-  `partial` if any were missing.
+- A selected App ID that no longer exists is skipped and counted as `skipped` in each source's
+  `stats_json` counters; the run finishes `partial` if any were missing.
 - Full Refresh is only for selected Games. There is no global "refresh everything" action. The UI
   disables the action above 5,000 selected Games and explains the limit rather than silently
   truncating.
@@ -3365,7 +3365,8 @@ issues, PRs, and test names.
 - [ ] `AC-M3` A SteamSpy `missing` with `tags_fetched_at` set is a settled miss; a second Fetch makes
       no SteamSpy request for that Game.
 - [ ] `AC-M4` A Full Refresh of selected Games requests SteamSpy, storefront, and reviews for every
-      selected Game, even when the stored values are `ok` or `unavailable`.
+      selected Game, even when the stored values are `ok` or `unavailable`; a selected App ID that no
+      longer exists is counted as `skipped` and makes the run `partial`.
 - [ ] `AC-M5` A `metadata` + Fetch with no pending work creates a `succeeded` run with `total: 0`,
       makes no Metadata request, and leaves the UI in an up-to-date state.
 - [ ] `AC-M6` SteamSpy `ok`, zeroed/empty response, `429`, `403`, `5xx`, and malformed/mismatched
