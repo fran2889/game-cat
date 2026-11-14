@@ -40,7 +40,7 @@ not production code.
 - [3. SQLite schema](#3-sqlite-schema)
 - [4. HTTP API](#4-http-api)
 - [5. Rule grammar and evaluation](#5-rule-grammar-and-evaluation)
-- [6. Metadata and sync](#6-metadata-and-sync)
+- [6. Metadata and Refresh](#6-metadata-and-refresh)
 - [7. UI flows and states](#7-ui-flows-and-states)
 - [8. Run contract](#8-run-contract)
 - [9. Acceptance criteria](#9-acceptance-criteria)
@@ -74,9 +74,9 @@ Refresh keeps local and external data current without blocking the UI.
 7. Create, rename, delete, and evaluate Smart Collections using the Rule grammar.
 8. Preview matches while editing; autosave after the first explicit save; recover from save failures.
 9. Refresh in Fetch mode (fill gaps) or Full Refresh mode (re-request selected Games), with per-source
-   status, progress, deduplication, interruption recovery, and a sync-errors view.
-10. Expose the documented HTTP API and persist all game-cat state in one SQLite database per data
-    directory.
+   status, progress, deduplication, interruption recovery, and a Refresh-errors view.
+10. Expose the documented HTTP API, persist all game-cat domain state in one SQLite database per data
+    directory, and keep configuration and the API key in `config.json` or the environment.
 11. Provide the startup, configuration, logging, lifecycle, and v4 wrapper seams in
     [§8](#8-run-contract).
 
@@ -143,7 +143,7 @@ The contract is implementable in vertical slices. Each slice ends with its accep
 | 2     | Local scan, ownership refresh, Library persistence, `GET /api/games` and Game detail           | 1          |
 | 3     | Metadata adapters, Fetch/Full Refresh engine, source state, status and refresh endpoints       | 2          |
 | 4     | Rule evaluator, validation, preview, Smart Collection persistence and endpoints                | 2          |
-| 5     | Library UI, detail dialog, onboarding, refresh banner, sync-errors view                        | 2, 3       |
+| 5     | Library UI, detail dialog, onboarding, refresh banner, Refresh-errors view                     | 2, 3       |
 | 6     | Smart Collection editor, live preview, autosave, selection handoff                             | 4, 5       |
 | 7     | Launch, accessibility pass, performance pass, packaging, v4 wrapper seam, release verification | 1-6        |
 
@@ -159,7 +159,7 @@ These were left open by earlier tickets. They are normative for v1.
 | Autosave                  | A new Smart Collection is created by an explicit Save. After that, name and Rule edits autosave 600 ms after the last change. One save is in flight at a time; newer edits coalesce into the next save. No undo in v1.                                      |
 | Autosave failure          | Retry after 2 s, 5 s, and 15 s. Keep local edits, show `Save failed`, and offer Retry. Block navigation with a confirmation while the save is failed.                                                                                                       |
 | Save conflicts            | Last-write-wins. v1 is single-user and has no ETag/version field.                                                                                                                                                                                           |
-| Sync-errors view          | A separate route, `/errors`, linked from the refresh banner. It lists one row per source with status, timestamps, retry deadline, safe last error, affected-Game count, and actions.                                                                        |
+| Refresh-errors view       | A separate route, `/errors`, linked from the refresh banner. It lists one row per source with status, timestamps, retry deadline, safe last error, affected-Game count, and actions.                                                                        |
 | Per-Game error text       | Not exposed. The API exposes per-Game statuses and per-source `lastError`; raw upstream bodies and per-Game error strings stay server-side.                                                                                                                 |
 | Launch                    | Enabled only when `installed === true`. Opens `steam://rungameid/<appId>`. v1 cannot detect a launch failure; it shows an "Opening Steam" toast and never writes Steam files.                                                                               |
 | Non-game Library entries  | Shown in the Library by default. `storefrontType` is a Rule Field, so DLC, demos, tools, and soundtracks can be filtered without being silently hidden.                                                                                                     |
@@ -193,15 +193,15 @@ Game because one source is missing.
 
 **Ownership** is one property of a Library Game, not the definition of the Library.
 
-| `ownership_status` | Meaning                                                                                                                                                                                                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `owned`            | Present in the most recent **conclusive** `GetOwnedGames` response. An empty response is inconclusive and does not change Ownership.                                                                                                                                     |
-| `local_only`       | Not present in the latest successful response, but has local evidence: an install, an entry in `localconfig.vdf`, or Steam Collection membership. Before the first successful ownership refresh, this applies to installed Games and Games present in `localconfig.vdf`. |
-| `unknown`          | No ownership refresh has succeeded yet and the only evidence is Steam Collection membership. After the first successful ownership refresh, a Collection-only row absent from the response becomes `local_only`.                                                          |
+| `ownership_status` | Meaning                                                                                                                                                                                                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `owned`            | Present in the most recent **conclusive** `GetOwnedGames` response. An empty response is inconclusive and does not change Ownership.                                                                                                                                              |
+| `local_only`       | Not present in the most recent **conclusive** response, but has local evidence: an install, an entry in `localconfig.vdf`, or Steam Collection membership. Before the first conclusive ownership refresh, this applies to installed Games and Games present in `localconfig.vdf`. |
+| `unknown`          | No conclusive ownership refresh has completed yet and the only evidence is Steam Collection membership. After the first conclusive ownership refresh, a Collection-only row absent from the response becomes `local_only`.                                                        |
 
 If the Web API is unavailable, `local_only` and `unknown` Games remain browsable, and
-`GET /api/status` says why the roster may be incomplete. game-cat never claims a full Library when an
-ownership refresh has not succeeded.
+`GET /api/status` says why the roster may be incomplete. game-cat never claims a full Library when a
+conclusive ownership refresh has not completed.
 
 `source_mask` records evidence: `1` = `GetOwnedGames`, `2` = appmanifest, `4` = `localconfig`,
 `8` = Steam Collection. "Local evidence" means `(source_mask & 14) != 0`.
@@ -350,14 +350,16 @@ name with a stale local name.
 
 Name updates by source:
 
-| Source              | May replace `name` when current `name_source` is |
-| ------------------- | ------------------------------------------------ |
-| Local scan          | `placeholder`, `steamspy`                        |
-| Ownership refresh   | `placeholder`, `local`, `steamspy`               |
-| SteamSpy Metadata   | `placeholder`                                    |
-| Storefront Metadata | any value except `storefront`                    |
+| Source              | May replace `name` when current `name_source` is    |
+| ------------------- | --------------------------------------------------- |
+| Local scan          | `placeholder`, `steamspy`, `local`                  |
+| Ownership refresh   | `placeholder`, `local`, `steamspy`, `steam_web_api` |
+| SteamSpy Metadata   | `placeholder`, `steamspy`                           |
+| Storefront Metadata | any value, including `storefront`                   |
 
-The winning write sets `name_source` to its own source. Any write that changes `name` also recomputes
+A source may replace its own previous name, so a later storefront rename or a corrected API name is not
+stuck behind the first write. Cross-source precedence still follows the display-name order above. The
+winning write sets `name_source` to its own source. Any write that changes `name` also recomputes
 `name_key`. An empty or missing incoming name never changes `name`.
 
 The shared name key normalization is `name.normalize("NFC").trim().toLowerCase()`. It applies to
@@ -1113,17 +1115,22 @@ coerces values.
 }
 ```
 
-Smart Collection list items omit `rules` and include `ruleCount`:
+Smart Collection list items omit `rules` and include `ruleCount` and `matchCount`:
 
 ```json
 {
   "id": "2f0c9f7e-6a5e-4a5b-9f0e-3f5b0c7a1d22",
   "name": "Short co-op games",
   "ruleCount": 2,
+  "matchCount": 37,
   "createdAt": "2026-11-13T18:00:00Z",
   "updatedAt": "2026-11-13T18:05:00Z"
 }
 ```
+
+`matchCount` is the evaluated membership count for the current Library, computed at read time. The
+server may evaluate all list items in one Library pass; it must equal
+`GET /api/smart-collections/{id}/games` → `pagination.totalItems` when the data has not changed.
 
 #### `SteamCollectionSummary`
 
@@ -1298,6 +1305,8 @@ configured nor detected. The key value is never returned.
 | `GET`    | `/api/tags`                         | Tag typeahead                                                               |
 | `GET`    | `/api/rule-values`                  | Existing Genre, Storefront Category, developer, and publisher values        |
 | `GET`    | `/api/steam-collections`            | Read-only Steam Collection list                                             |
+| `GET`    | `/api/steam-collections/{id}`       | Get one Steam Collection summary                                            |
+| `GET`    | `/api/steam-collections/{id}/games` | List a static Steam Collection's members                                    |
 | `POST`   | `/api/rules/preview`                | Evaluate an unsaved Rules array                                             |
 | `GET`    | `/api/smart-collections`            | List Smart Collections                                                      |
 | `POST`   | `/api/smart-collections`            | Create a Smart Collection                                                   |
@@ -1417,6 +1426,23 @@ Returns `{ data: SteamCollectionSummary[], pagination }`. Query: `page` (default
 (default 60, max 200). Ordered by `name` ascending, then `id` ascending. No write endpoints exist in
 v1.
 
+#### `GET /api/steam-collections/{id}`
+
+Returns `{ data: SteamCollectionSummary }` or `404 NOT_FOUND`. This is the cold-load source for the
+`/steam/:id` route.
+
+#### `GET /api/steam-collections/{id}/games`
+
+Query: `page` (default 1), `pageSize` (default 60, max 200), `sort`, `order` (same whitelist and
+defaults as `/api/games`). Returns `{ data: GameSummary[], pagination, meta: { dataAsOf, dynamic } }`
+or `404 NOT_FOUND` for an unknown Collection.
+
+- A static Collection returns its `steam_collection_games` members, sorted and paged like the
+  Library. `meta.dynamic` is `false`.
+- A dynamic Collection returns `data: []` with `totalItems: 0` and `meta.dynamic: true`; it has no
+  stored membership. The detail summary already reports `isDynamic: true` and `gameCount: null`.
+- An empty static Collection returns `200`, `data: []`, and `totalItems: 0`.
+
 #### `POST /api/rules/preview`
 
 Body:
@@ -1440,7 +1466,8 @@ validator is used for preview and persistence. An empty Rules array matches ever
 
 Query: `page` (default 1), `pageSize` (default 60, max 200), `sort` (`name` or `updatedAt`), `order`.
 Defaults are `name` and `asc`; `name` sorts on `name_key`. Returns
-`{ data: SmartCollectionListItem[], pagination }`.
+`{ data: SmartCollectionListItem[], pagination }`. Each item includes `ruleCount` and the evaluated
+`matchCount`; the sidebar uses `matchCount` for its live counts.
 
 #### `POST /api/smart-collections`
 
@@ -1659,7 +1686,9 @@ An empty list is not an error. `404` is reserved for a specific resource that do
 - Require `Content-Type: application/json` for JSON bodies. A non-JSON POST or PATCH is
   `415 UNSUPPORTED_MEDIA_TYPE`; a form-encoded cross-site write never succeeds.
 - CORS is same-origin only. No `Access-Control-Allow-Origin: *` and no cross-origin credentials.
-- Serve HTML with `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: no-referrer`. The CSP must not require inline script.
+- Serve HTML with `Content-Security-Policy`, `X-Frame-Options: DENY`, and `Referrer-Policy:
+no-referrer`. Send `X-Content-Type-Options: nosniff` on every response. The CSP must not require
+  inline script.
 - The Steam Web API key is a secret. It lives in server-side configuration or environment, never in
   SQLite, API responses, or logs. Redact `key` from upstream URLs in request logs. The settings API is
   write-only for the key.
@@ -2122,7 +2151,7 @@ matches are ascending `appId`.
 | 35  | `AND releaseYear gte 2011`                                                     | 10, 570, 620, 700, 800            | Year range                                |
 | 36  | `AND name is "portal 2"`                                                       | 620                               | Normalized exact text                     |
 
-## 6. Metadata and sync
+## 6. Metadata and Refresh
 
 ### 6.1 Sources and request contract
 
@@ -2173,8 +2202,9 @@ A source is **pending** for a Game when:
   the affected Games.
 - The selection is computed at the start of the Metadata phase, so an `all` run sees Games added or
   removed by its library and ownership phases.
-- A Fetch with no pending work creates a `succeeded` run with `total: 0`, makes no upstream requests,
-  and lets the UI say "up to date".
+- A `metadata` + Fetch with no pending work creates a `succeeded` run with `total: 0`, makes no
+  Metadata requests, and lets the UI say "up to date". An `all` + Fetch still performs its library
+  scan and its one ownership request; only its Metadata phase is a no-op.
 
 ### 6.3 Full Refresh selection
 
@@ -2222,8 +2252,8 @@ A source is **pending** for a Game when:
 
 A response has no usable data when `appid` does not match the request, `name` is `null`, or `tags` is
 empty (`[]`, `{}`, or absent). A zeroed record is a settled miss, not an error. Tags are sorted by
-votes descending, then name ascending. A SteamSpy name may only fill a `placeholder` display name
-([§2.7](#27-field-precedence-and-name-updates)). SteamSpy `userscore` is not used.
+votes descending, then name ascending. A SteamSpy name may replace `placeholder` or its own prior
+`steamspy` name ([§2.7](#27-field-precedence-and-name-updates)). SteamSpy `userscore` is not used.
 
 ### 6.6 Storefront response handling
 
@@ -2320,18 +2350,34 @@ guard and the run record.
    `local_playtime_2weeks_minutes`, and `localconfig_last_played_at` from `localconfig.vdf`. Clamp
    negative playtime to `0` and increment `stats_json.warnings.negativePlaytime`. Update the display
    name only when [§2.7](#27-field-precedence-and-name-updates) permits it.
+   - For a new row, set `ownership_status` per [§2.1](#21-game-library-and-ownership): `local_only`
+     when it has local evidence, except a Collection-only row before the first conclusive ownership
+     refresh, which is `unknown`. A local scan never changes `ownership_status` on an existing row.
+   - Recompute `playtime_minutes` as local playtime when present, otherwise API playtime, otherwise
+     `0`; recompute `playtime_2weeks_minutes` the same way, with `null` when neither exists.
 4. Derive `installed`: `(StateFlags & 4) == 4`, the install directory exists under
    `<library>/steamapps/common/<installdir>`, and `InstalledDepots` is non-empty. Do not test
    `StateFlags == 4` exactly; an app running or with missing files can still be installed. If a
    manifest exists but the test fails, treat the app as not yet installed and re-read on the next scan.
-5. On a successful scan, recompute local `source_mask` bits 2, 4, and 8 for every Game from the
-   evidence just read, and set `installed` to `1` when the test passes or `0` otherwise. Do not clear
-   bit 1 (ownership). Delete a row whose status is not `owned` when its local bits all become `0`.
-6. Replace the Steam Collection mirror: upsert Collections, replace static membership, and delete
-   Collections that no longer exist. Dynamic Collections get metadata only.
-7. Update `refresh_runs` and `source_state`. A failed or unavailable scan leaves prior values and the
-   mirror intact and marks the scan `failed` or `partial`.
-8. A scan never writes a Steam file, creates a lock or temporary file inside the Steam tree, or repairs
+   When the scan is fully successful and no library has a manifest for a Game, set `installed = 0` and
+   clear `library_path`, `install_dir`, `size_on_disk_bytes`, `state_flags`, `manifest_last_played_at`,
+   and `last_updated_at`; `last_played_at` then falls back to `localconfig_last_played_at` or `null`.
+5. On a **fully successful** scan (every discovered library and the required Account files were read),
+   recompute local `source_mask` bits 2, 4, and 8 for every Game from the evidence just read, and set
+   `installed` to `1` when the test passes or `0` otherwise. Do not clear bit 1 (ownership). Delete a
+   row whose status is not `owned` when its local bits all become `0`.
+6. On a **partial** scan (one or more libraries or required Account files were unreadable), update rows
+   for the evidence that was read, but do not clear local bits, do not set `installed = 0` for unseen
+   manifests, and do not delete rows. An unreadable library or file is unknown evidence, not absence.
+   The next fully successful scan reconciles the missing evidence.
+7. Replace the Steam Collection mirror only when the cloud-storage base and overlay were read
+   successfully: upsert Collections, replace static membership, and delete Collections that no longer
+   exist. If they were unreadable, preserve the mirror and source bit 8. Dynamic Collections get
+   metadata only.
+8. Update `refresh_runs` and `source_state`. A fully successful scan is `ok`; a partial scan updates
+   what it read and marks the scan `partial`; a failed or unavailable scan leaves all prior values and
+   the mirror intact and marks the scan `failed`.
+9. A scan never writes a Steam file, creates a lock or temporary file inside the Steam tree, or repairs
    a malformed file.
 
 #### Ownership refresh
@@ -2388,7 +2434,7 @@ The UI is a single-page React application served by the same process. Routes are
 | `/smart/:id`    | Saved Smart Collection editor and results                                         |
 | `/smart/new`    | New Smart Collection draft, optionally prefilled from the current selection       |
 | `/steam/:id`    | Read-only Steam Collection view                                                   |
-| `/errors`       | Sync-errors view linked from the Refresh banner                                   |
+| `/errors`       | Refresh-errors view linked from the Refresh banner                                |
 | `/games/:appId` | Game detail dialog over the current view; closing returns to the underlying route |
 | `/onboarding`   | First-run setup when no Steam Web API key is configured                           |
 
@@ -2509,14 +2555,16 @@ There are no nested groups. Prefixes are global, and the editor must not imply r
 
 #### Editor layout
 
-- The results pane shows the live matches using the current grid/table layout. The editor pane contains
-  the name, save state, match count, global prefix callout, Rule rows, Add rule, and quick-add actions
-  for Tag, Playtime, Steam Collection, and Game list.
+- The results pane shows the live matches using the current grid/table layout and the same page
+  controls as the Library, so a broad Rule remains browsable. The editor pane contains the name, save
+  state, match count, global prefix callout, Rule rows, Add rule, and quick-add actions for Tag,
+  Playtime, Steam Collection, and Game list.
 - The name is a text field with the 1-80 code point limit. A blank or duplicate name is an inline
   validation error.
 - Each Rule row is prefix-first: an `AND`/`OR`/`NOT` segmented control, a Field select, an
   Operator select constrained by the Field, and a value control. A remove action is always available.
-- Value controls: boolean toggle for `installed`; enum select for `ownershipStatus`; Collection select
+- Value controls: boolean toggle for `installed`; enum select for `ownershipStatus`; a platform select
+  for `windows`, `mac`, and `linux` that emits one `has` Rule per selected platform; Collection select
   for `steamCollection` with dynamic Collections disabled and labelled `dynamic`; date input for
   `lastPlayed`; hours input for `playtime` (converted to integer minutes); number/score inputs for
   numeric Fields; text or datalist input for text Fields; a game picker for `game` with search,
@@ -2545,8 +2593,10 @@ The counts update as Rules are added, removed, or have their prefix changed. The
   indicator, and replaces the count and results atomically when the response arrives.
 - Invalid Rules do not trigger a preview. The count area shows the validation state and the last valid
   result remains visible.
-- The preview uses `POST /api/rules/preview` with the current Rules, page 1, and `pageSize=60`. The
-  total comes from `pagination.totalItems`.
+- The preview uses `POST /api/rules/preview` with the current Rules, the current results page, and
+  `pageSize=60`. The total comes from `pagination.totalItems`; the pane shows the current page and
+  `first 60 of N` when there are more matches. Changing the page re-requests immediately; changing a
+  Rule resets the page to 1.
 - Empty Rules show the copy in [§1.7](#17-decisions-this-document-makes) and match every Game.
 - No matches show the copy in [§1.7](#17-decisions-this-document-makes).
 
@@ -2580,7 +2630,9 @@ deletes a Steam Collection.
 ### 7.5 Steam Collections
 
 - The sidebar lists Steam Collections read-only with a lock marker and `Read-only mirror · never written back` copy.
-- A static Collection shows its `gameCount` and its member Games in the current grid/table layout.
+- The route cold-loads `GET /api/steam-collections/{id}` for the summary and
+  `GET /api/steam-collections/{id}/games` for the paged members. A static Collection shows its
+  `gameCount` and its member Games in the current grid/table layout.
 - A dynamic Collection shows `dynamic` instead of a count and a view explaining:
   `Steam computes this Collection's membership. game-cat treats dynamic Collections as opaque metadata in v1.` It has no member list and never produces matches for the `steamCollection` Rule Field.
 - A static Collection with no members shows `This Steam Collection is empty` and says Steam returned
@@ -2608,7 +2660,7 @@ The detail dialog opens from any Game card or row and is deep-linkable at `/game
 The dialog traps focus, restores focus on close, and closes on Escape. The underlying route remains
 visible behind the dialog.
 
-### 7.7 Refresh, progress, and sync errors
+### 7.7 Refresh, progress, and errors
 
 #### Primary action
 
@@ -2634,14 +2686,15 @@ The Library, search, detail, and editor remain usable. Cached data is never bloc
 #### Completion and failure
 
 - `succeeded`: show a `Library up to date` toast; the banner clears.
-- `partial`: show a persistent banner with the run's error code/message and a **View sync errors**
-  link. The Library remains usable.
-- `failed`: show the run error and a Retry action for the same request shape. If the failure was
-  `INTERRUPTED`, say the run was interrupted and the next Fetch will resume pending work.
-- Ownership failure: show `Ownership incomplete` with the confirmed/local-only/unknown counts, **Fix
-  API key**, and **Retry** (sends `{ "scope": "ownership" }`).
+- `partial`: show a persistent banner. If `error` is non-null, show its code and message; otherwise say
+  `Fetch finished with some source failures.` Always include **View refresh errors** and **Retry**
+  (same request shape). The Library remains usable.
+- `failed`: show the run error, **View refresh errors**, and **Retry** (same request shape). If the
+  failure was `INTERRUPTED`, say the run was interrupted and the next Fetch will resume pending work.
+- Ownership failure: show `Ownership incomplete` with the owned, local-only, and unknown counts, plus
+  **View refresh errors**, **Fix API key**, and **Retry** (sends `{ "scope": "ownership" }`).
 
-#### Sync-errors view
+#### Refresh-errors view
 
 `/errors` lists one row per source in the order `steam_local`, `steam_web_api`, `steamspy`,
 `storefront`, `steam_reviews`. Each row shows:
@@ -2664,25 +2717,25 @@ and `pagination.totalItems`. Per-Game error text is not exposed; the view uses s
 
 ### 7.8 States and copy
 
-| State                         | What the user sees                                                                                           | Action                               |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
-| Initial load                  | Skeleton grid with `aria-busy="true"`                                                                        | None                                 |
-| First run, no key             | Onboarding, key required                                                                                     | Save key and scan                    |
-| Steam not found               | Empty Library with the configured path, install/start guidance, Change Steam folder                          | Change folder, Scan again            |
-| No Account selected           | Library still shows local data; `no_account` warning                                                         | Open account picker                  |
-| Empty Library                 | `No games found.` Explanation of moved libraries, Flatpak paths, or a fresh install; Steam root path         | Scan again, Change Steam folder      |
-| No search results             | `No games match "<query>". Search looks at game names only.`                                                 | Clear search                         |
-| No Rule matches               | `No games match these rules. An OR rule widens the result; a NOT rule removes games.`                        | Remove last rule, Add an OR tag rule |
-| Empty static Steam Collection | `This Steam Collection is empty.`                                                                            | None                                 |
-| Dynamic Steam Collection      | `Steam computes this Collection's membership. game-cat treats dynamic Collections as opaque metadata in v1.` | None                                 |
-| Metadata Refresh running      | Banner with progress; Library usable                                                                         | View sync errors                     |
-| Ownership invalid key         | `Ownership incomplete`; confirmed/local-only/unknown counts                                                  | Fix API key, Retry                   |
-| Fetch partial                 | Banner with the run error and affected sources                                                               | View sync errors, Retry              |
-| Fetch failed                  | Banner with the run error                                                                                    | Retry                                |
-| Save failed                   | `Save failed` next to the name; edits retained                                                               | Retry, Keep editing                  |
-| Server disconnected           | `Cannot reach game-cat. Is the server still running?` with the last known data where possible                | Retry connection                     |
-| Unknown route or Game         | `Not found` with a link back to the Library                                                                  | Back to Library                      |
-| Metadata missing              | Game detail shows `No tags yet`, `Not available on the store`, or `Reviews unavailable`                      | Fetch, Refresh selected              |
+| State                         | What the user sees                                                                                           | Action                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
+| Initial load                  | Skeleton grid with `aria-busy="true"`                                                                        | None                                    |
+| First run, no key             | Onboarding, key required                                                                                     | Save key and scan                       |
+| Steam not found               | Empty Library with the configured path, install/start guidance, Change Steam folder                          | Change folder, Scan again               |
+| No Account selected           | Library still shows local data; `no_account` warning                                                         | Open account picker                     |
+| Empty Library                 | `No games found.` Explanation of moved libraries, Flatpak paths, or a fresh install; Steam root path         | Scan again, Change Steam folder         |
+| No search results             | `No games match "<query>". Search looks at game names only. Tags, genres, and playtime belong in Rules.`     | Clear search                            |
+| No Rule matches               | `No games match these rules. An OR rule widens the result; a NOT rule removes games.`                        | Remove last rule, Add an OR tag rule    |
+| Empty static Steam Collection | `This Steam Collection is empty.`                                                                            | None                                    |
+| Dynamic Steam Collection      | `Steam computes this Collection's membership. game-cat treats dynamic Collections as opaque metadata in v1.` | None                                    |
+| Metadata Refresh running      | Banner with progress; Library usable                                                                         | View refresh errors                     |
+| Ownership invalid key         | `Ownership incomplete`; owned/local-only/unknown counts                                                      | View refresh errors, Fix API key, Retry |
+| Fetch partial                 | Banner with the run error or `Fetch finished with some source failures.`                                     | View refresh errors, Retry              |
+| Fetch failed                  | Banner with the run error                                                                                    | View refresh errors, Retry              |
+| Save failed                   | `Save failed` next to the name; edits retained                                                               | Retry, Keep editing                     |
+| Server disconnected           | `Cannot reach game-cat. Is the server still running?` with the last known data where possible                | Retry connection                        |
+| Unknown route or Game         | `Not found` with a link back to the Library                                                                  | Back to Library                         |
+| Metadata missing              | Game detail shows `No tags yet`, `Not available on the store`, or `Reviews unavailable`                      | Fetch, Refresh selected                 |
 
 ### 7.9 Accessibility and responsiveness
 
@@ -2832,7 +2885,9 @@ diagnostic and the OS lock is authoritative. The config file is the only place a
 
 #### `config.json`
 
-All fields are optional. Defaults are applied after validation.
+All fields are optional. Defaults are applied after validation. A missing file is valid; the first
+start creates an empty `{}` file with the documented permissions so the layout and permission checks
+are uniform.
 
 ```json
 {
@@ -2931,8 +2986,9 @@ The startup order is:
    Account; `/api/status` reports `not_found` or `no_account`. Exit `DATA_DIR_IN_STEAM` if the
    resolved data directory is inside the discovered root. This check runs before the data directory is
    created, so a bad path never writes into the Steam tree.
-4. Create the data directory and subdirectories with the documented permissions. Exit
-   `DATA_DIR_NOT_WRITABLE` if that fails.
+4. Create the data directory and subdirectories with the documented permissions. If `config.json` did
+   not exist, write `{}` atomically with 0600 permissions so the first start has a valid config file;
+   a write failure exits `DATA_DIR_NOT_WRITABLE`.
 5. Acquire the single-instance lock. Exit `ALREADY_RUNNING` if held. Any later startup failure releases
    the lock before exit.
 6. Open the log sink. If the file cannot be opened, fall back to stderr and log a warning; logging never
@@ -3041,11 +3097,12 @@ This section defines the run record, triggers, and recovery.
 - **Selection action:** Refresh selected sends
   `{ "scope": "metadata", "mode": "full", "appIds": [...] }`. It is the only full re-fetch and is
   never triggered automatically.
-- **Sync-errors view:** a Fetch action retries all gaps. To force a re-fetch of affected Games, the
+- **Refresh-errors view:** a Fetch action retries all gaps. To force a re-fetch of affected Games, the
   user selects them and uses Refresh selected.
 - There is no timer, periodic job, watch loop, cron, or background scheduler in v1. Closing and
   reopening the app is the only automatic retry. No Full Refresh is ever automatic.
-- A startup Fetch with no pending work is a cheap zero-item run; it does not call upstream sources.
+- A startup `all` + Fetch with no pending Metadata work is a cheap zero-item Metadata phase, but it
+  still scans local Steam files and makes its one ownership request. It does not call Metadata sources.
 
 #### Deduplication and concurrency
 
@@ -3062,7 +3119,7 @@ This section defines the run record, triggers, and recovery.
 
 | Terminal status | Meaning                                                                                                                                                |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `succeeded`     | All selected work was attempted and no failure or skip was recorded. This includes a zero-item Fetch.                                                  |
+| `succeeded`     | All selected work was attempted and no failure or skip was recorded. This includes a Fetch whose Metadata phase has no pending work.                   |
 | `partial`       | The run finished, but some per-Game/source work failed, a source was skipped by backoff, selected Games were missing, or ownership was not configured. |
 | `failed`        | The run did not finish: interruption, Account mismatch, database failure, or an internal fatal error.                                                  |
 
@@ -3079,7 +3136,7 @@ This section defines the run record, triggers, and recovery.
 - No run is auto-resumed. The next Fetch recomputes pending work, and a Full Refresh must be requested
   again.
 - `failed` never hides Games or invalidates their data. The Library remains browsable; the status and
-  sync-errors view explain what is missing.
+  Refresh-errors view explain what is missing.
 
 ### 8.8 Logging
 
@@ -3173,8 +3230,9 @@ issues, PRs, and test names.
 - [ ] `AC-S2` Every table, index, and `v_games` in [§3.3](#33-migration-0001) exists; `PRAGMA foreign_keys` is on and `PRAGMA journal_mode` is `wal`.
 - [ ] `AC-S3` Opening a database whose schema version is newer than the app fails with
       `DB_SCHEMA_TOO_NEW`, names both versions, and does not change the file.
-- [ ] `AC-S4` A migration that throws leaves the previous schema version and data intact, writes a
-      pre-migration backup, and exits `DB_MIGRATION_FAILED`.
+- [ ] `AC-S4` A migration that throws leaves the previous schema version and data intact and exits
+      `DB_MIGRATION_FAILED`; on a database with an existing applied version, it also leaves the
+      pre-migration backup.
 - [ ] `AC-S5` Deleting a Smart Collection deletes its Rules; deleting a Game cascades its three
       Metadata rows, Tag rows, and Steam Collection membership.
 - [ ] `AC-S6` The database rejects an invalid `refresh_runs` scope/mode/selection combination, an
@@ -3196,7 +3254,7 @@ issues, PRs, and test names.
 - [ ] `AC-L2` An installed Game absent from a complete ownership response remains in the database with
       `ownership_status = 'local_only'`.
 - [ ] `AC-L3` A Game that is only in a Steam Collection exists with `ownership_status = 'unknown'`
-      before the first successful ownership refresh and becomes `local_only` after a conclusive
+      before the first conclusive ownership refresh and becomes `local_only` after a conclusive
       response omits it.
 - [ ] `AC-L4` A zero-Game ownership response does not delete local Games and sets
       `ownership.state = 'empty'`; a shorter-than-`game_count` response does not reconcile absent rows
@@ -3209,31 +3267,46 @@ issues, PRs, and test names.
 - [ ] `AC-L7` `installed` is `null` when no local scan has succeeded, `0` for an owned Game with no
       manifest after a successful scan, and never silently becomes `false` because Steam is missing.
 - [ ] `AC-L8` The Library union includes App IDs from ownership, appmanifests, `localconfig.vdf`, and
-      static Steam Collection membership; a successful scan updates `source_mask` bits 2, 4, and 8 and
-      deletes a non-owned row only when all local bits become zero.
-- [ ] `AC-L9` A negative local playtime is clamped to 0; the scan still succeeds and increments
-      `stats_json.warnings.negativePlaytime` on the run.
+      static Steam Collection membership; a fully successful scan updates `source_mask` bits 2, 4, and
+      8 and deletes a non-owned row only when all local bits become zero.
+- [ ] `AC-L9` A negative local playtime is clamped to 0; the scan records the warning and does not fail
+      because of it, incrementing `stats_json.warnings.negativePlaytime` on the run.
 - [ ] `AC-L10` A database bound to Account A refuses to start under Account B with
       `DB_ACCOUNT_MISMATCH`; a Refresh under Account B fails with `ACCOUNT_MISMATCH` and leaves all
       rows intact.
 - [ ] `AC-L11` A run whose selected Account is missing writes no account-scoped data; an `all` run
       still runs the Metadata phase for known Games and finishes `partial`.
-- [ ] `AC-L12` A storefront name updates the display name; a later local scan does not overwrite it,
-      and every name change recomputes `name_key`.
+- [ ] `AC-L12` A storefront name updates the display name; a later local scan does not overwrite it;
+      a second storefront or ownership fetch with a different name replaces the source's own prior
+      name; every name change recomputes `name_key`.
 - [ ] `AC-L13` A static Steam Collection stores its `added` membership and ignores `removed`; a
       dynamic Collection stores `isDynamic = true`, `filterSpec` metadata, and no membership rows; an
       overlay entry wins over the base entry by key.
-- [ ] `AC-L14` A failed or unavailable local scan leaves the Steam Collection mirror and prior local
-      values unchanged.
+- [ ] `AC-L14` A failed or unavailable local scan leaves the Steam Collection mirror and all prior
+      local values unchanged; a partial scan updates only readable evidence, preserves unread evidence
+      and the mirror when cloudstorage is unreadable, and deletes no rows.
 - [ ] `AC-L15` The local scanner opens every Steam file read-only and creates no file inside the Steam
       tree; a read-only Steam tree scan succeeds.
 - [ ] `AC-L16` The ownership request uses `GetOwnedGames/v1` with `include_appinfo=1`,
       `include_played_free_games=1`, `language=english`, and `format=json`.
+- [ ] `AC-L17` With one of two library folders unmounted, the scan is `partial`, Games from the
+      readable library are updated, Games from the unreadable library keep their `installed` state,
+      manifest fields, local bits, and rows, and no Metadata or Tag rows cascade away.
+- [ ] `AC-L18` Before the first conclusive ownership refresh, a new installed or `localconfig` Game is
+      `local_only`, a Collection-only Game is `unknown`, and a local scan does not change an existing
+      `owned` status.
+- [ ] `AC-L19` When a Game loses its manifest after a fully successful scan, `installed` becomes `0`,
+      the manifest-derived fields become `null`, `playtimeMinutes` falls back to API playtime or `0`,
+      and `lastPlayedAt` recomputes from `localconfig` or becomes `null`.
+- [ ] `AC-L20` An unbound database binds `account_state` on the first `library`, `ownership`, or `all`
+      run that writes; a `metadata` run on an unbound database leaves `account_state` empty and stores
+      `refresh_runs.steam_id64 = NULL`.
 
-### 9.3 Metadata and sync
+### 9.3 Metadata and Refresh
 
 - [ ] `AC-M1` `source_state` contains five rows ordered `steam_local`, `steam_web_api`, `steamspy`,
-      `storefront`, `steam_reviews`; `Status.sources` contains five entries in that order.
+      `storefront`, `steam_reviews`; `Status.sources` contains five entries in that order; each source
+      uses only its documented status subset.
 - [ ] `AC-M2` Fetch selects never-attempted `missing`, `error`, and `stale` sources and skips `ok`,
       `unavailable`, and settled `missing`; a Game with `tags = ok` and `store = error` causes only the
       store source (and reviews if pending) to be requested, proven by request counts.
@@ -3241,8 +3314,8 @@ issues, PRs, and test names.
       no SteamSpy request for that Game.
 - [ ] `AC-M4` A Full Refresh of selected Games requests SteamSpy, storefront, and reviews for every
       selected Game, even when the stored values are `ok` or `unavailable`.
-- [ ] `AC-M5` A Fetch with no pending work creates a `succeeded` run with `total: 0`, makes no upstream
-      request, and leaves the UI in an up-to-date state.
+- [ ] `AC-M5` A `metadata` + Fetch with no pending work creates a `succeeded` run with `total: 0`,
+      makes no Metadata request, and leaves the UI in an up-to-date state.
 - [ ] `AC-M6` SteamSpy `ok`, zeroed/empty response, `429`, `403`, `5xx`, and malformed/mismatched
       responses follow [§6.5](#65-steamspy-response-handling); a successful empty response stores a
       settled `missing`.
@@ -3269,6 +3342,9 @@ issues, PRs, and test names.
       source row.
 - [ ] `AC-M17` `GET /api/games?tagsStatus=`, `?storeStatus=`, and `?reviewStatus=` accept exactly the
       documented values and return only Games with that status.
+- [ ] `AC-M18` An `all` + Fetch with no pending Metadata still scans local files and makes exactly one
+      ownership request; its Metadata candidates are 0 and no Metadata source is called. Its terminal
+      status reflects the library and ownership phases.
 
 ### 9.4 Rule grammar and evaluation
 
@@ -3343,8 +3419,9 @@ issues, PRs, and test names.
       `details.boundSteamId64` and writes nothing.
 - [ ] `AC-A20` `GET /api/steam/accounts` returns `data` and `pagination`, never `AccountName`, and an
       empty list reports `totalItems: 0` and `totalPages: 0`.
-- [ ] `AC-A21` Every response carries the documented security headers; a non-loopback `Host` returns
-      `403 HOST_NOT_ALLOWED`; a state-changing request with a foreign `Origin` returns
+- [ ] `AC-A21` Every HTML response carries the documented CSP, `X-Frame-Options`, and
+      `Referrer-Policy`; every response carries `X-Content-Type-Options: nosniff`; a non-loopback
+      `Host` returns `403 HOST_NOT_ALLOWED`; a state-changing request with a foreign `Origin` returns
       `403 ORIGIN_NOT_ALLOWED`; CORS is same-origin only.
 - [ ] `AC-A22` A test injects a known API key and asserts it appears in no response, log line,
       database column, or database backup.
@@ -3352,6 +3429,13 @@ issues, PRs, and test names.
       the latest successful scan, ownership, or Metadata completion, or `null`.
 - [ ] `AC-A24` `GameSummary` returns up to three Tags sorted by votes descending then name ascending;
       a Game with no Tags returns `[]`; `GameDetail` returns the full Tag set.
+- [ ] `AC-A25` `GET /api/steam-collections/{id}` returns the summary or `404`; its `/games` endpoint
+      returns paged static members with `meta.dynamic = false`, an empty static Collection with
+      `totalItems: 0`, and a dynamic Collection with `data: []`, `totalItems: 0`, and
+      `meta.dynamic = true`.
+- [ ] `AC-A26` `GET /api/smart-collections` list items include `matchCount`, equal to the saved
+      Collection's `/{id}/games` `pagination.totalItems` with unchanged data; the sidebar renders that
+      count without an N+1 request per Collection.
 
 ### 9.6 Configuration, startup, and security
 
@@ -3416,7 +3500,8 @@ issues, PRs, and test names.
 - [ ] `AC-U8` Empty Rules, no matches, and NOT copy match [§1.7](#17-decisions-this-document-makes);
       removing the last Rule restores the all-Games state.
 - [ ] `AC-U9` Live preview is debounced 300 ms, keeps the last result while pending, shows an updating
-      indicator, and does not call the API while Rules are invalid.
+      indicator, does not call the API while Rules are invalid, and pages the results with the total
+      match count; a broad Rule can browse all pages, not only the first 60.
 - [ ] `AC-U10` The first save is explicit; after it, edits autosave 600 ms after the last change with
       the documented indicators and one in-flight request.
 - [ ] `AC-U11` A failed save keeps local edits, retries at 2 s, 5 s, and 15 s, shows Retry, and asks
@@ -3425,10 +3510,13 @@ issues, PRs, and test names.
 - [ ] `AC-U13` Steam Collections are read-only; a dynamic Collection shows `dynamic`, no count, and
       the explanatory state; a static empty Collection shows the empty state.
 - [ ] `AC-U14` Game detail shows the documented fields and status copy; Launch is enabled only for
-      installed Games, opens `steam://rungameid/<appId>`, shows `Opening Steam…`, and performs no Steam
-      write; a failed Launch cannot crash the UI.
+      installed Games, opens `steam://rungameid/<appId>`, shows the `Opening Steam…` toast, performs no
+      Steam write, and produces no unhandled rejection on click. A missing protocol handler cannot be
+      detected.
 - [ ] `AC-U15` The primary action is Fetch, sends `all` + Fetch, is disabled while a run is active, and
       shows the running banner with overall and per-source progress while the Library stays usable.
+      Partial, failed, and ownership-failure banners include View refresh errors and Retry; a partial
+      run with `error: null` uses the generic failure copy.
 - [ ] `AC-U16` The banner links to `/errors`; the view lists five source rows with the documented
       fields; Fetch now and Select affected work; affected Games exclude `ok` and `unavailable`; per-
       Game error text is absent.
@@ -3571,16 +3659,17 @@ checklist and is not marked done until that checklist is recorded.
 
 The reference machine is 4 vCPU, 8 GB RAM, local SSD, Node 24. Budgets are p95 unless stated.
 
-| Path                                                | Budget |
-| --------------------------------------------------- | ------ |
-| Rule evaluator, 20,000 Games x 100 Rules            | 500 ms |
-| `POST /api/rules/preview`, 20,000 Games x 100 Rules | 750 ms |
-| `GET /api/games`, 1,300 Games, page size 60         | 200 ms |
-| Smart Collection PATCH with 100 Rules               | 300 ms |
-| Autosave PATCH round trip on loopback               | 350 ms |
-| First Library page LCP after `/api/status` is 200   | 2.5 s  |
-| Startup to `/api/status` 200 with an existing DB    | 2.0 s  |
-| Fetch scheduler overhead per Game/source            | 5 ms   |
+| Path                                                      | Budget |
+| --------------------------------------------------------- | ------ |
+| Rule evaluator, 20,000 Games x 100 Rules                  | 500 ms |
+| `POST /api/rules/preview`, 20,000 Games x 100 Rules       | 750 ms |
+| `GET /api/games`, 1,300 Games, page size 60               | 200 ms |
+| `GET /api/smart-collections`, 20 Collections, 1,300 Games | 1.0 s  |
+| Smart Collection PATCH with 100 Rules                     | 300 ms |
+| Autosave PATCH round trip on loopback                     | 350 ms |
+| First Library page LCP after `/api/status` is 200         | 2.5 s  |
+| Startup to `/api/status` 200 with an existing DB          | 2.0 s  |
+| Fetch scheduler overhead per Game/source                  | 5 ms   |
 
 The evaluator budget is deliberately conservative; the reference implementation is in memory. If it
 fails, the mitigation is SQL compilation or a cached membership table, but v1 must first prove the
