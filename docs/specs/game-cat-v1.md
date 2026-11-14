@@ -284,7 +284,7 @@ game-cat reads Steam Collections in v1 but never writes them.
   Smart Collection names are separate namespaces; a collision is allowed and the UI distinguishes
   them by type.
 - Dynamic Collections are visible in the sidebar and detail surfaces but never contribute to Rule
-  matching and have no `gameCount`.
+  matching and have `gameCount: null`.
 
 ### 2.5 Smart Collections and Rules
 
