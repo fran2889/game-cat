@@ -3350,6 +3350,9 @@ issues, PRs, and test names.
 - [ ] `AC-L22` When a Game is absent from a fully read `localconfig.vdf` Apps block, its local playtime,
       recent playtime, and `localconfig_last_played_at` are cleared; `playtimeMinutes` falls back to API
       playtime or `0`, and `lastPlayedAt` falls back to the manifest or `null`.
+- [ ] `AC-L23` Renaming or deleting a Steam Collection is reflected by the next successful scan: the
+      mirror row is updated or removed, static membership rows are replaced, and source bit 8 is
+      recomputed for every Game.
 
 ### 9.3 Metadata and Refresh
 
