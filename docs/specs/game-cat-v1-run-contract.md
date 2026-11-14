@@ -645,7 +645,7 @@ CHECK (
 - On graceful shutdown the active run is marked immediately. On a hard kill the next start
   reconciles it in [§5.3](#53-interrupted-and-stale-runs).
 - `failed` never hides Games or invalidates their data. The Library remains browsable; the status
-  and sync-errors view explain what is missing.
+  and refresh-errors view explain what is missing.
 
 ### 7.8 Triggers
 
@@ -657,7 +657,7 @@ CHECK (
 - **Selection action:** Refresh selected sends
   `{ "scope": "metadata", "mode": "full", "appIds": [...] }`. It is the only full re-fetch and is
   never triggered automatically.
-- **Sync-errors view:** a Fetch action retries all gaps. To force a re-fetch of affected Games, the
+- **Refresh-errors view:** a Fetch action retries all gaps. To force a re-fetch of affected Games, the
   user selects them and uses Refresh selected.
 - There is no timer, periodic job, watch loop, cron, or background scheduler in v1. Closing and
   reopening the app is the only automatic retry. No Full Refresh is ever automatic.
@@ -795,7 +795,7 @@ webview.
 | Status (§5.2)     | `activeRefresh` and `lastRefresh` carry `mode` and `stats`; the UI can show Fetch or Full Refresh progress per source.                                                      |
 | Security (§8)     | Loopback bind, Host/Origin checks, config file permissions, data-directory guard, and log redaction are normative.                                                          |
 | Rule grammar (#4) | The no-TTL rule and its acceptance check describe **Full Refresh**. Fetch is a completion-based selection policy, not a TTL.                                                |
-| UI (#6 and #8)    | The primary action is Fetch; Full Refresh is selection-scoped; the sync-errors view offers Fetch retry and selects affected Games.                                          |
+| UI (#6 and #8)    | The primary action is Fetch; Full Refresh is selection-scoped; the refresh-errors view offers Fetch retry and selects affected Games.                                       |
 | Startup and ops   | Link this contract from the v1 spec; add the startup codes in §5.2; the data-model contract's open question #7 is resolved here.                                            |
 
 The #4 no-TTL decision remains true for Full Refresh: every selected Game is fetched from every
@@ -936,7 +936,7 @@ selection. #8 must state that distinction next to the #4 acceptance check.
 - **Keychain in v4.** v1 stores the key in a 0600 file. The v4 wrapper should move it to the OS
   keychain behind the interface in [§10](#10-v4-wrapper-constraints); this is not a v1 requirement.
 - **Per-Game error text.** The API exposes source-level `lastError` but not per-Game `*_error`. If
-  the sync-errors view needs per-Game messages, #8 must decide how to expose a safe subset.
+  the refresh-errors view needs per-Game messages, #8 must decide how to expose a safe subset.
 - **Port 4780.** The default is arbitrary and configurable. A collision is an explicit error, not
   an automatic fallback, so users on a busy port must choose another one.
 - **Browser auto-open.** Headless and remote sessions cannot open a browser. The URL is always
