@@ -1610,8 +1610,8 @@ returns `{ data: Config, meta: { restartRequired } }` with the same `Config` sha
 #### `GET /api/steam/accounts`
 
 Returns `{ data: SteamAccount[], pagination }` from `loginusers.vdf`. The list is always a single page:
-`page` is `1`, `pageSize` equals `totalItems`, and `totalPages` is `1`, or `0` for an empty list. It
-never returns `AccountName`. An empty array is a normal `no_account` state, not an error. A missing
+`page` is `1`, `pageSize` equals `totalItems` (or `1` when the list is empty), and `totalPages` is `1`,
+or `0` for an empty list. It never returns `AccountName`. An empty array is a normal `no_account` state, not an error. A missing
 Steam root returns an empty array and the status endpoint reports `steam.state`.
 
 ### 4.4 Validation limits
@@ -3468,7 +3468,7 @@ issues, PRs, and test names.
 - [ ] `AC-A19` Changing `steamId64` after binding returns `409 ACCOUNT_BOUND` with
       `details.boundSteamId64` and writes nothing.
 - [ ] `AC-A20` `GET /api/steam/accounts` returns `data` and `pagination`, never `AccountName`, and an
-      empty list reports `totalItems: 0` and `totalPages: 0`.
+      empty list reports `totalItems: 0`, `pageSize: 1`, and `totalPages: 0`.
 - [ ] `AC-A21` Every HTML response carries the documented CSP, `X-Frame-Options`, and
       `Referrer-Policy`; every response carries `X-Content-Type-Options: nosniff`; a non-loopback
       `Host` returns `403 HOST_NOT_ALLOWED`; a state-changing request with a foreign `Origin` returns
