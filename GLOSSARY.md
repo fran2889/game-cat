@@ -73,6 +73,10 @@ _Avoid_: bare type as a Rule Field
 Game attributes fetched from external sources and cached by game-cat, such as Tags, Genres, storefront details, and review summaries. Missing Metadata never hides a Game.
 _Avoid_: enrichment, sync, scrape
 
+**Cover Art**:
+The capsule, header, and library images the Steam storefront serves for a Game. game-cat fetches Cover Art at runtime and never redistributes it.
+_Avoid_: image, thumbnail, artwork
+
 **Refresh**:
 A run that reads Steam or external Metadata sources and updates game-cat's stored data. Scopes are `library`, `ownership`, `metadata`, and `all`.
 _Avoid_: sync, sync job
