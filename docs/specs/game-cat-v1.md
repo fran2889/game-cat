@@ -780,6 +780,12 @@ CREATE INDEX idx_steam_reviews_total     ON steam_review_summaries(review_total)
 `name.normalize('NFC').trim().toLowerCase()`. Recompute the key whenever the source name changes. The
 key is for matching and sorting; `name` is the display form.
 
+#### `schema_migrations`
+
+One row per applied migration. `version` is the monotonically increasing migration number, `name` is
+the migration file's slug, and `applied_at` is Unix seconds. The table is created before the first
+numbered migration and is authoritative; `PRAGMA user_version` is a diagnostic copy.
+
 #### `account_state`
 
 One row binds the data directory to the Steam Account whose local files it reads. `steam_id64` is a
