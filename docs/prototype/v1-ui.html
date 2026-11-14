@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>game-cat — v1 UI prototype</title>
+    <link rel="stylesheet" href="v1-ui.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+
+    <div
+      class="sidebar-scrim"
+      id="sidebar-scrim"
+      data-action="close-sidebar"
+      aria-hidden="true"
+    ></div>
+
+    <div class="app">
+      <aside class="sidebar" id="sidebar" aria-label="Library navigation"></aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <button
+            class="icon-btn mobile-menu"
+            data-action="toggle-sidebar"
+            aria-label="Open navigation"
+            aria-controls="sidebar"
+            aria-expanded="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+
+          <div class="crumb">
+            <span class="crumb-kicker" id="crumb-kicker">Library</span>
+            <h1 id="crumb-title">All games</h1>
+            <span class="crumb-sub" id="crumb-sub"></span>
+          </div>
+
+          <div class="topbar-tools">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="6.5" />
+                <path d="m16 16 4 4" />
+              </svg>
+              <input
+                id="search"
+                type="search"
+                placeholder="Search game names"
+                autocomplete="off"
+                aria-label="Search game names"
+              />
+              <kbd aria-hidden="true">/</kbd>
+              <button
+                class="search-clear"
+                id="search-clear"
+                data-action="clear-search"
+                aria-label="Clear search"
+                hidden
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+
+            <label class="select-wrap" title="Sort games">
+              <span class="sr-only">Sort by</span>
+              <select id="sort">
+                <option value="name">Name</option>
+                <option value="playtime">Playtime</option>
+                <option value="lastPlayed">Last played</option>
+                <option value="releaseYear">Release year</option>
+                <option value="metacritic">Metacritic</option>
+                <option value="appId">App ID</option>
+              </select>
+            </label>
+
+            <button
+              class="icon-btn"
+              id="order"
+              data-action="toggle-order"
+              aria-label="Sort ascending"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 4v16M12 20l-5-5M12 20l5-5" />
+              </svg>
+            </button>
+
+            <button
+              class="toggle-btn"
+              id="installed-filter"
+              data-action="toggle-installed"
+              aria-pressed="false"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m5 12 4 4L19 6" />
+              </svg>
+              Installed
+            </button>
+
+            <div class="segmented" role="group" aria-label="Layout">
+              <button
+                class="seg-btn"
+                data-action="set-layout"
+                data-layout="grid"
+                aria-pressed="true"
+                aria-label="Grid view"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="4" y="4" width="6" height="6" rx="1" />
+                  <rect x="14" y="4" width="6" height="6" rx="1" />
+                  <rect x="4" y="14" width="6" height="6" rx="1" />
+                  <rect x="14" y="14" width="6" height="6" rx="1" />
+                </svg>
+              </button>
+              <button
+                class="seg-btn"
+                data-action="set-layout"
+                data-layout="table"
+                aria-pressed="false"
+                aria-label="Table view"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16M4 12h16M4 17h16" />
+                </svg>
+              </button>
+            </div>
+
+            <button class="primary" data-action="new-collection">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              New collection
+            </button>
+          </div>
+        </header>
+
+        <main id="content" tabindex="-1">
+          <div id="banner-root"></div>
+          <div id="selection-root"></div>
+          <div id="content-root"></div>
+        </main>
+      </div>
+    </div>
+
+    <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="true"></div>
+
+    <dialog id="detail-dialog" class="detail-dialog" aria-label="Game detail">
+      <div id="detail-root"></div>
+    </dialog>
+
+    <dialog id="notes-dialog" class="notes-dialog" aria-labelledby="notes-title">
+      <div class="notes-head">
+        <div>
+          <p class="dialog-kicker">Prototype #6</p>
+          <h2 id="notes-title">What to try, and what to watch</h2>
+        </div>
+        <button class="icon-btn" data-action="close-notes" aria-label="Close notes">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+      <div class="notes-body">
+        <p class="notes-lede">
+          This is a throwaway clickable prototype for
+          <a href="https://github.com/fran2889/game-cat/issues/6" rel="noreferrer">issue #6</a>. The
+          library is 41 games of sample data; cover art loads from the Steam CDN at runtime.
+        </p>
+
+        <h3>The 60-second job</h3>
+        <ol class="notes-list">
+          <li>
+            Select two or three games in the library, then choose
+            <strong>New from selection</strong>.
+          </li>
+          <li>
+            Name the collection, then add a <strong>Tag</strong>, a <strong>Playtime</strong> rule,
+            and a <strong>Steam Collection</strong> rule.
+          </li>
+          <li>Open the game list rule and choose <strong>Use selection</strong>.</li>
+          <li>Watch the match count update, then save. Use the timer in the bar below.</li>
+        </ol>
+
+        <h3>What to watch</h3>
+        <ul class="notes-list">
+          <li>Do the prefix-first rows make the global AND / OR / NOT grouping understandable?</li>
+          <li>Is the game list obvious enough, or does it hide behind the value control?</li>
+          <li>Does the live result pane make the editor feel safe enough to experiment?</li>
+          <li>
+            What feels slow or confusing? The notes file records the friction I hit while building
+            it.
+          </li>
+        </ul>
+
+        <h3>States in the switcher</h3>
+        <p>
+          Normal, first run, loading, empty library, metadata refresh, and ownership error. The last
+          two keep the library usable. Each state is also addressable with
+          <code>?scenario=error</code> or <code>?scenario=refreshing</code>.
+        </p>
+        <p class="notes-foot">
+          Keyboard: <kbd>/</kbd> search, <kbd>Esc</kbd> closes panels, <kbd>Ctrl</kbd>+<kbd>S</kbd>
+          saves a collection.
+        </p>
+      </div>
+    </dialog>
+
+    <div class="proto-bar" role="region" aria-label="Prototype controls">
+      <button
+        class="proto-toggle"
+        data-action="toggle-proto"
+        aria-expanded="true"
+        aria-controls="proto-controls"
+      >
+        <span class="proto-tag">Prototype</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      <div class="proto-controls" id="proto-controls">
+        <label class="proto-field">
+          <span>State</span>
+          <select id="scenario">
+            <option value="normal">Normal library</option>
+            <option value="first-run">First run</option>
+            <option value="loading">Loading</option>
+            <option value="empty">Empty library</option>
+            <option value="refreshing">Refreshing metadata</option>
+            <option value="error">Ownership error</option>
+          </select>
+        </label>
+
+        <div class="proto-timer">
+          <span class="timer-display" id="timer-display" aria-live="off">00:00</span>
+          <button class="proto-btn" data-action="toggle-timer">Start 60s task</button>
+          <button class="proto-icon" data-action="reset-timer" aria-label="Reset timer">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5" />
+            </svg>
+          </button>
+        </div>
+
+        <button class="proto-btn" data-action="open-notes">Test script &amp; notes</button>
+      </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

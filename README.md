@@ -12,6 +12,9 @@ Pre-implementation. The v1 spec is being charted in the [issue tracker](https://
 
 - [GLOSSARY.md](GLOSSARY.md) - the project's vocabulary.
 - [docs/specs/](docs/specs/) - draft spec sections.
+- [docs/prototype/v1-ui.html](docs/prototype/v1-ui.html) - throwaway v1 UI prototype for
+  [#6](https://github.com/fran2889/game-cat/issues/6), with notes in
+  [docs/prototype/README.md](docs/prototype/README.md).
 - [docs/adr/](docs/adr/) - architecture decisions.
 - [docs/research/](docs/research/) - research notes, one file per question, each on its own `research/<slug>` branch.
 
