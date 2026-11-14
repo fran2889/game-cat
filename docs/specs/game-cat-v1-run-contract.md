@@ -342,8 +342,8 @@ progress. A configured key on a later start triggers the automatic Fetch in [§7
 A localhost service with a secret store is reachable by any web page the browser loads. The
 following checks are part of the contract, not optional hardening:
 
-- Reject a request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` with
-  `403 HOST_NOT_ALLOWED`.
+- Reject a request whose `Host` is not `127.0.0.1:<port>`, or `localhost:<port>` when `localhost`
+  resolves to loopback, with `403 HOST_NOT_ALLOWED`.
 - For `POST`, `PATCH`, and `DELETE`, when `Origin` is present it must match the server's origin;
   otherwise reject with `403 ORIGIN_NOT_ALLOWED`. Requests from `curl` without an `Origin` are
   allowed because they are not browser cross-origin requests.
