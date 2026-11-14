@@ -13,8 +13,8 @@ repository is public but docs-only, so the choice also settles how future code a
 specs and ADRs are licensed. The alternatives were MIT, Apache-2.0, GPLv3, and source-available.
 MIT and Apache-2.0 would permit proprietary forks and would force a relicensing decision before any
 `steam-cat` code could be reused. Source-available would make the project non-free software and
-complicate outside contributions. Every planned dependency is permissive (MIT, or Apache-2.0 for
-TypeScript), so copyleft imposes no compatibility problem.
+complicate outside contributions. The current dependencies are MIT, and the planned stack is
+permissive (MIT, except Apache-2.0 for TypeScript), so copyleft imposes no compatibility problem.
 
 Third-party terms remain unresolved: the [Steam metadata contract, #5](https://github.com/fran2889/game-cat/issues/5)
 could retrieve no SteamSpy terms, and no Valve source grants redistribution of store metadata or
@@ -24,14 +24,15 @@ below is a precaution against unresolved terms, not a legal conclusion.
 ## Decision
 
 game-cat is licensed under the GNU General Public License, version 3 only, covering the entire
-repository — application code, tooling, specs, ADRs, the glossary, and the README — identified as
-`GPL-3.0-only` in SPDX terms, with exactly the terms distributed in [LICENSE](../../LICENSE) and no
-"or any later version" clause and no separate documentation license. Because the project is
-already GPLv3, reusing `steam-cat` code later would require no relicensing, while the clean-slate
-destination still forbids copying until a deliberate decision says otherwise. The license covers
-only original project material: Steam metadata, SteamSpy data, and Cover Art are fetched at
-runtime and never redistributed with the project, so they remain subject to SteamSpy's and Valve's
-unresolved terms and are outside the scope of this license.
+repository — application code, tooling, specs, ADRs, the glossary, the README, and `docs/research/`
+— identified as `GPL-3.0-only` in SPDX terms, with no separate documentation license. The project's
+grant specifies version 3 only: the stock GPLv3 text retained in [LICENSE](../../LICENSE) still
+contains the appendix's "or any later version" sample notice, but that sample is not this project's
+grant. The clean-slate destination forbids copying `steam-cat` code until a deliberate decision
+says otherwise; if such reuse were ever approved, the existing GPLv3 license would need no
+relicensing. The license covers only original project material: Steam metadata, SteamSpy data, and
+Cover Art are fetched at runtime and never redistributed with the project, so they remain subject
+to SteamSpy's and Valve's unresolved terms and are outside the scope of this license.
 
 ## Consequences
 
