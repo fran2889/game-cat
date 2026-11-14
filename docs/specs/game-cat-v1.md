@@ -335,15 +335,15 @@ database failure, or an internal fatal error. A source failure is `partial`, not
 
 ### 2.7 Field precedence and name updates
 
-| Field           | Precedence                                                                                                                                                                                                                                                                                           |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Display name    | Storefront `name` → `GetOwnedGames` `name` → `appmanifest.name` → SteamSpy `name` → `Game <appid>`                                                                                                                                                                                                   |
-| Playtime        | `localconfig.Playtime` when present; otherwise `GetOwnedGames` `playtime_forever`; `0` when neither exists                                                                                                                                                                                           |
-| Recent playtime | `localconfig.Playtime2wks` when present; otherwise `GetOwnedGames` `playtime_2weeks`; `null` when neither exists                                                                                                                                                                                     |
-| Last played     | `max(appmanifest.LastPlayed, localconfig.LastPlayed)`, `null` when neither exists                                                                                                                                                                                                                    |
-| Installed       | Local manifest only. `1` when a manifest is present and the installed test passes; `0` when a fully successful scan finds no manifest; `null` until a scan has read install evidence for that Game. A partial scan may set `1` from a readable manifest but preserves prior values for unseen Games. |
-| Tags            | SteamSpy only. No fallback; an empty or missing tag payload is recorded as `missing`, not `ok`.                                                                                                                                                                                                      |
-| Release year    | Parsed storefront `release_date`; `null` when unparseable. The raw string is retained.                                                                                                                                                                                                               |
+| Field           | Precedence                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Display name    | Storefront `name` → `GetOwnedGames` `name` → `appmanifest.name` → SteamSpy `name` → `Game <appid>`                                                                                                                                                                                                                                                                           |
+| Playtime        | `localconfig.Playtime` when present; otherwise `GetOwnedGames` `playtime_forever`; `0` when neither exists                                                                                                                                                                                                                                                                   |
+| Recent playtime | `localconfig.Playtime2wks` when present; otherwise `GetOwnedGames` `playtime_2weeks`; `null` when neither exists                                                                                                                                                                                                                                                             |
+| Last played     | `max(appmanifest.LastPlayed, localconfig.LastPlayed)`, `null` when neither exists                                                                                                                                                                                                                                                                                            |
+| Installed       | Local manifest only. `1` when a manifest is present and the installed test passes; `0` when a manifest is present but the test fails, or when every library was read completely and no manifest exists; `null` until a scan has read install evidence for that Game. A partial scan may set `1` or `0` from a readable manifest but preserves prior values for unseen Games. |
+| Tags            | SteamSpy only. No fallback; an empty or missing tag payload is recorded as `missing`, not `ok`.                                                                                                                                                                                                                                                                              |
+| Release year    | Parsed storefront `release_date`; `null` when unparseable. The raw string is retained.                                                                                                                                                                                                                                                                                       |
 
 Storefront Metadata must never hide or delete a Game. A local scan must never overwrite a storefront
 name with a stale local name.
@@ -2367,10 +2367,11 @@ guard and the run record.
 4. Derive `installed`: `(StateFlags & 4) == 4`, the install directory exists under
    `<library>/steamapps/common/<installdir>`, and `InstalledDepots` is non-empty. Do not test
    `StateFlags == 4` exactly; an app running or with missing files can still be installed. If a
-   manifest exists but the test fails, treat the app as not yet installed and re-read on the next scan.
-   When the scan is fully successful and no library has a manifest for a Game, set `installed = 0` and
-   clear `library_path`, `install_dir`, `size_on_disk_bytes`, `state_flags`, `manifest_last_played_at`,
-   and `last_updated_at`; `last_played_at` then falls back to `localconfig_last_played_at` or `null`.
+   manifest exists but the test fails, set `installed = 0` and re-read on the next scan.
+   When every library was read completely and no library has a manifest for a Game, set `installed = 0`
+   and clear `library_path`, `install_dir`, `size_on_disk_bytes`, `state_flags`,
+   `manifest_last_played_at`, and `last_updated_at`; `last_played_at` then falls back to
+   `localconfig_last_played_at` or `null`.
 5. On a **fully successful** scan (every discovered library and the required Account files were read),
    recompute local `source_mask` bits 2, 4, and 8 for every Game from the evidence just read, and set
    `installed` to `1` when the test passes or `0` otherwise. Do not clear bit 1 (ownership). Delete a
@@ -2383,8 +2384,8 @@ guard and the run record.
    - `localconfig` evidence (bit 4): update or clear it only when `localconfig.vdf` was read completely;
      otherwise preserve it.
    - Steam Collection evidence (bit 8): governed by step 7.
-   - `installed`: update Games with a readable manifest; preserve it for unseen Games when any library
-     was unreadable.
+   - `installed`: update Games with a readable manifest; set it to `0` for unseen Games when every
+     library was read completely, otherwise preserve it.
 
    Do not delete rows on a partial scan. Deletion requires every local evidence source to be read
    completely. The next fully successful scan reconciles the missing evidence.
@@ -3286,9 +3287,9 @@ issues, PRs, and test names.
       `lastPlayedAt` equals the maximum of manifest and localconfig timestamps, or `null` when both are
       absent.
 - [ ] `AC-L7` `installed` is `null` until a scan reads install evidence for a Game, `1` when a readable
-      manifest passes the installed test, `0` for an owned Game with no manifest after a fully successful
-      scan, and never silently becomes `false` because Steam is missing; a partial scan preserves
-      `installed` for unseen Games.
+      manifest passes the installed test, `0` when a readable manifest fails the test, and `0` for an
+      owned Game with no manifest after every library was read completely. It never silently becomes
+      `false` because Steam is missing; a partial scan preserves `installed` for unseen Games.
 - [ ] `AC-L8` The Library union includes App IDs from ownership, appmanifests, `localconfig.vdf`, and
       static Steam Collection membership; a fully successful scan updates `source_mask` bits 2, 4, and
       8 and deletes a non-owned row only when all local bits become zero.
