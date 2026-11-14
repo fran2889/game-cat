@@ -1,6 +1,6 @@
 # game-cat
 
-A better way to browse and filter a Steam library: a locally-run web app that reads local Steam data, enriches it with tags, and saves reusable Smart Collections.
+A better way to browse and filter a Steam library: a locally-run web app that reads local Steam data, adds metadata from SteamSpy, the storefront, and Steam reviews, and saves reusable Smart Collections.
 
 Steam-only for now. Later phases add How Long To Beat times, writing Smart Collections back to Steam as Steam Collections, and a desktop wrapper.
 
