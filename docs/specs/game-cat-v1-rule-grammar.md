@@ -56,6 +56,12 @@ The decisions below were settled on #4 on 2026-11-13.
 | Review source             | Steam user reviews from `store.steampowered.com/appreviews/<appid>`. It is a third metadata source and shares the storefront host budget.                                                               |
 | Evaluation implementation | A pure, deterministic evaluator over the current Library. It may run in memory or compile to SQL, but the semantics below are the contract.                                                             |
 
+> **Pending #7 delta.** [#7](https://github.com/fran2889/game-cat/issues/7) splits metadata
+> refreshes into **Fetch** (a completion-based selection of sources with no usable current data)
+> and **Full Refresh** (an explicit `appIds` selection with no per-Game skip). The no-TTL decision
+> above describes Full Refresh; Fetch is not a TTL. See
+> [the run contract](game-cat-v1-run-contract.md).
+
 ## 2. Rule object
 
 ```json
@@ -557,11 +563,18 @@ Rules:
 
 - There is **no TTL** for any external metadata source. Every explicit `metadata` refresh fetches
   SteamSpy, the storefront, and Steam reviews for the selected Games. `appIds` narrows the
-  selection; an omitted `appIds` means all Games. This supersedes #5's 7-day metadata TTL and its
-  no-third-source decision.
+  selection; under the pre-#7 rule, an omitted `appIds` means all Games. This supersedes #5's
+  7-day metadata TTL and its no-third-source decision. This rule describes **Full Refresh**.
+  **Pending #7 delta:** Full Refresh requires an explicit `appIds` selection and there is no global
+  all-Games Full Refresh; **Fetch** is the all-Games gap fill defined in
+  [the run contract](game-cat-v1-run-contract.md).
+  Fetch selects only `(Game, source)` pairs with no usable current data and does not skip work
+  inside a Full Refresh selection.
 - There is no scheduler in v1. "On demand" means the user's explicit `metadata` or `all` refresh.
-  Ownership (Steam Web API) and the local Steam scan remain their own `ownership` and `library`
-  scopes; neither has a TTL, and both are already fetched only on explicit refresh.
+  **Pending #7 delta:** the run contract also starts one `all` + Fetch on startup; that is a
+  one-shot gap fill and recovery, not a scheduler. Full Refresh remains explicit. Ownership
+  (Steam Web API) and the local Steam scan remain their own `ownership` and `library` scopes;
+  neither has a TTL, and both are fetched by their explicit scopes or the startup `all` + Fetch.
 - The storefront and review requests share `store.steampowered.com`; the rate budget is the one in
   the [Steam metadata sources contract](https://github.com/fran2889/game-cat/blob/research/metadata-sources/docs/research/metadata-sources.md).
   They do not get a separate budget each.
@@ -573,7 +586,8 @@ Rules:
 - `stale` is a failure state, not an age state; see
   [§10.2](#102-source-named-metadata-tables).
 - `metadata` and `all` are the only scopes that fetch metadata. `all` runs `library`, then
-  `ownership`, then `metadata`. `appIds` is valid only with `metadata`.
+  `ownership`, then `metadata`. `appIds` is valid only with `metadata` + Full Refresh (`mode = full`);
+  Fetch and the other scopes reject it.
 
 ## 10. Schema, API, and terminology delta
 
@@ -626,6 +640,10 @@ CREATE TABLE steamspy_appdetails (
     updated_at        INTEGER NOT NULL
 );
 ```
+
+`tags_status = 'missing'` with `tags_fetched_at` set means a successful SteamSpy response with no
+usable Tags. It is a settled miss, not a pending fetch. Storefront and reviews report the same
+answer as `unavailable` instead.
 
 #### `storefront_appdetails`
 
@@ -745,10 +763,12 @@ in the detail payload.
 - The `metadata` scope replaces `enrichment` in `POST /api/refresh`, `refresh_runs.scope`, the
   deduplication rule, and the `appIds` restriction. The `refresh_runs.scope` check becomes
   `CHECK (scope IN ('library', 'ownership', 'metadata', 'all'))`.
-  `refresh_runs.app_ids_json` has the same meaning: the normalized selection, or `NULL` for all
-  Games.
+  `refresh_runs.app_ids_json` stores the normalized Full Refresh selection. It is required for
+  `metadata` + `full` and `NULL` for every other combination; there is no all-Games Full Refresh.
 - A `metadata` run on an unbound database stores `steam_id64 = NULL`; it does not bind an Account.
-- No TTL: every explicit refresh fetches every selected Game from every metadata source.
+- No TTL: every explicit Full Refresh fetches every selected Game from every metadata source.
+  Fetch is defined in [the run contract](game-cat-v1-run-contract.md) and selects only sources
+  without usable current data.
 - The storefront and review passes share the store-host budget. They are serialized; SteamSpy is
   independent.
 - A source failure makes the run `partial`, not failed. A blocked source stops for 15 minutes.
@@ -782,6 +802,8 @@ in the detail payload.
 - [ ] `game_enrichment` no longer exists; `v_games` joins the three source-named tables.
 - [ ] `steamspy_appdetails` stores one row per Game with SteamSpy data and defaults
       `tags_status` to `missing` when absent.
+- [ ] A SteamSpy `missing` with `tags_fetched_at` set is a settled miss; Fetch does not
+      re-request it.
 - [ ] `storefront_appdetails` stores one row per Game with storefront data and defaults
       `store_status` to `missing` when absent.
 - [ ] `steam_review_summaries` stores one row per Game with a review fetch and defines all five
@@ -789,9 +811,11 @@ in the detail payload.
 - [ ] `source_state` contains `steam_reviews`; `Status.sources` contains five entries in the
       documented order.
 - [ ] `POST /api/refresh` accepts `metadata`; `refresh_runs.scope` uses `metadata`; `appIds` is
-      valid only with `metadata`.
-- [ ] A `metadata` refresh fetches SteamSpy, storefront, and reviews for every selected Game,
-      even when the data was fetched recently.
+      valid only with `metadata` + `mode = full`.
+- [ ] A Full Refresh (`metadata` + `mode = full`) fetches SteamSpy, storefront, and reviews for
+      every selected Game, even when the data was fetched recently. Fetch mode
+      ([the run contract](game-cat-v1-run-contract.md)) selects only sources without usable
+      current data.
 - [ ] The storefront and review passes never run concurrently against the store host; a `429`
       pauses the shared host.
 - [ ] A successful review summary stores counts, tier, status, and timestamp, and computes

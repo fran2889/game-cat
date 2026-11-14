@@ -8,6 +8,11 @@ v1 spec ([#8](https://github.com/fran2889/game-cat/issues/8)).
 > `storefront_appdetails`, and `steam_review_summaries`, removes metadata TTLs, and adds Steam
 > reviews as a third metadata source. The decisions and deltas are in
 > [the rule grammar section](game-cat-v1-rule-grammar.md); #8 folds them in.
+>
+> **Pending #7 delta.** [#7](https://github.com/fran2889/game-cat/issues/7) defines install, data
+> directory, configuration, port and bind, first run, Fetch/Full Refresh modes, logging, and
+> lifecycle in [the run contract](game-cat-v1-run-contract.md). It adds `refresh_runs.mode`, a
+> configuration API, and Host/Origin checks; #8 folds them in.
 
 This section defines the persistent model and the HTTP contract for game-cat v1. It does **not**
 define the rule grammar, the rule evaluator, the run contract, or the UI. Those belong to
@@ -196,7 +201,8 @@ erDiagram
 ### 4.1 Connection settings
 
 The process opens one SQLite database per game-cat data directory. The path, file permissions,
-and backup location are part of the run contract (#7); the schema assumes a single local file.
+and backup location are defined in [the run contract](game-cat-v1-run-contract.md) (#7); the
+schema assumes a single local file.
 
 At every connection:
 
@@ -561,6 +567,9 @@ so it is not used for these rules.
 - `total` and `done` drive progress. `stats_json` holds small, non-secret counters and warnings.
 - `app_ids_json` stores the normalized, ascending App ID list for an `enrichment` run, or `NULL`
   for "all Games". It is the deduplication key for a running enrichment run.
+- **Pending #7 delta:** the run contract adds `refresh_runs.mode` (`fetch` or `full`) and a
+  combined scope/mode/selection check. Fetch computes its selection instead of storing it; Full
+  Refresh stores `app_ids_json`. See [the run contract](game-cat-v1-run-contract.md).
 - `source_state` is one row per source. `last_error` is a short, user-safe message; never a raw
   response body or an API key.
 - Status vocabularies:
@@ -1107,6 +1116,11 @@ normal TTL for the selected Games.
 
 Returns `202` with `{ data: RefreshRun }` and `Location: /api/refresh/{id}`.
 
+> **Pending #7 delta.** The run contract adds a required `mode` for `metadata`/`all` (`fetch` or
+> `full`), rejects `appIds` outside `metadata` + `full`, and adds `mode`/`stats` to `RefreshRun`.
+> The examples and validation below are the pre-#7 form. See
+> [the run contract](game-cat-v1-run-contract.md).
+
 If `scope = ownership` and the Web API key or SteamID64 is not configured, return
 `409 OWNERSHIP_NOT_CONFIGURED` with `details: { "missing": ["webApiKey"] }` or `["steamId64"]`.
 If `scope = all` and ownership is not configured, run the local and enrichment phases, skip
@@ -1292,17 +1306,18 @@ genuinely empty library look identical. Never treat it as permission to delete.
 - Before any refresh writes, when the database is bound:
   - A different selected SteamID64 fails the run with `ACCOUNT_MISMATCH` and leaves all data
     untouched.
-  - A missing selected account fails a `library`, `ownership`, or `all` refresh without writing.
+  - A missing selected account fails the account-scoped work without writing. An `all` refresh
+    skips that work, still runs the `enrichment` phase for known Games, and finishes `partial`.
 - A `library`, `ownership`, or `all` refresh on an unbound database binds the selected SteamID64
-  before its first write; a missing selected account fails that refresh without writing. An
+  before its first write; a missing selected account leaves the account-scoped work unwritten. An
   `enrichment` refresh does not bind an account.
 - `all` runs `library`, then `ownership`, then `enrichment`.
 - An `enrichment` run stores its normalized, ascending `appIds` selection in
   `refresh_runs.app_ids_json`; `NULL` means all Games.
-- Progress is persisted in `refresh_runs` at most every 25 items to avoid write amplification.
 - `partial` means the run completed with some per-Game or per-source failures; it is not a fatal
   error.
-- On process start, stale `queued`/`running` rows become `failed` with `INTERRUPTED`.
+- On process start, stale `queued`/`running` rows become `failed` with `INTERRUPTED`. Recovery
+  and data-durability semantics are in [the run contract](game-cat-v1-run-contract.md).
 
 ## 7. Migrations
 
@@ -1336,8 +1351,8 @@ released; a correction is a new numbered migration.
 
 ## 8. Security and privacy
 
-- The server is local-only and unauthenticated in v1; #7 defines the bind address. Do not expose
-  it beyond localhost.
+- The server is local-only and unauthenticated in v1; the bind address is defined in
+  [the run contract](game-cat-v1-run-contract.md). Do not expose it beyond localhost.
 - The Steam Web API key is a secret. It lives in server-side configuration or environment,
   never in SQLite, API responses, or logs. Redact `key` from upstream URLs in request logs.
 - `loginusers.vdf`'s `AccountName` is sensitive and is never exposed. `SteamID64`, the derived
@@ -1347,6 +1362,9 @@ released; a correction is a new numbered migration.
 - All SQL uses bound parameters.
 - v1 never opens a Steam file for writing and never writes inside the Steam tree.
 - CORS is same-origin only. No `Access-Control-Allow-Origin: *`.
+- **Pending #7 delta:** the run contract requires loopback binding, `Host` and `Origin` checks,
+  config-file permissions, and the data-directory guard. See
+  [the run contract](game-cat-v1-run-contract.md).
 
 ## 9. Acceptance checks
 
@@ -1366,6 +1384,8 @@ These checks are intended to become part of the v1 acceptance criteria in #8.
 
 - [ ] A database bound to account A refuses to start under account B with `DB_ACCOUNT_MISMATCH`;
       a refresh under account B fails with `ACCOUNT_MISMATCH` and leaves all rows intact.
+- [ ] A run whose selected account is missing writes no account-scoped data; an `all` run still
+      runs the enrichment phase for known Games and finishes `partial`.
 - [ ] With a valid key, every Game in a complete GetOwnedGames response has a `games` row with
       `ownership_status = 'owned'`, even when it is not installed and has no local playtime.
 - [ ] An installed Game absent from a complete ownership response remains in the database with
@@ -1442,9 +1462,10 @@ These checks are intended to become part of the v1 acceptance criteria in #8.
 - **#4 (rule grammar/evaluator):** field and operator vocabulary, value types, zero-rule
   behavior, missing/unknown values, dynamic Steam Collections as a field, and evaluation order.
   This section stores and transports rules but does not interpret them.
-- **#7 (run contract):** data directory, database path, port and bind address, config file,
-  Web API key entry, account selection, logging destination, and process lifecycle. The key must
-  never enter SQLite.
+- **#7 (run contract):** resolved in [the run contract](game-cat-v1-run-contract.md): data
+  directory, database path, port and bind address, config file, Web API key entry, account
+  selection, logging destination, Fetch/Full Refresh triggers, and process lifecycle. The key
+  never enters SQLite.
 - **#1 (not yet specified):** family sharing, whether non-game types (soundtracks, tools, videos)
   are shown by default, and performance for 5k-20k Game libraries. v1 binds one account per data
   directory (§4.4); multi-account support is out of scope.
