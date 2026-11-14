@@ -1118,18 +1118,26 @@
 
   function renderTable(games) {
     const allSelected = games.length > 0 && games.every((entry) => state.selected.has(entry.appId));
+    const sortableHeader = (label, field) => {
+      const active = state.sort === field;
+      const ariaSort = active ? (state.order === "asc" ? "ascending" : "descending") : "none";
+      const arrow = active
+        ? `<span class="th-arrow ${state.order === "desc" ? "is-desc" : ""}">${icon("arrowUp")}</span>`
+        : "";
+      return `<th aria-sort="${ariaSort}"><button class="th-sort" data-action="sort-column" data-sort="${field}">${label}${arrow}</button></th>`;
+    };
     return `
       <div class="table-wrap">
         <table class="game-table">
           <thead>
             <tr>
               <th class="col-check"><input type="checkbox" data-select-all ${allSelected ? "checked" : ""} aria-label="Select all shown games" /></th>
-              <th>Game</th>
+              ${sortableHeader("Game", "name")}
               <th>Installed</th>
-              <th>Playtime</th>
-              <th>Last played</th>
+              ${sortableHeader("Playtime", "playtime")}
+              ${sortableHeader("Last played", "lastPlayed")}
               <th>Review</th>
-              <th>Released</th>
+              ${sortableHeader("Released", "releaseYear")}
               <th>Tags</th>
             </tr>
           </thead>
@@ -1566,11 +1574,11 @@
             <span class="step-num">2</span>
             <div>
               <h3>Steam Web API key</h3>
-              <p>Needed for the full owned-games roster. Local files alone can still show installed games.</p>
+              <p>Required for the full owned-games roster. v1 cannot claim a complete library without it.</p>
               <div class="field">
                 <label for="api-key">Web API key</label>
                 <div class="field-row">
-                  <input id="api-key" type="password" placeholder="Paste your key" autocomplete="off" />
+                  <input id="api-key" type="password" placeholder="Paste your key" autocomplete="off" required aria-required="true" />
                   <a class="ghost" href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener noreferrer">Get a key ${icon("external")}</a>
                 </div>
               </div>
@@ -1735,8 +1743,8 @@
           </div>
         </div>
 
-        <p class="proposal-note">
-          Launch is a proposal, not part of the v1 spec: the app is deliberately read-only. The
+        <p class="launch-note">
+          Launch opens the game through Steam. game-cat still never writes Steam files; the
           storefront link is safe.
         </p>
         <div class="detail-actions">
@@ -2301,6 +2309,14 @@
   }
 
   function scanLibrary() {
+    if (state.scenario === "first-run") {
+      const key = $("#api-key");
+      if (!key || key.value.trim() === "") {
+        showToast("A Steam Web API key is required for the full roster.");
+        key?.focus();
+        return;
+      }
+    }
     setScenario("loading");
     scanTimer = window.setTimeout(() => {
       scanTimer = null;
@@ -2508,6 +2524,18 @@
       case "select-visible":
         selectVisible();
         break;
+      case "sort-column": {
+        const field = button.dataset.sort;
+        if (state.sort === field) {
+          state.order = state.order === "asc" ? "desc" : "asc";
+        } else {
+          state.sort = field;
+          state.order = "asc";
+        }
+        renderTopbar();
+        renderResults();
+        break;
+      }
       case "toggle-order":
         state.order = state.order === "asc" ? "desc" : "asc";
         renderTopbar();

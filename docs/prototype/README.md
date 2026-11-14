@@ -43,7 +43,7 @@ narrow screens.
 - Steam Collections: read-only list and view; dynamic collections are visible but disabled in the Rule
   picker, because their membership is not mirrored in v1.
 - Game detail: metadata, tags with votes, Steam Collections, metadata status, store page link, and a
-  proposed Launch action.
+  Launch action.
 - States: first run, loading, empty library, metadata refresh in progress, ownership error, search
   with no results, and rules with no matches.
 - Missing values: Caves of Qud has an unknown install state and a known-zero review count; Noita has
@@ -52,6 +52,30 @@ narrow screens.
 The rule evaluator follows the v1 grammar: AND rules all must match, at least one OR rule must
 match when an OR rule exists, NOT rules veto, missing values are false, and an empty rule set matches
 every game.
+
+## Decisions after review
+
+The prototype above is the **pre-review snapshot**. These decisions were made after clicking through
+it on 2026-11-14; not all of them are implemented in the snapshot.
+
+| Topic                    | Decision                                                          | #8 follow-through                                                                                                                                       |
+| ------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Save model               | Autosave after the first explicit save.                           | Add debounce, save-failure retry, and a saved/unsaved indicator; remove the manual Save requirement after the first save.                               |
+| New collection entry     | Keep the current flow: explicit New, optional New from selection. | No change.                                                                                                                                              |
+| Prefix explanation       | The current global callout and counts are clear enough.           | Do not add nested groups; keep the "grouped globally" copy.                                                                                             |
+| Launch                   | Include Launch in v1.                                             | Enable for installed Games; define `steam://` failure and not-installed behavior. v1 still never writes Steam files.                                    |
+| First run                | The Steam Web API key is required.                                | No deferred or optional-key onboarding path in v1. The library is incomplete without the key.                                                           |
+| Table sorting            | Sort from the table headers.                                      | Implemented for Game, Playtime, Last played, and Released. Keep it in #8; Review and Installed need API sort fields before they can be header-sortable. |
+| Refresh and error detail | Link to a separate view that lists sync errors.                   | Define the route/view, per-source rows, and the banner link; keep the aggregate banner as the summary.                                                  |
+
+## Left for the #8 spec
+
+- Grid vs table default, and whether the choice persists per view.
+- Autosave debounce interval, conflict handling, and undo.
+- Exact sync-errors view content and whether it is a route or a dialog.
+- Launch failure handling when Steam is not running or the Game is not installed.
+- Virtualization or pagination for a 1,300-game library and the live preview latency budget.
+- Empty-rules and NOT-veto copy in the final UI.
 
 ## What felt slow or confusing
 
@@ -67,7 +91,8 @@ These are the friction points I hit while building and clicking through it.
    many; a persistent "selection tray" in the editor would be faster.
 3. **Naming interrupts the flow.** The draft is prefilled with "New Smart Collection" so the job can
    finish without typing, but a real user will want to name it. Manual Save also adds a step. Consider
-   autosave after the first save, with an undo affordance.
+   autosave after the first save, with an undo affordance. **Decision: autosave after the first
+   save.**
 4. **Live preview is fine at 41 games, unknown at 1,300.** The prototype evaluates locally. The real
    preview endpoint is server-side, so the editor needs a debounce (250–400 ms), a pending indicator,
    and a way to keep the last result visible while the new one loads. Pagination or virtualization is
@@ -85,25 +110,16 @@ These are the friction points I hit while building and clicking through it.
    a dynamic collection to work as a Rule will still be surprised.
 9. **First run asks for an API key before showing anything.** The local scan can produce a useful
    library without the key. A better order might be: scan local files first, show installed games,
-   then offer the roster upgrade. The prototype currently presents the key as step 2 of 3.
-10. **Launch is not specified.** The detail drawer shows a Launch button labeled as a proposal. It is
-    useful for judging the detail surface, but v1 is read-only. Decide whether launching belongs in
-    v1 or waits for the desktop wrapper.
+   then offer the roster upgrade. **Decision: the key stays required; keep the current required
+   step.**
+10. **Launch was not specified.** The detail drawer showed a Launch button labeled as a proposal. It
+    was useful for judging the detail surface. **Decision: include Launch in v1.** v1 remains
+    read-only with respect to Steam files.
 11. **Grid or table?** The grid is better for browsing covers; the table is better for comparing
     playtime and review scores. The prototype keeps both. The default should probably stay grid, with
     the choice remembered per view.
 12. **The library remains usable during refresh and ownership failure.** That felt right. The banner
     is prominent without blocking the library, and the stale/partial state is visible in the sidebar.
-
-## Open questions for feedback
-
-- Should Save be explicit, autosaved, or autosaved after the first save?
-- Should the New Smart Collection flow start from the library selection by default?
-- Is the global prefix explanation enough, or does the editor need a visual group structure?
-- Should the detail drawer offer Launch in v1?
-- Should first run make the Steam Web API key optional and defer the full roster?
-- Does the table need column sorting in the header, or is the toolbar sort enough?
-- What should the refresh banner show for per-source failures instead of one aggregate count?
 
 ## Deliberately not included
 

@@ -1193,6 +1193,37 @@ main {
   white-space: nowrap;
 }
 
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.th-sort:hover {
+  color: var(--text);
+}
+
+.th-arrow {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.th-arrow svg {
+  width: 11px;
+  height: 11px;
+}
+
+.th-arrow.is-desc {
+  transform: rotate(180deg);
+}
+
 .game-table td {
   padding: 7px 10px;
   border-bottom: 1px solid var(--border);
@@ -2365,7 +2396,7 @@ main {
   flex: 1 1 110px;
 }
 
-.proposal-note {
+.launch-note {
   margin: 0 16px 10px;
   padding: 7px 9px;
   border: 1px dashed #5e471d;
