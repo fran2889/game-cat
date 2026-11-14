@@ -78,8 +78,16 @@ The capsule, header, and library images the Steam storefront serves for a Game. 
 _Avoid_: image, thumbnail, artwork
 
 **Refresh**:
-A run that reads Steam or external Metadata sources and updates game-cat's stored data. Scopes are `library`, `ownership`, `metadata`, and `all`.
+A run that reads Steam or external Metadata sources and updates game-cat's stored data. Scopes are `library`, `ownership`, `metadata`, and `all`; the metadata phase runs in Fetch or Full Refresh mode.
 _Avoid_: sync, sync job
+
+**Fetch**:
+A Refresh mode that requests only Metadata sources with no usable current data: a source with no row, a never-attempted missing value, or a stale or failed value. It skips sources that are already `ok`, settled missing, or `unavailable`.
+_Avoid_: sync, update
+
+**Full Refresh**:
+A Refresh mode that re-requests all three Metadata sources for an explicit selection of Games, even when the stored data is current. It is only available for selected Games.
+_Avoid_: sync all, force refresh
 
 **Playtime**:
 Total time a Game has been played, as recorded by Steam.
