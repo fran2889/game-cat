@@ -730,7 +730,7 @@ SELECT
     COALESCE(sf.publishers_json, '[]') AS publishers_json,
     COALESCE(sf.genres_json, '[]')     AS genres_json,
     COALESCE(sf.categories_json, '[]') AS categories_json,
-    COALESCE(sf.platforms_json, '{}')  AS platforms_json,
+    sf.platforms_json                  AS platforms_json,
     sf.release_date_raw,
     sf.release_year,
     sf.metacritic_score,
@@ -823,7 +823,8 @@ the database is unbound and the first account-scoped Refresh claims it. `bound_a
 #### `storefront_appdetails`
 
 - A missing row means the storefront has not been fetched; readers treat it as
-  `store_status = 'missing'` and unknown Metadata.
+  `store_status = 'missing'` and unknown Metadata. `v_games.platforms_json` is `null` for a missing row;
+  an empty object means the storefront reports no supported platforms.
 - `store_status` is `ok`, `unavailable` (the storefront returned `success: false`, meaning delisted,
   region-blocked, or not a store product; keep the last-known-good Metadata), `missing` (never
   fetched), `stale` (last-known-good data is served after a failed attempt), or `error` (the last
@@ -3261,7 +3262,7 @@ issues, PRs, and test names.
       invalid `source_state` name or status, an invalid `installed` value, and a review row whose
       counts are inconsistent or partially null.
 - [ ] `AC-S7` `v_games` returns `tags_status = 'missing'`, `store_status = 'missing'`, and
-      `review_status = 'missing'` with empty arrays and `{}` platforms for a Game with no Metadata
+      `review_status = 'missing'` with empty arrays and `null` platforms for a Game with no Metadata
       rows, and computes `review_score` as documented for known counts.
 - [ ] `AC-S8` No `game_enrichment` table exists; `steamspy_appdetails`, `storefront_appdetails`, and
       `steam_review_summaries` exist and are keyed by `app_id` with cascade delete.
