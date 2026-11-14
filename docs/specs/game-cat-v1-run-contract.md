@@ -360,9 +360,9 @@ following checks are part of the contract, not optional hardening:
 
 ### 5.1 Order
 
-1. Parse CLI flags and environment. Resolve the data directory. Read and validate `config.json`;
+1. Check the Node major version. Exit `NODE_VERSION` when it is below 24, before any other work.
+2. Parse CLI flags and environment. Resolve the data directory. Read and validate `config.json`;
    a missing file uses defaults. Exit `CONFIG_INVALID` on failure.
-2. Check the Node major version. Exit `NODE_VERSION` when it is below 24.
 3. Discover the Steam root and accounts, read-only. This is not fatal when Steam is missing or has
    no account; `/api/status` reports `not_found` or `no_account`. Exit `DATA_DIR_IN_STEAM` if the
    resolved data directory is inside the discovered root. This check runs before the data directory
