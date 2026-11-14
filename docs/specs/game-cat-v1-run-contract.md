@@ -516,8 +516,9 @@ one-click action.
 
 ### 7.2 Fetch selection
 
-Fetch selects work per source, not per Game. The three sources are SteamSpy (`tags`), storefront
-(`store`), and Steam reviews (`reviews`). A Game can need none, one, two, or all three.
+Fetch selects work per source, not per Game. The three sources are SteamSpy (`steamspy`),
+storefront (`storefront`), and Steam reviews (`steam_reviews`), matching `source_state.name`. A
+Game can need none, one, two, or all three.
 
 A source is **pending** for a Game when:
 
@@ -609,8 +610,9 @@ CHECK (
   progress is visible through `status.library` and the run log. `total` may be `null` while the
   selection is being computed.
 - `stats_json` holds small, non-secret counters: `sources.<steamspy|storefront|steam_reviews>`
-  with `candidates`, `done`, `failed`, and `skipped`, plus `lastProgressAt`. `lastProgressAt` is
-  the timestamp used for an interrupted run's `finished_at`.
+  with `candidates`, `done`, `failed`, and `skipped`, plus `lastProgressAt`. The source keys are
+  source names from `source_state.name`, not API field names. `lastProgressAt` is the timestamp
+  used for an interrupted run's `finished_at`.
 - `RefreshRun` gains `mode` and a read-only `stats` object with the same per-source counters. The
   raw `stats_json` is not returned wholesale; only the whitelisted counters are.
 - `done` is advisory and monotonic. It may lag the committed per-source rows by up to 24 items.
