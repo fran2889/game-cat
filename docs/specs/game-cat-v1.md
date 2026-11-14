@@ -981,7 +981,8 @@ forward compatibility. No v1 read path depends on their contents beyond the docu
 }
 ```
 
-`page` is 1-based. `pageSize` defaults to 60 and is capped at 200. `totalPages` is
+`page` is 1-based. `pageSize` defaults to 60 and is capped at 200 unless the endpoint documents a
+different default or cap. `totalPages` is
 `ceil(totalItems / pageSize)`, or `0` when `totalItems` is `0`. A list with no matches returns `200`
 and `data: []`, never `404`. `meta` is optional per endpoint; the top-level `meta` is unrelated to the
 per-Game `metadata` object.
