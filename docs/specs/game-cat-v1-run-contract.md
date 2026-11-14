@@ -216,15 +216,15 @@ All fields are optional. Defaults are applied after validation.
 
 ### 3.5 Precedence
 
-| Setting      | CLI           | Environment              | Config file   | Default             |
-| ------------ | ------------- | ------------------------ | ------------- | ------------------- |
-| Data dir     | `--data-dir`  | `GAME_CAT_DATA_DIR`      | —             | OS-standard path    |
-| Steam key    | —             | `GAME_CAT_STEAM_API_KEY` | `steamApiKey` | unset               |
-| Steam root   | —             | `GAME_CAT_STEAM_ROOT`    | `steamRoot`   | auto-discovery      |
-| Account      | —             | `GAME_CAT_STEAM_ID64`    | `steamId64`   | most recent account |
-| Port         | `--port`      | `GAME_CAT_PORT`          | `port`        | `4780`              |
-| Open browser | `--no-open`   | `GAME_CAT_OPEN_BROWSER`  | `openBrowser` | `true`              |
-| Log level    | `--log-level` | `GAME_CAT_LOG_LEVEL`     | `logLevel`    | `info`              |
+| Setting      | CLI           | Environment              | Config file   | Default                                  |
+| ------------ | ------------- | ------------------------ | ------------- | ---------------------------------------- |
+| Data dir     | `--data-dir`  | `GAME_CAT_DATA_DIR`      | —             | OS-standard path                         |
+| Steam key    | —             | `GAME_CAT_STEAM_API_KEY` | `steamApiKey` | unset                                    |
+| Steam root   | —             | `GAME_CAT_STEAM_ROOT`    | `steamRoot`   | auto-discovery                           |
+| Account      | —             | `GAME_CAT_STEAM_ID64`    | `steamId64`   | auto (see [§6.2](#62-account-selection)) |
+| Port         | `--port`      | `GAME_CAT_PORT`          | `port`        | `4780`                                   |
+| Open browser | `--no-open`   | `GAME_CAT_OPEN_BROWSER`  | `openBrowser` | `true`                                   |
+| Log level    | `--log-level` | `GAME_CAT_LOG_LEVEL`     | `logLevel`    | `info`                                   |
 
 - Boolean environment values accept `1`, `true`, `0`, and `false`, case-insensitively. Anything
   else is `CONFIG_INVALID`.
