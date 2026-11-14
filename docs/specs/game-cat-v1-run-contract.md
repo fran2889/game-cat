@@ -779,6 +779,8 @@ supervision. It must preserve the following:
 10. **Readiness signal.** `GET /api/status` returns 200 when the server is ready, and the
     programmatic start resolves with the URL. The wrapper waits for one of these before showing
     the window.
+11. **Runtime floor.** The wrapper must ship Node 24 or newer. Whether it embeds the server or
+    spawns the CLI, the `NODE_VERSION` refusal stays in force.
 
 The wrapper may embed the server in-process or spawn the CLI; both must work. The wrapper must pass
 `openBrowser: false` and should use `port: 0` unless it needs a stable origin. It must not change
