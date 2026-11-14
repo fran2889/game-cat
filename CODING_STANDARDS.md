@@ -31,6 +31,9 @@ this file covers the judgements a linter cannot make.
 
 - Review schema, SQL, prose, and examples as one contract. A contradiction between two is a hard
   finding, not an editorial nit.
+- Treat a section explicitly marked as pending a named issue as deferred, not as a new
+  contradiction. Verify the delta is internally consistent and the pending marker is accurate;
+  contradictions with unmarked current sections remain hard.
 - Flag a new term with no glossary entry.
 - Flag a new enum value with no definition.
 - Flag a new endpoint with no empty or degraded state.
