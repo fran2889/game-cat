@@ -70,8 +70,12 @@ The storefront's product type for a Game, such as `game`, `dlc`, or `demo`. The 
 _Avoid_: bare type as a Rule Field
 
 **Metadata**:
-Game attributes fetched from external sources and cached by game-cat, such as Tags, Genres, storefront details, and review summaries. Missing Metadata never hides a Game.
+Game attributes fetched from external sources and cached by game-cat, such as Tags, Genres, storefront details, and review summaries. Missing Metadata never hides a Game. Fetched at runtime and never redistributed.
 _Avoid_: enrichment, sync, scrape
+
+**Cover Art**:
+The capsule, header, and library images the Steam storefront serves for a Game. game-cat fetches Cover Art at runtime and never redistributes it.
+_Avoid_: image, thumbnail, artwork
 
 **Refresh**:
 A run that reads Steam or external Metadata sources and updates game-cat's stored data. Scopes are `library`, `ownership`, `metadata`, and `all`.

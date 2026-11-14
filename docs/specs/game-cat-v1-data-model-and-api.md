@@ -1451,7 +1451,7 @@ These checks are intended to become part of the v1 acceptance criteria in #8.
 - **Steam Web API:** `IPlayerService/GetOwnedGames` is public, but its parameters and rate limits
   are not fully documented. It requires a key; private profiles can return an empty roster. One
   request per refresh keeps the risk low.
-- **Cover art:** not part of this contract. The client can derive Steam CDN URLs from `appId`;
-  if cover URLs become data, they belong in `game_enrichment`.
+- **Cover Art:** not part of this contract. The client can derive Steam CDN URLs from `appId`;
+  if cover URLs become data, they belong in the source-named metadata tables.
 - **Search scaling:** v1 uses a case-insensitive substring scan. FTS5 is deliberately deferred
   until a performance budget exists.
