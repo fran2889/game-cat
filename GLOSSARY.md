@@ -64,6 +64,11 @@ _Avoid_: tag, category
 A Steam storefront feature label for a Game, such as Single-player or Steam Achievements, stored in `categories_json`. Storefront metadata, not a Steam Collection.
 _Avoid_: category, Steam category, collection
 
+**Storefront Type**:
+The storefront's product type for a Game, such as `game`, `dlc`, or `demo`. The Rule Field is
+`storefrontType`; null means unknown.
+_Avoid_: bare type as a Rule Field
+
 **Metadata**:
 Game attributes fetched from external sources and cached by game-cat, such as Tags, Genres, storefront details, and review summaries. Missing Metadata never hides a Game.
 _Avoid_: enrichment, sync, scrape

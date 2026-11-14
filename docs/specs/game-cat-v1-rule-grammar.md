@@ -6,7 +6,8 @@ v1 spec ([#8](https://github.com/fran2889/game-cat/issues/8)).
 This section defines the Rule grammar, the Field registry, the evaluator, and the validation
 rules for game-cat v1. It also records the Steam review source and the `Metadata` terminology and
 schema deltas that the review Field forces. The storage and HTTP contracts remain owned by
-[#3](https://github.com/fran2889/game-cat/issues/3); this section only states the deltas.
+[#3](https://github.com/fran2889/game-cat/issues/3); this section only states the deltas. It is a
+delta, not a second contract: #3 and #5 remain authoritative until #8 folds it in.
 
 Related contracts:
 
@@ -47,7 +48,7 @@ The decisions below were settled on #4 on 2026-11-13.
 | Last Played               | A UTC date value (`YYYY-MM-DD`); no `is`, no relative windows, and no clock-dependent Field in v1.                                                                                                      |
 | Steam Collection Field    | The value is a Steam Collection ID. Only static membership matches; dynamic and unknown IDs never match.                                                                                                |
 | Game Field                | Field `game`, operator `in`, a list of 1-1000 unique positive App IDs. Unknown App IDs are allowed and never match.                                                                                     |
-| Validation                | Field and Operator IDs are strict. Vocabulary values (Tag, Genre, Developer, and so on) are free text and may match nothing. Unknown `type` and `reviewTier` labels are accepted.                       |
+| Validation                | Field and Operator IDs are strict. Vocabulary values (Tag, Genre, Developer, and so on) are free text and may match nothing. Unknown `storefrontType` and `reviewTier` labels are accepted.             |
 | Metadata terminology      | Replace "Enrichment" with **Metadata** in the final v1 specification (#8), the API, glossary, and refresh scope. This draft records the delta; #3's sections remain until #8 applies it.                |
 | Metadata storage          | Replace the catch-all `game_enrichment` table with source-named tables: `steamspy_appdetails`, `storefront_appdetails`, and `steam_review_summaries`.                                                   |
 | Metadata refresh          | No TTL for any external metadata source. Every explicit `metadata` refresh fetches SteamSpy, the storefront, and Steam reviews for the selected Games.                                                  |
@@ -87,20 +88,17 @@ The JSON object in [§2](#2-rule-object) encodes this abstract grammar:
 rules       ::= "[" [ rule { "," rule } ] "]"
 rule        ::= prefix field operator value
 prefix      ::= "AND" | "OR" | "NOT"
-field       ::= "name" | "playtime" | "installed" | "ownershipStatus" | "lastPlayed"
-              | "releaseYear" | "metacriticScore" | "reviewScore" | "reviewTier"
-              | "reviewCount" | "type" | "platform" | "genre" | "category"
-              | "developer" | "publisher" | "tag" | "steamCollection" | "game"
-operator    ::= "is" | "contains" | "has" | "in" | "lt" | "lte" | "gt" | "gte"
+field       ::= Field
+operator    ::= Operator
 value       ::= string | integer | boolean | app-id-list
 app-id-list ::= "[" app-id { "," app-id } "]"
 app-id      ::= positive-integer
 ```
 
-The grammar fixes the vocabulary, not the pairing: [§3](#3-field-registry) constrains which
-Operators each Field accepts, and [§7](#7-validation) rejects a disallowed pair. `value` is typed
-by its Field; validation rejects a string for a numeric Field, an array outside `game`, and a
-boolean outside `installed`.
+`Field` and `Operator` are exactly the IDs in [§3](#3-field-registry), which is the source of truth
+for both. §3 also constrains which Operators each Field accepts, and [§7](#7-validation) rejects
+a disallowed pair. `value` is typed by its Field; validation rejects a string for a numeric Field,
+an array outside `game`, and a boolean outside `installed`.
 
 ## 3. Field registry
 
@@ -116,7 +114,7 @@ boolean outside `installed`.
 | `reviewScore`     | integer 0-100       | `lt`, `lte`, `gt`, `gte` | `steam_review_summaries` counts, computed     | `NULL` means no usable review summary |
 | `reviewTier`      | text, open enum     | `is`                     | `steam_review_summaries.review_tier`          | `NULL` means no usable review summary |
 | `reviewCount`     | integer count       | `lt`, `lte`, `gt`, `gte` | `steam_review_summaries.review_total`         | `NULL` means unknown; `0` is known    |
-| `type`            | text, open enum     | `is`                     | `storefront_appdetails.type`                  | `NULL` means unknown                  |
+| `storefrontType`  | text, open enum     | `is`                     | `storefront_appdetails.type`                  | `NULL` means unknown                  |
 | `platform`        | enum, multi-valued  | `has`                    | `storefront_appdetails.platforms_json`        | empty set when unknown                |
 | `genre`           | text, multi-valued  | `has`                    | `storefront_appdetails.genres_json`           | empty set when unknown                |
 | `category`        | text, multi-valued  | `has`                    | `storefront_appdetails.categories_json`       | empty set when unknown                |
@@ -139,6 +137,8 @@ Operator semantics:
 | `gt`       | integer, date             | Strictly greater than.                                           |
 | `gte`      | integer, date             | Greater than or equal to.                                        |
 
+The Missing value column summarizes [§6](#6-missing-and-unknown-values), which is authoritative.
+
 There is no numeric or date `is`. An exact integer or date can be expressed with `gte X` and
 `lte X` together; the UI may offer that as a convenience but must emit the two Rules.
 
@@ -146,7 +146,7 @@ There is no numeric or date `is`. An exact integer or date can be expressed with
 
 ### 4.1 Text and enum normalization
 
-`name`, `tag`, `genre`, `category`, `developer`, `publisher`, `type`, `reviewTier`,
+`name`, `tag`, `genre`, `category`, `developer`, `publisher`, `storefrontType`, `reviewTier`,
 `ownershipStatus`, and the text equivalents of enum values use the shared `name_key`
 normalization from #3 §4.4: `NFC`, trim, then lowercase. The display form is preserved; matching
 uses the normalized form.
@@ -156,8 +156,8 @@ uses the normalized form.
 - `has` compares the normalized value with every element of a multi-valued Field.
 - `ownershipStatus` is a closed enum: `owned`, `local_only`, or `unknown`.
 - `platform` is a closed enum: `windows`, `mac`, or `linux`.
-- `type` and `reviewTier` are open text enums. A new storefront type or Steam review label does not
-  require a grammar change.
+- `storefrontType` and `reviewTier` are open text enums. A new storefront type or Steam review
+  label does not require a grammar change.
 - `steamCollection` IDs are opaque and case-sensitive. Do not normalize an ID.
 
 Text values are trimmed for the emptiness check but are stored exactly as supplied, per #3. A
@@ -195,7 +195,8 @@ former. A `NULL` timestamp never matches.
 `reviewCount` is `total_reviews`. A known zero is `0`; unknown is `NULL`. This distinction matters:
 `reviewCount lt 10` matches a Game with a known zero, but not a Game whose review data is missing.
 
-`type` is the storefront `type` (`game`, `dlc`, `demo`, `application`, `tool`, and so on).
+`storefrontType` is the storefront `type` (`game`, `dlc`, `demo`, `application`, `tool`, and so
+on).
 
 ### 4.3 Multi-valued Fields
 
@@ -342,13 +343,16 @@ missing-value behavior.
 
 ## 6. Missing and unknown values
 
+This section is the single source of truth for missing-value behavior; the registry column and the
+field notes summarize it.
+
 | Field                                                                               | Missing means            | Positive comparison | NOT Rule effect |
 | ----------------------------------------------------------------------------------- | ------------------------ | ------------------- | --------------- |
 | `installed`                                                                         | `NULL` (not yet scanned) | false               | may match       |
 | `lastPlayed`                                                                        | never played or unknown  | false               | may match       |
 | `releaseYear`, `metacriticScore`, `reviewScore`, `reviewTier`                       | no usable Metadata       | false               | may match       |
 | `reviewCount`                                                                       | unknown                  | false               | may match       |
-| `type`                                                                              | unknown                  | false               | may match       |
+| `storefrontType`                                                                    | unknown                  | false               | may match       |
 | `platform`, `genre`, `category`, `developer`, `publisher`, `tag`, `steamCollection` | empty set                | false               | may match       |
 | `name`, `playtime`, `ownershipStatus`, `game`                                       | never missing            | —                   | —               |
 
@@ -359,10 +363,7 @@ engine cannot prove it is Horror. The UI should explain this in the Rule editor,
 A known zero is not missing. There is no `is` operator for `playtime`; use `playtime lt 1` to
 match exactly zero. `reviewCount lt 10` matches a known zero and not an unknown count.
 
-There is no first-class `is null` or `is unknown` operator in v1. The consequence can be targeted
-with a negated tautology, for example `NOT installed is true` plus `NOT installed is false` leaves
-only unknown installed state, and `NOT reviewScore gte 0` leaves only a missing review score.
-These are valid but advanced; the UI is not required to surface them.
+There is no first-class `is null` or `is unknown` operator in v1.
 
 ## 7. Validation
 
@@ -371,31 +372,31 @@ Validation happens at the HTTP boundary for `POST /api/rules/preview`, `POST
 preview and persistence. Errors use #3's single error shape with `details.fieldErrors` keyed by
 dotted path, for example `rules.0.value`.
 
-| Case                                                                     | Result                                       |
-| ------------------------------------------------------------------------ | -------------------------------------------- |
-| Unknown `field`                                                          | `422 VALIDATION_ERROR` at `rules.N.field`    |
-| Unknown `operator`                                                       | `422 VALIDATION_ERROR` at `rules.N.operator` |
-| Operator not allowed for the Field                                       | `422 VALIDATION_ERROR` at `rules.N.operator` |
-| Unknown or lowercase `prefix`                                            | `422 VALIDATION_ERROR` at `rules.N.prefix`   |
-| Value has the wrong JSON type                                            | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `installed` value is not a boolean                                       | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `playtime` is negative, non-integer, or not a safe integer               | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `releaseYear` is outside 1000-9999 or not an integer                     | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `metacriticScore` or `reviewScore` is outside 0-100                      | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `reviewCount` is negative or not an integer                              | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `lastPlayed` is not a real `YYYY-MM-DD` date                             | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| Text normalizes to empty, is over 200 code points, or has controls       | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `reviewTier` or `type` normalizes to empty                               | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `steamCollection` is empty or over 128 characters                        | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `game` is not an array of 1-1000 unique positive integers                | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `ownershipStatus` is not `owned`, `local_only`, or `unknown`             | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| `platform` is not `windows`, `mac`, or `linux`                           | `422 VALIDATION_ERROR` at `rules.N.value`    |
-| Unknown Tag, Genre, Category, Developer, Publisher, Type, or Review Tier | allowed; the Rule matches nothing            |
-| Unknown or dynamic `steamCollection` ID                                  | allowed; the Rule matches nothing            |
-| Duplicate Rules                                                          | allowed                                      |
-| Empty Rules array                                                        | allowed; matches every Game                  |
-| More than 100 Rules                                                      | `422 VALIDATION_ERROR` at `rules`            |
-| Serialized `value` over 16 KiB                                           | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| Case                                                                                | Result                                       |
+| ----------------------------------------------------------------------------------- | -------------------------------------------- |
+| Unknown `field`                                                                     | `422 VALIDATION_ERROR` at `rules.N.field`    |
+| Unknown `operator`                                                                  | `422 VALIDATION_ERROR` at `rules.N.operator` |
+| Operator not allowed for the Field                                                  | `422 VALIDATION_ERROR` at `rules.N.operator` |
+| Unknown or lowercase `prefix`                                                       | `422 VALIDATION_ERROR` at `rules.N.prefix`   |
+| Value has the wrong JSON type                                                       | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `installed` value is not a boolean                                                  | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `playtime` is negative, non-integer, or not a safe integer                          | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `releaseYear` is outside 1000-9999 or not an integer                                | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `metacriticScore` or `reviewScore` is outside 0-100                                 | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `reviewCount` is negative or not an integer                                         | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `lastPlayed` is not a real `YYYY-MM-DD` date                                        | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| Text normalizes to empty, is over 200 code points, or has controls                  | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `reviewTier` or `storefrontType` normalizes to empty                                | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `steamCollection` is empty or over 128 characters                                   | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `game` is not an array of 1-1000 unique positive integers                           | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `ownershipStatus` is not `owned`, `local_only`, or `unknown`                        | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| `platform` is not `windows`, `mac`, or `linux`                                      | `422 VALIDATION_ERROR` at `rules.N.value`    |
+| Unknown Tag, Genre, Category, Developer, Publisher, Storefront Type, or Review Tier | allowed; the Rule matches nothing            |
+| Unknown or dynamic `steamCollection` ID                                             | allowed; the Rule matches nothing            |
+| Duplicate Rules                                                                     | allowed                                      |
+| Empty Rules array                                                                   | allowed; matches every Game                  |
+| More than 100 Rules                                                                 | `422 VALIDATION_ERROR` at `rules`            |
+| Serialized `value` over 16 KiB                                                      | `422 VALIDATION_ERROR` at `rules.N.value`    |
 
 Bounds:
 
@@ -432,15 +433,15 @@ Local and ownership data:
 
 Storefront data:
 
-| appId | type | platforms           | genres               | categories           | developers | publishers | releaseYear | metacriticScore |
-| ----- | ---- | ------------------- | -------------------- | -------------------- | ---------- | ---------- | ----------- | --------------- |
-| 10    | game | windows, linux      | Action, Free to Play | Multi-player         | Valve      | Valve      | 2012        | NULL            |
-| 570   | game | windows, mac, linux | Action, Strategy     | Multi-player         | Valve      | Valve      | 2013        | 90              |
-| 620   | game | windows, mac, linux | Action, Adventure    | Single-player, Co-op | Valve      | Valve      | 2011        | 95              |
-| 700   | dlc  | windows             | Action               | Single-player        | Valve      | Valve      | 2020        | 70              |
-| 800   | game | windows             | Indie                | Single-player        | IndieDev   | IndiePub   | 2019        | 80              |
-| 999   | NULL | none                | none                 | none                 | none       | none       | NULL        | NULL            |
-| 4000  | game | windows, mac, linux | Indie                | Single-player        | Facepunch  | Valve      | 2006        | NULL            |
+| appId | storefrontType | platforms           | genres               | categories           | developers | publishers | releaseYear | metacriticScore |
+| ----- | -------------- | ------------------- | -------------------- | -------------------- | ---------- | ---------- | ----------- | --------------- |
+| 10    | game           | windows, linux      | Action, Free to Play | Multi-player         | Valve      | Valve      | 2012        | NULL            |
+| 570   | game           | windows, mac, linux | Action, Strategy     | Multi-player         | Valve      | Valve      | 2013        | 90              |
+| 620   | game           | windows, mac, linux | Action, Adventure    | Single-player, Co-op | Valve      | Valve      | 2011        | 95              |
+| 700   | dlc            | windows             | Action               | Single-player        | Valve      | Valve      | 2020        | 70              |
+| 800   | game           | windows             | Indie                | Single-player        | IndieDev   | IndiePub   | 2019        | 80              |
+| 999   | NULL           | none                | none                 | none                 | none       | none       | NULL        | NULL            |
+| 4000  | game           | windows, mac, linux | Indie                | Single-player        | Facepunch  | Valve      | 2006        | NULL            |
 
 Tags, Steam Collections, and reviews:
 
@@ -487,7 +488,7 @@ matches are ascending `appId`.
 | 26  | `AND genre has "action"`                                                    | 10, 570, 620, 700                 | Multi-valued membership, case-insensitive |
 | 27  | `AND platform has "linux"`                                                  | 10, 570, 620, 4000                | Multi-valued platform                     |
 | 28  | `AND name contains "portal"`                                                | 620                               | Normalized substring                      |
-| 29  | `AND type is "game"`                                                        | 10, 570, 620, 800, 4000           | Open enum, excludes DLC and unknown       |
+| 29  | `AND storefrontType is "game"`                                              | 10, 570, 620, 800, 4000           | Open enum, excludes DLC and unknown       |
 | 30  | `AND ownershipStatus is "local_only"`                                       | 4000                              | Enum equality                             |
 | 31  | `AND playtime gt 1000`; `AND playtime lt 100`                               | none                              | Contradictory Rules                       |
 | 32  | `AND tag has "Co-op"`; `AND tag has "Co-op"`                                | 620                               | Duplicate Rules                           |
@@ -534,15 +535,17 @@ different contract.
 | `429`                                                     | Honour `Retry-After`; keep cached values                                       | `stale`/`error`       | `rate_limited`       |
 | `5xx`, timeout, or network error                          | Retry with backoff; keep cached values                                         | `stale`/`error`       | `error` or `offline` |
 
+The `review_status` values are defined in [§10.2](#102-source-named-metadata-tables); this table
+defines the transitions.
+
 Rules:
 
 - `success` must be the integer `1`, and `query_summary` must be an object.
 - Counts must be non-negative integers. `total_positive + total_negative` must equal
   `total_reviews`; a mismatch is a malformed response, not a silent correction.
-- `stale` is used when last-known-good review values exist and the last attempt failed. With no
-  cache, a transport or parse failure is `error`, while a successful response with no usable
-  summary is `unavailable`. The source state still records `blocked`, `rate_limited`, or `error`
-  independently.
+- `stale`, `unavailable`, and `error` follow the definitions in
+  [§10.2](#102-source-named-metadata-tables). The source state still records `blocked`,
+  `rate_limited`, or `error` independently.
 - `reviewScore` is computed from `total_positive / total_reviews`; `reviewCount` is
   `total_reviews`; `reviewTier` is the exact `review_score_desc`.
 - A known zero is stored as `review_total = 0`, with `reviewScore` and `reviewTier` null.
@@ -559,17 +562,16 @@ Rules:
 - There is no scheduler in v1. "On demand" means the user's explicit `metadata` or `all` refresh.
   Ownership (Steam Web API) and the local Steam scan remain their own `ownership` and `library`
   scopes; neither has a TTL, and both are already fetched only on explicit refresh.
-- The storefront and review requests share `store.steampowered.com`: one in-flight request per
-  host and a shared budget of about 200 requests per 5 minutes. They do not get 200 each.
-- SteamSpy stays independent at about 1 request per second and may run in parallel with the
-  store-host pass.
-- A full 10,000-Game metadata refresh therefore makes two store-host requests per Game: roughly
-  8.3 hours, versus 4.2 hours with the storefront alone. SteamSpy remains roughly 2.8 hours in
-  parallel. The run is a background job; the UI progressively fills.
+- The storefront and review requests share `store.steampowered.com`; the rate budget is the one in
+  the [Steam metadata sources contract](https://github.com/fran2889/game-cat/blob/research/metadata-sources/docs/research/metadata-sources.md).
+  They do not get a separate budget each.
+- SteamSpy stays independent and may run in parallel with the store-host pass.
+- A full refresh therefore makes two store-host requests per Game. The run is a background job;
+  the UI progressively fills.
 - `tags_fetched_at`, `store_fetched_at`, and `review_fetched_at` remain diagnostic and API
   timestamps. They no longer drive a TTL or an automatic skip.
-- `stale` is now a failure state, not an age state: the last attempt failed and cached values are
-  being served. `error` means the last attempt failed with no usable cached values.
+- `stale` is a failure state, not an age state; see
+  [§10.2](#102-source-named-metadata-tables).
 - `metadata` and `all` are the only scopes that fetch metadata. `all` runs `library`, then
   `ownership`, then `metadata`. `appIds` is valid only with `metadata`.
 
@@ -687,7 +689,12 @@ CREATE TABLE steam_review_summaries (
 `steam_reviews` as a fifth name; its `name` check becomes
 `CHECK (name IN ('steam_local', 'steam_web_api', 'steamspy', 'storefront', 'steam_reviews'))`.
 `source_state`'s `steam_reviews` status vocabulary is `unknown`, `ok`, `partial`, `stale`,
-`rate_limited`, `blocked`, `offline`, and `error`.
+`rate_limited`, `blocked`, `offline`, and `error`. Those eight values are the review-applicable
+subset of the shared `source_state.status` CHECK; `empty`, `not_configured`, and `invalid_key`
+remain valid for other sources but are not used for `steam_reviews`.
+
+`source_state` is source-level: a per-Game `stale` or `error` does not by itself change it. Only a
+source-wide failure changes `source_state`; the per-Game `review_status` describes that Game.
 
 ### 10.3 View and indexes
 
@@ -823,14 +830,14 @@ in the detail payload.
   test fixtures with a fixed now.
 - **Tag vote thresholds.** `tag` ignores votes. A future `tagVotes` Field could require a minimum
   vote count.
-- **Open enums.** `type` and `reviewTier` accept new labels without a grammar change. The rule
-  editor should suggest observed values.
+- **Open enums.** `storefrontType` and `reviewTier` accept new labels without a grammar change.
+  The rule editor should suggest observed values.
 - **Large libraries.** The reference evaluator is in memory. #8 should benchmark a 20,000-Game
   Library with 100 Rules before considering SQL compilation or caching.
 - **Dynamic Steam Collection references.** A static collection that later becomes dynamic makes
   existing Rules match nothing. The UI should warn; v1 has no materialized membership to
   substitute.
-- **Non-game library entries.** `type` can filter DLC, demos, tools, and soundtracks, but whether
-  they are shown by default remains a #1 decision.
+- **Non-game library entries.** `storefrontType` can filter DLC, demos, tools, and soundtracks,
+  but whether they are shown by default remains a #1 decision.
 - **Multiple Accounts and Family Sharing.** The grammar evaluates one Account's Library; the
   Ownership semantics remain #1/#3 decisions.
