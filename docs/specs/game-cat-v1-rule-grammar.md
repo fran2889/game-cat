@@ -640,6 +640,10 @@ CREATE TABLE steamspy_appdetails (
 );
 ```
 
+`tags_status = 'missing'` with `tags_fetched_at` set means a successful SteamSpy response with no
+usable Tags. It is a settled miss, not a pending fetch. Storefront and reviews report the same
+answer as `unavailable` instead.
+
 #### `storefront_appdetails`
 
 Holds storefront details and the storefront fetch state for each Game. A missing row means the
@@ -797,6 +801,8 @@ in the detail payload.
 - [ ] `game_enrichment` no longer exists; `v_games` joins the three source-named tables.
 - [ ] `steamspy_appdetails` stores one row per Game with SteamSpy data and defaults
       `tags_status` to `missing` when absent.
+- [ ] A SteamSpy `missing` with `tags_fetched_at` set is a settled miss; Fetch does not
+      re-request it.
 - [ ] `storefront_appdetails` stores one row per Game with storefront data and defaults
       `store_status` to `missing` when absent.
 - [ ] `steam_review_summaries` stores one row per Game with a review fetch and defines all five
