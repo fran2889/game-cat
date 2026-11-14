@@ -431,14 +431,15 @@ After migrations and the account guard, before binding:
 The server always starts, even when Steam is absent. `/api/status` uses `steam.state` to describe
 what the UI should show.
 
-| Situation                                   | `steam.state` | Behavior                                                                                                          |
-| ------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Steam root found, one account               | `ready`       | Use that account.                                                                                                 |
-| Steam root found, multiple accounts, pinned | `ready`       | Use the pinned account. If it is absent from `loginusers.vdf`, report `no_account`; do not silently pick another. |
-| Steam root found, multiple accounts, no pin | `ready`       | Use `MostRecent` when exactly one account has it; if ambiguous, use the newest `Timestamp` and show the picker.   |
-| Steam root found, no account                | `no_account`  | Explain that Steam must be started and logged in once. No account-scoped run writes.                              |
-| Steam root not found                        | `not_found`   | Explain how to install or start Steam, or set `steamRoot`. The server stays up; cached data remains browsable.    |
-| Discovery error                             | `error`       | Show the error; no account-scoped run writes.                                                                     |
+| Situation                                                     | `steam.state` | Behavior                                                                                                        |
+| ------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------- |
+| Steam root found, one account                                 | `ready`       | Use that account.                                                                                               |
+| Steam root found, multiple accounts, pinned account present   | `ready`       | Use the pinned account.                                                                                         |
+| Steam root found, pinned account absent from `loginusers.vdf` | `no_account`  | Report `no_account`; do not silently pick another account.                                                      |
+| Steam root found, multiple accounts, no pin                   | `ready`       | Use `MostRecent` when exactly one account has it; if ambiguous, use the newest `Timestamp` and show the picker. |
+| Steam root found, no account                                  | `no_account`  | Explain that Steam must be started and logged in once. No account-scoped run writes.                            |
+| Steam root not found                                          | `not_found`   | Explain how to install or start Steam, or set `steamRoot`. The server stays up; cached data remains browsable.  |
+| Discovery error                                               | `error`       | Show the error; no account-scoped run writes.                                                                   |
 
 The first-run UI shows the discovered root and account, with an override for each. The account
 picker is populated by `GET /api/steam/accounts`; it never displays `AccountName`. The chosen
