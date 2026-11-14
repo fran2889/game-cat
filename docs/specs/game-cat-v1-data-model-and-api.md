@@ -1306,9 +1306,10 @@ genuinely empty library look identical. Never treat it as permission to delete.
 - Before any refresh writes, when the database is bound:
   - A different selected SteamID64 fails the run with `ACCOUNT_MISMATCH` and leaves all data
     untouched.
-  - A missing selected account fails a `library`, `ownership`, or `all` refresh without writing.
+  - A missing selected account fails the account-scoped work without writing. An `all` refresh
+    skips that work, still runs the `enrichment` phase for known Games, and finishes `partial`.
 - A `library`, `ownership`, or `all` refresh on an unbound database binds the selected SteamID64
-  before its first write; a missing selected account fails that refresh without writing. An
+  before its first write; a missing selected account leaves the account-scoped work unwritten. An
   `enrichment` refresh does not bind an account.
 - `all` runs `library`, then `ownership`, then `enrichment`.
 - An `enrichment` run stores its normalized, ascending `appIds` selection in
@@ -1384,6 +1385,8 @@ These checks are intended to become part of the v1 acceptance criteria in #8.
 
 - [ ] A database bound to account A refuses to start under account B with `DB_ACCOUNT_MISMATCH`;
       a refresh under account B fails with `ACCOUNT_MISMATCH` and leaves all rows intact.
+- [ ] A run whose selected account is missing writes no account-scoped data; an `all` run still
+      runs the enrichment phase for known Games and finishes `partial`.
 - [ ] With a valid key, every Game in a complete GetOwnedGames response has a `games` row with
       `ownership_status = 'owned'`, even when it is not installed and has no local playtime.
 - [ ] An installed Game absent from a complete ownership response remains in the database with
