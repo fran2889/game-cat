@@ -558,10 +558,11 @@ A source is **pending** for a Game when:
 
 ### 7.4 Per-source execution
 
-- SteamSpy is independent and serial at no more than one request per second.
-- Storefront and Steam reviews share `store.steampowered.com` and one rate budget (200 requests per
-  5 minutes). They are serialized against that host, never run concurrently, and share a pause on
-  `429`, `403`, or a block challenge.
+- SteamSpy is independent and serial; its request ceiling is the one in the metadata research
+  contract.
+- Storefront and Steam reviews share `store.steampowered.com` and its single rate budget. They are
+  serialized against that host, never run concurrently, and share a pause on `429`, `403`, or a
+  block challenge.
 - The store and review passes use the response handling in the #4 rule grammar and the metadata
   research contract. A source-wide failure stops that source for the documented backoff, updates
   `source_state`, and does not stop the other sources.
