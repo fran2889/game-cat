@@ -585,7 +585,8 @@ Rules:
 - `stale` is a failure state, not an age state; see
   [§10.2](#102-source-named-metadata-tables).
 - `metadata` and `all` are the only scopes that fetch metadata. `all` runs `library`, then
-  `ownership`, then `metadata`. `appIds` is valid only with `metadata`.
+  `ownership`, then `metadata`. `appIds` is valid only with `metadata` + Full Refresh (`mode = full`);
+  Fetch and the other scopes reject it.
 
 ## 10. Schema, API, and terminology delta
 
@@ -757,8 +758,8 @@ in the detail payload.
 - The `metadata` scope replaces `enrichment` in `POST /api/refresh`, `refresh_runs.scope`, the
   deduplication rule, and the `appIds` restriction. The `refresh_runs.scope` check becomes
   `CHECK (scope IN ('library', 'ownership', 'metadata', 'all'))`.
-  `refresh_runs.app_ids_json` has the same meaning: the normalized selection, or `NULL` for all
-  Games.
+  `refresh_runs.app_ids_json` stores the normalized Full Refresh selection. It is required for
+  `metadata` + `full` and `NULL` for every other combination; there is no all-Games Full Refresh.
 - A `metadata` run on an unbound database stores `steam_id64 = NULL`; it does not bind an Account.
 - No TTL: every explicit Full Refresh fetches every selected Game from every metadata source.
   Fetch is defined in [the run contract](game-cat-v1-run-contract.md) and selects only sources
@@ -803,7 +804,7 @@ in the detail payload.
 - [ ] `source_state` contains `steam_reviews`; `Status.sources` contains five entries in the
       documented order.
 - [ ] `POST /api/refresh` accepts `metadata`; `refresh_runs.scope` uses `metadata`; `appIds` is
-      valid only with `metadata`.
+      valid only with `metadata` + `mode = full`.
 - [ ] A Full Refresh (`metadata` + `mode = full`) fetches SteamSpy, storefront, and reviews for
       every selected Game, even when the data was fetched recently. Fetch mode
       ([the run contract](game-cat-v1-run-contract.md)) selects only sources without usable
