@@ -1,11 +1,9 @@
 # game-cat v1: build-ready specification
 
-Status: proposed for [#8](https://github.com/fran2889/game-cat/issues/8), ready for review. When this
-document merges it becomes the single v1 contract and supersedes
-[the data model and API draft](game-cat-v1-data-model-and-api.md),
-[the rule grammar draft](game-cat-v1-rule-grammar.md), and
-[the run contract draft](game-cat-v1-run-contract.md). Until then, those drafts remain the review
-inputs and this document is the assembled proposal.
+Status: authoritative v1 contract, merged in
+[#8](https://github.com/fran2889/game-cat/issues/8). This document supersedes and replaces the former
+data model and API, rule grammar, and run contract drafts; those were folded into this document and
+removed, so this is the single normative v1 specification.
 
 The spec is build-ready: every normative choice needed for implementation is made here. Remaining
 unknowns are recorded only in [§11](#11-open-risks); none blocks implementation.
@@ -17,14 +15,14 @@ This document assembles the resolved tickets and links their evidence rather tha
 | Input                                    | Link                                                                                                                                                                                                                                                   |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Parent map and scope                     | [#1](https://github.com/fran2889/game-cat/issues/1)                                                                                                                                                                                                    |
-| Data model and HTTP API decisions        | [#3](https://github.com/fran2889/game-cat/issues/3) and [draft](game-cat-v1-data-model-and-api.md)                                                                                                                                                     |
-| Rule grammar and evaluator decisions     | [#4](https://github.com/fran2889/game-cat/issues/4) and [draft](game-cat-v1-rule-grammar.md)                                                                                                                                                           |
+| Data model and HTTP API decisions        | [#3](https://github.com/fran2889/game-cat/issues/3)                                                                                                                                                                                                    |
+| Rule grammar and evaluator decisions     | [#4](https://github.com/fran2889/game-cat/issues/4)                                                                                                                                                                                                    |
 | Steam metadata contract                  | [#5](https://github.com/fran2889/game-cat/issues/5) and [research note](https://github.com/fran2889/game-cat/blob/research/metadata-sources/docs/research/metadata-sources.md)                                                                         |
 | Steam local library files and discovery  | [#2](https://github.com/fran2889/game-cat/issues/2) and [research note](https://github.com/fran2889/game-cat/blob/research/steam-local-library/docs/research/steam-local-library.md)                                                                   |
 | Dynamic Steam Collections (`filterSpec`) | [#14](https://github.com/fran2889/game-cat/issues/14) and [research note](https://github.com/fran2889/game-cat/blob/research/steam-filterspec/docs/research/steam-filterspec.md)                                                                       |
 | HLTB v2 source                           | [#9](https://github.com/fran2889/game-cat/issues/9) and [research note](https://github.com/fran2889/game-cat/blob/research/hltb-source/docs/research/hltb-source.md)                                                                                   |
 | UI prototype and accepted decisions      | [#6](https://github.com/fran2889/game-cat/issues/6), [prototype](https://github.com/fran2889/game-cat/blob/prototype/v1-ui/docs/prototype/v1-ui.html), and [notes](https://github.com/fran2889/game-cat/blob/prototype/v1-ui/docs/prototype/README.md) |
-| Run and distribution decisions           | [#7](https://github.com/fran2889/game-cat/issues/7) and [draft](game-cat-v1-run-contract.md)                                                                                                                                                           |
+| Run and distribution decisions           | [#7](https://github.com/fran2889/game-cat/issues/7)                                                                                                                                                                                                    |
 | Library ownership decision               | [ADR 0001](../adr/0001-steam-web-api-for-library-ownership.md)                                                                                                                                                                                         |
 | License                                  | [ADR 0002](../adr/0002-license.md)                                                                                                                                                                                                                     |
 | Vocabulary                               | [GLOSSARY.md](../../GLOSSARY.md)                                                                                                                                                                                                                       |
