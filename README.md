@@ -6,15 +6,13 @@ Steam-only for now. Later phases add How Long To Beat times, writing Smart Colle
 
 ## Status
 
-Pre-implementation. The build-ready v1 spec is proposed in
-[#8](https://github.com/fran2889/game-cat/issues/8); until it merges, the draft sections under
-`docs/specs/` remain the review inputs.
+Pre-implementation. The v1 contract is merged and authoritative:
+[docs/specs/game-cat-v1.md](docs/specs/game-cat-v1.md).
 
 ## Planning
 
 - [GLOSSARY.md](GLOSSARY.md) - the project's vocabulary.
-- [docs/specs/game-cat-v1.md](docs/specs/game-cat-v1.md) - the build-ready v1 spec, proposed for #8.
-- [docs/specs/](docs/specs/) - draft spec sections, authoritative until #8 merges.
+- [docs/specs/game-cat-v1.md](docs/specs/game-cat-v1.md) - the merged, authoritative v1 contract.
 - [docs/adr/](docs/adr/) - architecture decisions.
 - [docs/research/](docs/research/) - research notes, one file per question, each on its own `research/<slug>` branch.
 
