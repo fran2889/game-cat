@@ -85,6 +85,16 @@ export async function startLibraryScan(): Promise<RefreshRun> {
   return body.data;
 }
 
+export async function startOwnershipRefresh(): Promise<RefreshRun> {
+  const response = await fetch("/api/refresh", {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify({ scope: "ownership" }),
+  });
+  const body = await readJson<{ data: RefreshRun }>(response);
+  return body.data;
+}
+
 export async function fetchRefresh(id: string): Promise<RefreshRun> {
   const response = await fetch(`/api/refresh/${encodeURIComponent(id)}`, {
     headers: { accept: "application/json" },

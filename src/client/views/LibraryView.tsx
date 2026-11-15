@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import type { GameSummary, GamesResponse } from "../../shared/types.ts";
-import { ApiError, fetchGames, startLibraryScan } from "../api.ts";
+import { ApiError, fetchGames, startLibraryScan, startOwnershipRefresh } from "../api.ts";
+import { OwnershipBanner } from "../components/OwnershipBanner.tsx";
 import { useToast } from "../components/ToastProvider.tsx";
 import type { ShellContext } from "../shell-context.ts";
 
@@ -112,6 +113,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [scanning, setScanning] = useState(false);
+  const [refreshingOwnership, setRefreshingOwnership] = useState(false);
 
   const load = useCallback(
     (signal?: AbortSignal) => {
@@ -162,6 +164,31 @@ export function LibraryView({ mode }: LibraryViewProps) {
       );
     } finally {
       setScanning(false);
+    }
+  };
+
+  const retryOwnership = async (): Promise<void> => {
+    setRefreshingOwnership(true);
+    try {
+      const run = await startOwnershipRefresh();
+      if (run.status === "failed") {
+        showToast(run.error?.message ?? "The ownership refresh failed.");
+      } else if (run.status === "partial") {
+        showToast("Ownership refresh finished with some Steam data unavailable.");
+      } else {
+        showToast("Ownership roster refreshed.");
+      }
+      setPage(1);
+      await load();
+      reloadStatus();
+    } catch (ownershipError) {
+      showToast(
+        ownershipError instanceof ApiError
+          ? ownershipError.message
+          : "The ownership refresh could not start.",
+      );
+    } finally {
+      setRefreshingOwnership(false);
     }
   };
 
@@ -229,6 +256,13 @@ export function LibraryView({ mode }: LibraryViewProps) {
     return (
       <>
         {noAccount && <NoAccountBanner />}
+        {status !== null && (
+          <OwnershipBanner
+            status={status}
+            refreshing={refreshingOwnership}
+            onRetry={retryOwnership}
+          />
+        )}
         <section className="empty-library" aria-labelledby="empty-heading">
           <div className="empty-illustration" aria-hidden="true">
             <span />
@@ -258,6 +292,13 @@ export function LibraryView({ mode }: LibraryViewProps) {
       aria-label={mode === "installed" ? "Installed games" : "All games"}
     >
       {noAccount && <NoAccountBanner />}
+      {status !== null && (
+        <OwnershipBanner
+          status={status}
+          refreshing={refreshingOwnership}
+          onRetry={retryOwnership}
+        />
+      )}
       <div className="library-summary">
         <p>
           {totalItems} {totalItems === 1 ? "game" : "games"}
