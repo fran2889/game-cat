@@ -2196,9 +2196,10 @@ normative behavior.
   block challenge.
 - SteamSpy is independent of the store host and may run in parallel with the store-host pass, but is
   serial within itself.
-- One request per App per source is the contract. Do not batch canonical storefront Metadata; the
-  tested batch forms fail. Do not design a Tag bootstrap around SteamSpy's bulk `all` feed; it no
-  longer carries Tags.
+- One request per App per source is the contract. Do not batch canonical storefront Metadata or design
+  a Tag bootstrap around SteamSpy's bulk `all` feed; the
+  [Steam metadata research note](https://github.com/fran2889/game-cat/blob/research/metadata-sources/docs/research/metadata-sources.md)
+  documents why neither works.
 - Use a descriptive User-Agent such as `game-cat/<version> (local Steam library app)`. Do not
   impersonate a browser.
 - No new credentials exist for Metadata. The Steam Web API key is only for `GetOwnedGames`.
@@ -2390,9 +2391,11 @@ guard and the run record.
      `local_playtime_minutes`, `local_playtime_2weeks_minutes`, and `localconfig_last_played_at`. If the
      file was unreadable, preserve them. Recompute the resolved values after clearing.
 4. Derive `installed`: `(StateFlags & 4) == 4`, the install directory exists under
-   `<library>/steamapps/common/<installdir>`, and `InstalledDepots` is non-empty. Do not test
-   `StateFlags == 4` exactly; an app running or with missing files can still be installed. If a
-   manifest exists but the test fails, set `installed = 0` and re-read on the next scan.
+   `<library>/steamapps/common/<installdir>`, and `InstalledDepots` is non-empty. Do not test exact
+   equality or treat a mid-update manifest as installed; the
+   [local-library note](https://github.com/fran2889/game-cat/blob/research/steam-local-library/docs/research/steam-local-library.md)
+   defines the bitmask cases. If a manifest exists but the test fails, set `installed = 0` and re-read
+   on the next scan.
    When every library was read completely and no library has a manifest for a Game, set `installed = 0`
    and clear `library_path`, `install_dir`, `size_on_disk_bytes`, `state_flags`,
    `manifest_last_played_at`, and `last_updated_at`; `last_played_at` then falls back to
