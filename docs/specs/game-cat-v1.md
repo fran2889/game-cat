@@ -987,26 +987,10 @@ different default or cap. `totalPages` is
 and `data: []`, never `404`. `meta` is optional per endpoint; the top-level `meta` is unrelated to the
 per-Game `metadata` object.
 
-- Error responses use one shape:
-
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Request body is invalid",
-    "details": {
-      "fieldErrors": {
-        "name": "must be 1-80 characters"
-      }
-    },
-    "requestId": "01J..."
-  }
-}
-```
-
-`details` is optional and its shape is code-specific. `requestId` is present on every error and is also
-returned in the `X-Request-Id` response header. Internal error details and stack traces never appear
-in a response.
+- Error responses wrap the `ErrorDetail` object from [§4.2](#42-common-objects):
+  `{ "error": ErrorDetail }`. `details` is optional and code-specific. `requestId` is present on every
+  HTTP error and is also returned in the `X-Request-Id` response header. Internal error details and
+  stack traces never appear in a response.
 
 - Sorting is explicit: `sort` selects a whitelisted field, `order` is `asc` or `desc`. Game-list
   endpoints use `appId ASC` as the stable final tiebreaker. Lists that are not Game lists use their
@@ -1164,6 +1148,26 @@ server may evaluate all list items in one Library pass; it must equal
 
 For a dynamic Collection, `gameCount` is `null` and `isDynamic` is `true`.
 
+#### `ErrorDetail`
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Request body is invalid",
+  "details": {
+    "fieldErrors": {
+      "name": "must be 1-80 characters"
+    }
+  },
+  "requestId": "01J..."
+}
+```
+
+`code` and `message` are always present. `details` is optional and its shape is code-specific.
+`requestId` is present on every HTTP error response and is also returned in `X-Request-Id`. Persisted
+errors (`RefreshRun.error` and `Status.ownership.error`) use the same shape but may omit `details` and
+`requestId`, because the originating request is no longer available.
+
 #### `RefreshRun`
 
 ```json
@@ -1194,7 +1198,7 @@ For a dynamic Collection, `gameCount` is `null` and `isDynamic` is `true`.
 - `appIds` is the normalized selection for a `metadata` + `full` run, or `null` otherwise.
 - `stats` is `null` for `library` and `ownership` runs. It is present for `metadata` and `all` runs and
   contains only the whitelisted per-source counters.
-- `error` is `{ "code": "...", "message": "..." }` or `null`.
+- `error` is an `ErrorDetail` or `null`; a persisted run error may omit `details` and `requestId`.
 - Progress is advisory: `total` may be `null` while a phase is discovering its size, and `done` is
   monotonically increasing.
 
@@ -1273,6 +1277,8 @@ For a dynamic Collection, `gameCount` is `null` and `isDynamic` is `true`.
   `error`. `unknown` is used before the first attempt. `partial` means the response was shorter than
   `game_count`, so absent Games were not reconciled. `empty` means a successful response with zero
   Games; if local evidence exists, the UI warns that the profile may be private.
+- `ownership.error` is an `ErrorDetail` or `null`, describing the last ownership failure; it may omit
+  `details` and `requestId`.
 - `library.lastScanStatus`: `never`, `ok`, `partial`, or `failed`. `never` maps to `steam_local.status = "unknown"` before the first scan; `failed` maps to `steam_local.status = "error"`; `partial` maps to `partial`.
 - `metadata` count objects classify every Game; a Game with no row counts as `missing` for that
   source. `lastSuccessAt` is the latest successful completion across the three Metadata sources, or
