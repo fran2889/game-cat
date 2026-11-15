@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ApiError, startMetadataRefresh } from "../api.ts";
+import { ApiError } from "../api.ts";
 import {
   MAX_SELECTION_FOR_NEW,
   MAX_SELECTION_FOR_REFRESH,
@@ -9,6 +9,7 @@ import {
 } from "../browse.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { formatCount } from "../format.ts";
+import { useRefresh } from "../refresh-context.tsx";
 import { handoffFromSelection, SMART_COLLECTION_DRAFT_STATE } from "../smart-handoff.ts";
 import { useToast } from "./ToastProvider.tsx";
 
@@ -19,10 +20,11 @@ import { useToast } from "./ToastProvider.tsx";
 export function SelectionBar() {
   const { selectedIds, selectedCount, clearSelection } = useBrowse();
   const { showToast } = useToast();
+  const { isRunning, startRun } = useRefresh();
   const navigate = useNavigate();
 
   const newDisabled = !canCreateFromSelection(selectedCount);
-  const refreshDisabled = !canRefreshSelection(selectedCount);
+  const refreshDisabled = !canRefreshSelection(selectedCount) || isRunning;
 
   const createFromSelection = () => {
     if (newDisabled) {
@@ -38,14 +40,11 @@ export function SelectionBar() {
       return;
     }
     try {
-      await startMetadataRefresh(selectedIds);
-      showToast("Metadata Refresh started.");
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 422) {
-        // #27 adds the metadata scope. Until then the API rejects it cleanly.
-        showToast("Metadata Refresh is not available in this build yet.");
-        return;
+      const run = await startRun({ scope: "metadata", mode: "full", appIds: selectedIds });
+      if (run !== null) {
+        showToast("Metadata Refresh started.");
       }
+    } catch (error) {
       showToast(
         error instanceof ApiError ? error.message : "The Metadata Refresh could not be started.",
       );
@@ -73,9 +72,11 @@ export function SelectionBar() {
           onClick={() => void refreshSelected()}
           disabled={refreshDisabled}
           title={
-            selectedCount > MAX_SELECTION_FOR_REFRESH
-              ? `Refresh selected supports up to ${formatCount(MAX_SELECTION_FOR_REFRESH)} Games.`
-              : undefined
+            isRunning
+              ? "A Refresh is already running."
+              : selectedCount > MAX_SELECTION_FOR_REFRESH
+                ? `Refresh selected supports up to ${formatCount(MAX_SELECTION_FOR_REFRESH)} Games.`
+                : undefined
           }
         >
           Refresh selected

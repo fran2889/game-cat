@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { RunningServer } from "../../src/server/index.ts";
 import { createServer } from "../../src/server/index.ts";
+import type { MetadataSource } from "../../src/server/refresh/sources.ts";
+import type { SteamOwnershipSource } from "../../src/server/steam/ownership.ts";
 import { SteamFixture } from "../helpers/steam-fixture.ts";
 
 export interface TestGame {
@@ -22,6 +24,10 @@ export interface StartAppOptions {
   steamCollection?: boolean;
   /** Start without a Steam Web API key so the client routes to onboarding. */
   noKey?: boolean;
+  /** No-network Metadata adapters; defaults to the real adapters outside tests. */
+  metadataSources?: readonly MetadataSource[];
+  /** Inject an ownership adapter instead of the default empty roster. */
+  ownershipSource?: SteamOwnershipSource;
 }
 
 export interface TestApp {
@@ -145,7 +151,8 @@ export async function startTestApp(options: StartAppOptions = {}): Promise<TestA
     logLevel: "error",
     logToStderr: false,
     startupRefresh: false,
-    ownershipSource: {
+    ...(options.metadataSources === undefined ? {} : { metadataSources: options.metadataSources }),
+    ownershipSource: options.ownershipSource ?? {
       async fetchOwnedGames() {
         return { kind: "empty", gameCount: 0, games: [] };
       },

@@ -39,6 +39,8 @@ interface BrowseContextValue {
   selectShown(appIds: number[]): void;
   clearShown(appIds: number[]): void;
   clearSelection(): void;
+  /** Replace this view's selection, used by "/errors" -> Select affected. */
+  replaceSelection(appIds: number[]): void;
 }
 
 const BrowseContext = createContext<BrowseContextValue | null>(null);
@@ -184,6 +186,13 @@ export function BrowseProvider({ viewKind, children }: BrowseProviderProps): Rea
     updateCurrentSelection(() => new Set<number>());
   }, [updateCurrentSelection]);
 
+  const replaceSelection = useCallback(
+    (appIds: number[]) => {
+      updateCurrentSelection(() => new Set(appIds));
+    },
+    [updateCurrentSelection],
+  );
+
   const currentSelection = selections[viewKind];
   const selectedIds = useMemo(
     () => [...currentSelection].sort((left, right) => left - right),
@@ -213,6 +222,7 @@ export function BrowseProvider({ viewKind, children }: BrowseProviderProps): Rea
       selectShown,
       clearShown,
       clearSelection,
+      replaceSelection,
     }),
     [
       viewKind,
@@ -233,6 +243,7 @@ export function BrowseProvider({ viewKind, children }: BrowseProviderProps): Rea
       selectShown,
       clearShown,
       clearSelection,
+      replaceSelection,
     ],
   );
 

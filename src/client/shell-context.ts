@@ -7,4 +7,5 @@ export interface ShellContext {
   reloadStatus(): void;
   reloadConfig(): void;
   applyConfig(config: Config): void;
+  applyStatus(status: Status): void;
 }
