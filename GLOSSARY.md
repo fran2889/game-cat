@@ -69,6 +69,26 @@ The storefront's product type for a Game, such as `game`, `dlc`, or `demo`. The 
 `storefrontType`; null means unknown.
 _Avoid_: bare type as a Rule Field
 
+**Release Year**:
+The storefront's release year for a Game. A v1 Field; null means unknown.
+_Avoid_: release date
+
+**Metacritic Score**:
+The storefront's Metacritic score for a Game, 0-100. A v1 Field; null means unknown.
+_Avoid_: rating, review score
+
+**Platform**:
+A storefront-supported platform for a Game, such as Windows, macOS, or Linux. A v1 multi-valued Field.
+_Avoid_: OS
+
+**Developer**:
+A storefront-listed developer for a Game. A v1 multi-valued Field.
+_Avoid_: studio
+
+**Publisher**:
+A storefront-listed publisher for a Game. A v1 multi-valued Field.
+_Avoid_: studio
+
 **Metadata**:
 Game attributes fetched from external sources and cached by game-cat, such as Tags, Genres, storefront details, and review summaries. Missing Metadata never hides a Game. Fetched at runtime and never redistributed.
 _Avoid_: enrichment, sync, scrape
