@@ -15,6 +15,7 @@ import { TagsRepository } from "../../src/server/library/tags.ts";
 import type { LibraryScanResult, scanLocalLibrary } from "../../src/server/library/scan.ts";
 import { RefreshService } from "../../src/server/refresh/service.ts";
 import type {
+  MetadataHostKey,
   MetadataSource,
   MetadataSourceContext,
   MetadataSourceName,
@@ -95,7 +96,7 @@ class FakeSource implements MetadataSource {
   constructor(
     readonly name: MetadataSourceName,
     private readonly responder: Responder = () => ({ kind: "ok" }),
-    readonly hostKey?: string,
+    readonly hostKey?: MetadataHostKey,
   ) {}
 
   async fetch(context: MetadataSourceContext): Promise<MetadataSourceOutcome> {
