@@ -85,11 +85,16 @@ export function createLogger(options: LoggerOptions): AppLogger {
   let fileError: string | null = null;
   const filePath = options.filePath ?? null;
 
+  // The logger's own level is the single filter, so changing it at runtime
+  // through the settings API applies immediately to every sink. Giving each
+  // stream the startup level would pin that level for the process lifetime.
+  const streamLevel = "trace";
+
   if (tty) {
     const destination = options.stream ?? (useStderr ? 2 : null);
     if (destination !== null) {
       streams.push({
-        level,
+        level: streamLevel,
         stream: pinoPretty({
           destination,
           colorize: false,
@@ -100,10 +105,10 @@ export function createLogger(options: LoggerOptions): AppLogger {
     }
   } else {
     if (useStderr) {
-      streams.push({ level, stream: pino.destination({ dest: 2, sync: true }) });
+      streams.push({ level: streamLevel, stream: pino.destination({ dest: 2, sync: true }) });
     }
     if (options.stream !== undefined) {
-      streams.push({ level, stream: options.stream });
+      streams.push({ level: streamLevel, stream: options.stream });
     }
   }
 
@@ -115,7 +120,7 @@ export function createLogger(options: LoggerOptions): AppLogger {
         maxSizeBytes: options.maxFileSizeBytes ?? LOG_FILE_MAX_BYTES,
         keepFiles: options.keepFiles ?? LOG_FILE_KEEP,
       });
-      streams.push({ level, stream: fileStream });
+      streams.push({ level: streamLevel, stream: fileStream });
     } catch (error) {
       fileError = (error as Error).message;
     }
