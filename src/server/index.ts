@@ -74,7 +74,13 @@ export interface ServerOptions {
    */
   metadataSources?: readonly MetadataSource[];
   /**
-   * Test seam: skip the documented startup `all` + Fetch trigger. Recovery of
+   * Test seam: pacing/backoff sleep. Tests inject a fake clock that advances
+   * time without waiting; production uses real timers.
+   */
+  sleep?: (milliseconds: number) => Promise<void>;
+  /** Test seam: monotonic milliseconds paired with `sleep` for pacing. */
+  nowMs?: () => number;
+  /** Test seam: skip the documented startup `all` + Fetch trigger. Recovery of
    * interrupted runs still happens.
    */
   startupRefresh?: boolean;
@@ -268,6 +274,8 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
         new StorefrontSource(),
         new SteamReviewSource(),
       ],
+      ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
+      ...(options.nowMs === undefined ? {} : { nowMs: options.nowMs }),
       onWarn: (message, details) => logger.warn({ ...details, warning: message }, "scan warning"),
     });
     refreshService = refresh;

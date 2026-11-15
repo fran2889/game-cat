@@ -219,6 +219,16 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
           </div>
         </section>
 
+        {status?.steam.ambiguous === true && (
+          <p className="side-empty" role="status" data-testid="ambiguous-account-warning">
+            Several Steam Accounts were found.{" "}
+            <NavLink to="/settings" onClick={onClose}>
+              Choose Account
+            </NavLink>
+            .
+          </p>
+        )}
+
         <NavLink to="/settings" className="status-link" onClick={onClose}>
           Settings
         </NavLink>

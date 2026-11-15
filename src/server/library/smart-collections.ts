@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type BetterSqlite3 from "better-sqlite3";
 import {
   CONTROL_CHARACTERS,
+  MAX_RULE_NAME_CODE_POINTS,
   codePointLength,
   validateRules,
   type Rule,
@@ -17,6 +18,7 @@ import type { GameOrder } from "../../shared/types.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { GAME_SORTS } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
+import { toIsoTimestamp as toIso } from "../timestamps.ts";
 import { readDataAsOf } from "./games.ts";
 import {
   countLibraryMatches,
@@ -28,7 +30,6 @@ import {
 
 const DEFAULT_PAGE_SIZE = 60;
 const MAX_PAGE_SIZE = 200;
-const MAX_NAME_CODE_POINTS = 80;
 
 type RawQuery = Record<string, string | undefined>;
 
@@ -61,10 +62,6 @@ interface RuleRow {
   field: Rule["field"];
   operator: Rule["operator"];
   value_json: string;
-}
-
-function toIso(seconds: number): string {
-  return new Date(seconds * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 function validationError(fieldErrors: Record<string, string>): HttpError {
@@ -183,8 +180,8 @@ export function validateSmartCollectionName(
   }
   const name = value.normalize("NFC").trim();
   const length = codePointLength(name);
-  if (length < 1 || length > MAX_NAME_CODE_POINTS) {
-    fieldErrors.name = `must be 1-${MAX_NAME_CODE_POINTS} characters`;
+  if (length < 1 || length > MAX_RULE_NAME_CODE_POINTS) {
+    fieldErrors.name = `must be 1-${MAX_RULE_NAME_CODE_POINTS} characters`;
     return null;
   }
   return name;

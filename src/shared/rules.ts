@@ -7,6 +7,7 @@
  * reject exactly the same Rules.
  */
 
+import { normalizeNameKey } from "./names.ts";
 import { GAME_SORTS, type GameOrder, type GameSort } from "./types.ts";
 
 export const RULE_PREFIXES = ["AND", "OR", "NOT"] as const;
@@ -266,9 +267,11 @@ export const MAX_RULE_NAME_CODE_POINTS = 80;
 
 export const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F-\u009F]/;
 
-export function normalizeRuleText(value: string): string {
-  return value.normalize("NFC").trim().toLowerCase();
-}
+/**
+ * Rule text uses the same normalization as every name key (§2.7); the alias
+ * keeps Rule-facing call sites readable.
+ */
+export const normalizeRuleText = normalizeNameKey;
 
 export function codePointLength(value: string): number {
   return [...value].length;
@@ -409,7 +412,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 export function validateRules(input: unknown): RuleValidationResult {
   const fieldErrors: Record<string, string> = {};
   const rules: Rule[] = [];
-  if (input === undefined || input === null) {
+  if (input === undefined) {
     return { rules, fieldErrors };
   }
   if (!Array.isArray(input)) {

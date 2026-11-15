@@ -195,6 +195,9 @@ export type RefreshScope = "library" | "ownership" | "metadata" | "all";
 export type RefreshMode = "fetch" | "full";
 export type RefreshStatus = "queued" | "running" | "succeeded" | "partial" | "failed";
 
+/** The documented `appIds` selection cap (§4.4). */
+export const MAX_REFRESH_APP_IDS = 5_000;
+
 export interface ErrorDetail {
   code: string;
   message: string;
@@ -248,6 +251,8 @@ export interface Status {
   steam: {
     state: SteamState;
     root: string | null;
+    /** Several local Accounts and no unique MostRecent; the picker is required. */
+    ambiguous: boolean;
     account: SteamAccount | null;
   };
   ownership: {

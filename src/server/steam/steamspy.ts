@@ -6,7 +6,7 @@ import type {
   MetadataSourceContext,
   MetadataSourceOutcome,
 } from "../refresh/sources.ts";
-import { parseRetryAfter } from "./ownership.ts";
+import { parseRetryAfter } from "./retry-after.ts";
 
 /**
  * SteamSpy `appdetails` adapter (spec §6.1, §6.5).

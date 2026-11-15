@@ -4,14 +4,28 @@ import {
   RULE_FIELD_DEFINITIONS,
   RULE_OPERATORS,
   RULE_PREFIXES,
+  normalizeRuleText,
   ruleFieldDefinition,
   validatePreviewRequest,
   validateRules,
 } from "../../src/shared/rules.ts";
+import { normalizeNameKey } from "../../src/shared/names.ts";
 
 function errorsFor(value: unknown): Record<string, string> {
   return validateRules(value).fieldErrors;
 }
+
+describe("Shared normalization", () => {
+  it("uses one helper for Rule text and name keys", () => {
+    expect(normalizeRuleText).toBe(normalizeNameKey);
+    expect(normalizeRuleText("  Café  ")).toBe("café");
+  });
+
+  it("rejects an explicit null Rules value but accepts an omitted one", () => {
+    expect(errorsFor(undefined)).toEqual({});
+    expect(errorsFor(null)).toEqual({ rules: "must be an array" });
+  });
+});
 
 describe("Rule field registry", () => {
   it("lists exactly the documented Fields in §5.3 order", () => {
