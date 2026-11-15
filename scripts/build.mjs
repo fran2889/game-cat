@@ -1,7 +1,7 @@
 // Production build: Vite emits dist/client; tsc emits dist/server and
 // dist/shared with .ts import specifiers rewritten to .js.
 import { spawnSync } from "node:child_process";
-import { rmSync } from "node:fs";
+import { cpSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,4 +29,8 @@ rmSync(join(root, "dist"), { recursive: true, force: true });
 run("vite build", [viteCli, "build"]);
 run("tsc build", [tscCli, "-p", "tsconfig.server.json"]);
 
-console.log("[build] dist/client and dist/server are ready.");
+// Migrations are data, not compiled output. Ship them next to the server so
+// `dist/server/db/migrations.js` resolves `dist/migrations`.
+cpSync(join(root, "migrations"), join(root, "dist", "migrations"), { recursive: true });
+
+console.log("[build] dist/client, dist/server, and dist/migrations are ready.");
