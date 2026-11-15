@@ -1286,10 +1286,28 @@ errors (`RefreshRun.error` and `Status.ownership.error`) use the same shape but 
 - `metadata` count objects classify every Game; a Game with no row counts as `missing` for that
   source. `lastSuccessAt` is the latest successful completion across the three Metadata sources, or
   `null`.
-- `sources` is ordered `steam_local`, `steam_web_api`, `steamspy`, `storefront`, `steam_reviews`. The
-  array always contains all five; the example shows one for brevity.
+- `sources` is an ordered `SourceHealth[]` (see below) in the order `steam_local`, `steam_web_api`,
+  `steamspy`, `storefront`, `steam_reviews`. The array always contains all five; the example shows one
+  for brevity. `lastError` is a safe message string, not an `ErrorDetail`.
 - `activeRefresh` and `lastRefresh` use the `RefreshRun` shape. `activeRefresh` is `null` when no run
   is active; `lastRefresh` is `null` before the first run.
+
+#### `SourceHealth`
+
+```json
+{
+  "name": "steam_local",
+  "status": "ok",
+  "lastSuccessAt": "2026-11-13T18:01:00Z",
+  "lastAttemptAt": "2026-11-13T18:01:00Z",
+  "retryAfterAt": null,
+  "lastError": null
+}
+```
+
+`name` is a `source_state.name` value. `status` is that source's documented subset from
+[§3.4](#34-table-notes). `lastError` is a short, user-safe message or `null`; it is never a raw
+upstream body and is not an `ErrorDetail`. The `/errors` view lists one row per `SourceHealth`.
 
 #### `Config`
 
