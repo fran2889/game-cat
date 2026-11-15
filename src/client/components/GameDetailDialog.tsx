@@ -11,6 +11,7 @@ import {
   formatTimestamp,
   ownershipLabel,
   platformLabels,
+  reviewSummaryLabel,
   reviewTone,
 } from "../format.ts";
 import { GameCover } from "./GameCover.tsx";
@@ -130,15 +131,7 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
     if (detail === null) {
       return "—";
     }
-    if (detail.reviewCount === 0) {
-      return "No user reviews";
-    }
-    if (detail.reviewScore === null) {
-      return "Reviews unavailable";
-    }
-    return `${detail.reviewScore}% · ${detail.reviewTier ?? "—"} · ${formatCount(
-      detail.reviewCount ?? 0,
-    )} reviews`;
+    return reviewSummaryLabel(detail.reviewScore, detail.reviewTier, detail.reviewCount);
   })();
 
   return (
