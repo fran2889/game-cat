@@ -15,6 +15,11 @@ import {
 } from "../library/collections.ts";
 import { GamesRepository, parseGamesQuery } from "../library/games.ts";
 import type { RulePreviewRepository } from "../library/rule-preview.ts";
+import {
+  parseSmartCollectionGamesQuery,
+  parseSmartCollectionsQuery,
+  type SmartCollectionsRepository,
+} from "../library/smart-collections.ts";
 import { parseRuleValuesQuery, type RuleValuesRepository } from "../library/rule-values.ts";
 import { parseTagsQuery, type TagsRepository } from "../library/tags.ts";
 import type { RefreshService } from "../refresh/service.ts";
@@ -26,6 +31,7 @@ export interface ApiRoutesOptions {
   ruleValues: RuleValuesRepository;
   rulePreview: RulePreviewRepository;
   tags: TagsRepository;
+  smartCollections: SmartCollectionsRepository;
   refresh: RefreshService;
 }
 
@@ -158,6 +164,46 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
       sort: validated.sort,
       order: validated.order,
     });
+  });
+
+  app.get("/api/smart-collections", async (request) =>
+    options.smartCollections.list(parseSmartCollectionsQuery(queryValues(request.query))),
+  );
+
+  app.post("/api/smart-collections", async (request, reply) => {
+    const collection = options.smartCollections.create(request.body);
+    reply.header("location", `/api/smart-collections/${collection.id}`);
+    return reply.code(201).send({ data: collection });
+  });
+
+  app.get("/api/smart-collections/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    const collection = options.smartCollections.get(id);
+    if (collection === null) {
+      throw notFound(id);
+    }
+    return { data: collection };
+  });
+
+  app.patch("/api/smart-collections/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    return { data: options.smartCollections.update(id, request.body) };
+  });
+
+  app.delete("/api/smart-collections/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    options.smartCollections.delete(id);
+    return reply.code(204).send();
+  });
+
+  app.get("/api/smart-collections/:id/games", async (request) => {
+    const { id } = request.params as { id: string };
+    const query = parseSmartCollectionGamesQuery(queryValues(request.query));
+    const games = options.smartCollections.games(id, query);
+    if (games === null) {
+      throw notFound(id);
+    }
+    return games;
   });
 
   app.get("/api/refresh/:id", async (request) => {

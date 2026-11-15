@@ -19,6 +19,7 @@ import { GamesRepository } from "./library/games.ts";
 import { SteamCollectionsRepository } from "./library/collections.ts";
 import { RulePreviewRepository } from "./library/rule-preview.ts";
 import { RuleValuesRepository } from "./library/rule-values.ts";
+import { SmartCollectionsRepository } from "./library/smart-collections.ts";
 import { TagsRepository } from "./library/tags.ts";
 import { createLogger, defaultLogPath, type AppLogger } from "./logging/logger.ts";
 import { acquireLock, type LockHandle } from "./lock.ts";
@@ -221,6 +222,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
     const collections = new SteamCollectionsRepository(database.raw);
     const ruleValues = new RuleValuesRepository(database.raw);
     const rulePreview = new RulePreviewRepository(database.raw);
+    const smartCollections = new SmartCollectionsRepository(database.raw);
     const tags = new TagsRepository(database.raw);
     const refresh = new RefreshService({
       db: database.raw,
@@ -257,7 +259,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       clientDir: options.clientDir === undefined ? defaultClientDir() : options.clientDir,
       logger,
       status: statusForRequest,
-      library: { games, collections, ruleValues, rulePreview, tags, refresh },
+      library: { games, collections, ruleValues, rulePreview, smartCollections, tags, refresh },
       config: configStore,
     });
 
