@@ -7,6 +7,8 @@ import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.
 import { createHttpApp } from "../../src/server/http/app.ts";
 import { SteamCollectionsRepository } from "../../src/server/library/collections.ts";
 import { GamesRepository } from "../../src/server/library/games.ts";
+import { RuleValuesRepository } from "../../src/server/library/rule-values.ts";
+import { TagsRepository } from "../../src/server/library/tags.ts";
 import { RefreshService } from "../../src/server/refresh/service.ts";
 import { buildStatus } from "../../src/server/status.ts";
 import type { SteamDiscovery } from "../../src/server/steam/discovery.ts";
@@ -69,6 +71,7 @@ function harness(steam = fixture()): Harness {
   databases.push(db);
   const games = new GamesRepository(db.raw);
   const collections = new SteamCollectionsRepository(db.raw);
+  const tags = new TagsRepository(db.raw);
   const refresh = new RefreshService({
     db: db.raw,
     steamRoot: steam.root,
@@ -87,7 +90,13 @@ function harness(steam = fixture()): Harness {
         schemaVersion: db.schemaVersion,
         db: db.raw,
       }),
-    library: { games, collections, refresh },
+    library: {
+      games,
+      collections,
+      ruleValues: new RuleValuesRepository(db.raw),
+      tags,
+      refresh,
+    },
   });
   apps.push(app);
   refreshes.set(app, refresh);
@@ -240,6 +249,8 @@ describe("POST /api/refresh (library)", () => {
       library: {
         games: new GamesRepository(test.db.raw),
         collections: new SteamCollectionsRepository(test.db.raw),
+        ruleValues: new RuleValuesRepository(test.db.raw),
+        tags: new TagsRepository(test.db.raw),
         refresh,
       },
     });
@@ -702,5 +713,198 @@ describe("GET /api/status with a Library", () => {
     const status = (await get(test.app, "/api/status")).json() as { data: Status };
     expect(status.data.library.lastScanStatus).toBe("partial");
     expect(status.data.sources[0]?.status).toBe("partial");
+  });
+});
+
+describe("GET /api/games?storeStatus=", () => {
+  it("accepts exactly the documented values and returns only matching Games", async () => {
+    const test = harness();
+    const statuses = ["ok", "unavailable", "missing", "stale", "error"] as const;
+    const appIds = [620, 621, 622, 623, 624];
+    for (const [index, appId] of appIds.entries()) {
+      seedGame(test.db, appId);
+      test.db.raw
+        .prepare(
+          `INSERT INTO storefront_appdetails (app_id, store_status, updated_at)
+           VALUES (?, ?, 1)`,
+        )
+        .run(appId, statuses[index]!);
+    }
+    // A Game with no storefront row reads as `missing`.
+    seedGame(test.db, 625);
+
+    for (const status of statuses) {
+      const response = await get(test.app, `/api/games?storeStatus=${status}`);
+      expect(response.statusCode, status).toBe(200);
+      const body = response.json() as { data: GameSummary[]; pagination: { totalItems: number } };
+      const expected = status === "missing" ? [622, 625] : [appIds[statuses.indexOf(status)]!];
+      expect(
+        body.data.map((game) => game.appId),
+        status,
+      ).toEqual(expected);
+      expect(body.pagination.totalItems).toBe(expected.length);
+      for (const game of body.data) {
+        expect(game.metadata.storeStatus).toBe(status);
+      }
+    }
+
+    for (const invalid of ["unknown", "partial", "blocked", "OK", ""]) {
+      const response = await get(test.app, `/api/games?storeStatus=${invalid}`);
+      if (invalid === "") {
+        expect(response.statusCode).toBe(200);
+        continue;
+      }
+      expect(response.statusCode, invalid).toBe(422);
+      expect(response.json()).toMatchObject({
+        error: {
+          code: "VALIDATION_ERROR",
+          details: { fieldErrors: { storeStatus: expect.any(String) } },
+        },
+      });
+    }
+  });
+});
+
+describe("GET /api/tags", () => {
+  function seedTag(db: AppDatabase, id: number, name: string): void {
+    db.raw
+      .prepare("INSERT INTO tags (id, name, name_key) VALUES (?, ?, ?)")
+      .run(id, name, name.toLowerCase());
+  }
+
+  function tagGame(db: AppDatabase, appId: number, tagId: number, votes = 1): void {
+    db.raw
+      .prepare("INSERT INTO game_tags (app_id, tag_id, votes) VALUES (?, ?, ?)")
+      .run(appId, tagId, votes);
+  }
+
+  function seedTagLibrary(): Harness {
+    const test = harness();
+    for (const appId of [1, 2, 3]) {
+      seedGame(test.db, appId);
+    }
+    seedTag(test.db, 1, "Puzzle");
+    seedTag(test.db, 2, "Action");
+    seedTag(test.db, 3, "Roguelike");
+    seedTag(test.db, 4, "Orphan");
+    tagGame(test.db, 1, 1);
+    tagGame(test.db, 2, 1);
+    tagGame(test.db, 1, 2);
+    tagGame(test.db, 3, 3);
+    return test;
+  }
+
+  it("returns distinct-Game counts ordered by count, name key, then id", async () => {
+    const test = seedTagLibrary();
+    const response = await get(test.app, "/api/tags");
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      data: [
+        { name: "Puzzle", gameCount: 2 },
+        { name: "Action", gameCount: 1 },
+        { name: "Roguelike", gameCount: 1 },
+      ],
+      pagination: { page: 1, pageSize: 20, totalItems: 3, totalPages: 1 },
+    });
+  });
+
+  it("matches the normalized query case-insensitively and excludes Tags with no Games", async () => {
+    const test = seedTagLibrary();
+    const response = await get(test.app, "/api/tags?query=PUZ");
+    expect((response.json() as { data: Array<{ name: string; gameCount: number }> }).data).toEqual([
+      { name: "Puzzle", gameCount: 2 },
+    ]);
+
+    const orphan = await get(test.app, "/api/tags?query=orphan");
+    expect((orphan.json() as { data: unknown[] }).data).toEqual([]);
+    expect((orphan.json() as { pagination: { totalItems: number } }).pagination.totalItems).toBe(0);
+  });
+
+  it("pages by Tags, not Games", async () => {
+    const test = seedTagLibrary();
+    const first = (await get(test.app, "/api/tags?pageSize=2")).json() as {
+      data: Array<{ name: string }>;
+      pagination: Record<string, number>;
+    };
+    expect(first.data.map((tag) => tag.name)).toEqual(["Puzzle", "Action"]);
+    expect(first.pagination).toEqual({ page: 1, pageSize: 2, totalItems: 3, totalPages: 2 });
+
+    const second = (await get(test.app, "/api/tags?pageSize=2&page=2")).json() as {
+      data: Array<{ name: string }>;
+    };
+    expect(second.data.map((tag) => tag.name)).toEqual(["Roguelike"]);
+  });
+
+  it("returns an empty list for a fresh database", async () => {
+    const test = harness();
+    expect((await get(test.app, "/api/tags")).json()).toEqual({
+      data: [],
+      pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    });
+  });
+
+  it("validates query length, page, and pageSize", async () => {
+    const test = harness();
+    for (const [url, field] of [
+      [`/api/tags?query=${"x".repeat(81)}`, "query"],
+      ["/api/tags?page=0", "page"],
+      ["/api/tags?pageSize=0", "pageSize"],
+      ["/api/tags?pageSize=101", "pageSize"],
+    ] as const) {
+      const response = await get(test.app, url);
+      expect(response.statusCode, url).toBe(422);
+      const body = response.json() as { error: { code: string; details: { fieldErrors: object } } };
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.details.fieldErrors).toHaveProperty(field);
+    }
+  });
+});
+
+describe("GET /api/games?tagsStatus", () => {
+  function seedStatuses(): Harness {
+    const test = harness();
+    for (const appId of [1, 2, 3, 4, 5]) {
+      seedGame(test.db, appId);
+    }
+    const insert = test.db.raw.prepare(
+      `INSERT INTO steamspy_appdetails (app_id, tags_status, tags_fetched_at, updated_at)
+       VALUES (?, ?, ?, 1)`,
+    );
+    insert.run(1, "ok", 10);
+    insert.run(2, "missing", 10);
+    insert.run(3, "stale", 10);
+    insert.run(4, "error", null);
+    // Game 5 has no row and reads as missing with no fetch timestamp.
+    return test;
+  }
+
+  it("returns only Games with the requested tags status", async () => {
+    const test = seedStatuses();
+    for (const [status, expected] of [
+      ["ok", [1]],
+      ["missing", [2, 5]],
+      ["stale", [3]],
+      ["error", [4]],
+    ] as const) {
+      const response = await get(test.app, `/api/games?tagsStatus=${status}&sort=appId`);
+      expect(response.statusCode, status).toBe(200);
+      expect(
+        (response.json() as { data: GameSummary[] }).data.map((game) => game.appId),
+        status,
+      ).toEqual(expected);
+    }
+  });
+
+  it("rejects unsupported tags status values", async () => {
+    const test = harness();
+    for (const status of ["unavailable", "unknown", "OK"]) {
+      const response = await get(test.app, `/api/games?tagsStatus=${status}`);
+      expect(response.statusCode, status).toBe(422);
+      const body = response.json() as {
+        error: { code: string; details: { fieldErrors: Record<string, string> } };
+      };
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.details.fieldErrors).toHaveProperty("tagsStatus");
+    }
   });
 });

@@ -49,13 +49,6 @@ export function OnboardingView() {
       .then((next) => {
         setAccounts(next);
         setAccountsError(null);
-        setSelectedSteamId64((current) => {
-          if (current !== "") {
-            return current;
-          }
-          const recent = next[0];
-          return recent === undefined ? "" : recent.steamId64;
-        });
       })
       .catch((error: unknown) => {
         if ((error as Error).name !== "AbortError") {
@@ -109,7 +102,9 @@ export function OnboardingView() {
     if (steamRoot.trim() !== "" && steamRoot.trim() !== config?.steamRoot) {
       patch.steamRoot = steamRoot.trim();
     }
-    if (selectedSteamId64 !== "" && selectedSteamId64 !== config?.steamId64) {
+    if (selectedSteamId64 !== "") {
+      // Confirming the Account pins it in config.json, even when discovery
+      // supplied the same value.
       patch.steamId64 = selectedSteamId64;
     }
     if (!envManaged && apiKey.trim() !== "") {

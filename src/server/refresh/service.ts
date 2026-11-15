@@ -1461,6 +1461,17 @@ export class RefreshService {
           return;
         }
 
+        // A non-retryable `error` (for example a storefront `400`) records the
+        // failure immediately and moves on without another request.
+        if (outcome.retryable === false) {
+          plan.stats.sources[source.name].failed += 1;
+          failures += 1;
+          plan.partial = true;
+          this.resolveGame(plan, item.appId);
+          persistIfNeeded();
+          break;
+        }
+
         // `error`: retry with full jitter, then record the failure and keep
         // going. Five consecutive failed attempts open the source circuit.
         consecutiveFailures += 1;

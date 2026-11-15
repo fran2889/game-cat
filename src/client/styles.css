@@ -1486,6 +1486,29 @@ main {
   white-space: nowrap;
 }
 
+.tag-status {
+  display: inline-block;
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.tag-status.is-ok {
+  color: var(--green);
+}
+
+.tag-status.is-stale,
+.tag-status.is-error {
+  color: var(--red);
+}
+
+.game-table .tag-status {
+  margin-top: 0;
+  margin-left: 4px;
+}
+
 .select-check {
   position: absolute;
   z-index: 3;

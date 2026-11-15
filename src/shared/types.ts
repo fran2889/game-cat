@@ -77,6 +77,11 @@ export interface GameTag {
   votes: number;
 }
 
+export interface TagSummary {
+  name: string;
+  gameCount: number;
+}
+
 export interface GamePlatforms {
   windows?: boolean;
   mac?: boolean;
@@ -150,10 +155,28 @@ export interface Pagination {
   totalPages: number;
 }
 
+/** The four storefront-backed Rule value pickers (§4.3). */
+export type RuleValueField = "genre" | "category" | "developer" | "publisher";
+
+export interface RuleValue {
+  value: string;
+  gameCount: number;
+}
+
+export interface RuleValuesResponse {
+  data: RuleValue[];
+  pagination: Pagination;
+}
+
 export interface GamesResponse {
   data: GameSummary[];
   pagination: Pagination;
   meta: { dataAsOf: string | null };
+}
+
+export interface TagsResponse {
+  data: TagSummary[];
+  pagination: Pagination;
 }
 
 export interface GameDetailResponse {
