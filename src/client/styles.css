@@ -703,6 +703,23 @@ main {
   flex: none;
 }
 
+.banner-actions {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.banner-actions .button {
+  margin-left: 0;
+}
+
+.ownership-counts {
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
 .empty-library,
 .placeholder {
   display: flex;

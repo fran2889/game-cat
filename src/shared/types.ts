@@ -212,7 +212,14 @@ export interface Status {
   };
   ownership: {
     state: OwnershipState;
+    /** Owned Games. */
     gameCount: number;
+    /** Library-wide Ownership flags, used by the Library status surface. */
+    counts: {
+      owned: number;
+      localOnly: number;
+      unknown: number;
+    };
     lastSuccessAt: string | null;
     lastAttemptAt: string | null;
     error: ErrorDetail | null;

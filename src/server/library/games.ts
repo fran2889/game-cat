@@ -282,6 +282,12 @@ export interface LibraryCounts {
   installedCount: number;
 }
 
+export interface OwnershipCounts {
+  owned: number;
+  localOnly: number;
+  unknown: number;
+}
+
 export interface LibraryScanState {
   lastScanAt: number | null;
   lastScanStatus: "never" | "ok" | "partial" | "failed";
@@ -399,6 +405,18 @@ export class GamesRepository {
       )
       .get() as { gameCount: number; installedCount: number };
     return { gameCount: row.gameCount, installedCount: row.installedCount };
+  }
+
+  ownershipCounts(): OwnershipCounts {
+    const row = this.db
+      .prepare(
+        `SELECT COALESCE(SUM(CASE WHEN ownership_status = 'owned' THEN 1 ELSE 0 END), 0) AS owned,
+                COALESCE(SUM(CASE WHEN ownership_status = 'local_only' THEN 1 ELSE 0 END), 0) AS localOnly,
+                COALESCE(SUM(CASE WHEN ownership_status = 'unknown' THEN 1 ELSE 0 END), 0) AS unknown
+         FROM games`,
+      )
+      .get() as OwnershipCounts;
+    return { owned: row.owned, localOnly: row.localOnly, unknown: row.unknown };
   }
 
   scanState(): LibraryScanState {
