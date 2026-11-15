@@ -20,6 +20,8 @@ export interface StartAppOptions {
   empty?: boolean;
   steamMissing?: boolean;
   steamCollection?: boolean;
+  /** Start without a Steam Web API key so the client routes to onboarding. */
+  noKey?: boolean;
 }
 
 export interface TestApp {
@@ -135,12 +137,19 @@ export async function startTestApp(options: StartAppOptions = {}): Promise<TestA
     steamRoot,
     port: 0,
     openBrowser: false,
+    ...(options.noKey === true ? {} : { steamApiKey: "e2e-steam-api-key" }),
     env: {} as NodeJS.ProcessEnv,
     homedir: home,
     platform: "linux",
     clientDir,
     logLevel: "error",
     logToStderr: false,
+    startupRefresh: false,
+    ownershipSource: {
+      async fetchOwnedGames() {
+        return { kind: "empty", gameCount: 0, games: [] };
+      },
+    },
   });
 
   if (options.account === false) {

@@ -1,10 +1,14 @@
 import type {
+  Config,
+  ConfigPatchResponse,
   GameDetailResponse,
   GameOrder,
   GameSort,
   GamesResponse,
   RefreshRun,
   Status,
+  SteamAccountsResponse,
+  SteamAccount,
   SteamCollectionGamesResponse,
   SteamCollectionSummary,
   SteamCollectionsResponse,
@@ -12,26 +16,45 @@ import type {
 
 export class ApiError extends Error {
   readonly status: number | null;
+  readonly code: string | null;
+  readonly details: Record<string, unknown> | null;
 
-  constructor(message: string, status: number | null) {
+  constructor(
+    message: string,
+    status: number | null,
+    options: { code?: string | null; details?: Record<string, unknown> | null } = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = options.code ?? null;
+    this.details = options.details ?? null;
+  }
+
+  get fieldErrors(): Record<string, string> {
+    const value = this.details?.fieldErrors;
+    return typeof value === "object" && value !== null ? (value as Record<string, string>) : {};
   }
 }
 
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
+    let code: string | null = null;
+    let details: Record<string, unknown> | null = null;
     try {
-      const body = (await response.json()) as { error?: { message?: string } };
+      const body = (await response.json()) as {
+        error?: { message?: string; code?: string; details?: Record<string, unknown> };
+      };
       if (body.error?.message !== undefined) {
         message = body.error.message;
       }
+      code = body.error?.code ?? null;
+      details = body.error?.details ?? null;
     } catch {
       // Keep the status-based message when the body is not JSON.
     }
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, { code, details });
   }
   return (await response.json()) as T;
 }
@@ -47,6 +70,60 @@ export async function fetchStatus(signal?: AbortSignal): Promise<Status> {
     throw new ApiError((error as Error).message, null);
   }
   const body = await readJson<{ data: Status }>(response);
+  return body.data;
+}
+
+export async function fetchConfig(signal?: AbortSignal): Promise<Config> {
+  let response: Response;
+  try {
+    response = await fetch("/api/config", {
+      headers: { accept: "application/json" },
+      signal,
+    });
+  } catch (error) {
+    if ((error as Error).name === "AbortError") {
+      throw error;
+    }
+    throw new ApiError((error as Error).message, null);
+  }
+  const body = await readJson<{ data: Config }>(response);
+  return body.data;
+}
+
+export interface ConfigPatch {
+  steamApiKey?: string;
+  steamRoot?: string;
+  steamId64?: string;
+  port?: number;
+  openBrowser?: boolean;
+  logLevel?: string;
+}
+
+export async function patchConfig(patch: ConfigPatch): Promise<ConfigPatchResponse> {
+  const response = await fetch("/api/config", {
+    method: "PATCH",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return readJson<ConfigPatchResponse>(response);
+}
+
+export async function fetchSteamAccounts(signal?: AbortSignal): Promise<SteamAccount[]> {
+  const response = await fetch("/api/steam/accounts", {
+    headers: { accept: "application/json" },
+    signal,
+  });
+  const body = await readJson<SteamAccountsResponse>(response);
+  return body.data;
+}
+
+export async function startAllFetch(): Promise<RefreshRun> {
+  const response = await fetch("/api/refresh", {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify({ scope: "all", mode: "fetch" }),
+  });
+  const body = await readJson<{ data: RefreshRun }>(response);
   return body.data;
 }
 

@@ -1,17 +1,27 @@
 import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
-import type { Status } from "../../shared/types.ts";
+import type { Config, Status } from "../../shared/types.ts";
 import type { ShellContext } from "../shell-context.ts";
 import { Sidebar } from "./Sidebar.tsx";
 import { TopBar } from "./TopBar.tsx";
 
 export interface AppShellProps {
   status: Status | null;
+  config: Config | null;
   error: string | null;
   reloadStatus(): void;
+  reloadConfig(): void;
+  applyConfig(config: Config): void;
 }
 
-export function AppShell({ status, error, reloadStatus }: AppShellProps) {
+export function AppShell({
+  status,
+  config,
+  error,
+  reloadStatus,
+  reloadConfig,
+  applyConfig,
+}: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -31,7 +41,14 @@ export function AppShell({ status, error, reloadStatus }: AppShellProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [sidebarOpen]);
 
-  const context: ShellContext = { status, error, reloadStatus };
+  const context: ShellContext = {
+    status,
+    config,
+    error,
+    reloadStatus,
+    reloadConfig,
+    applyConfig,
+  };
 
   return (
     <div className="app">
