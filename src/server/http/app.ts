@@ -11,7 +11,10 @@ import Fastify, {
 import type { Logger } from "pino";
 import { ERROR_CODES, type ErrorDetail, type Status } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
+import type { GamesRepository } from "../library/games.ts";
 import { redactUrl } from "../logging/logger.ts";
+import type { RefreshService } from "../refresh/service.ts";
+import { registerApiRoutes } from "./api-routes.ts";
 
 export const REQUEST_BODY_LIMIT = 256 * 1024;
 
@@ -37,7 +40,13 @@ export interface CreateHttpAppOptions {
   /** Built client directory. `null` means no static shell is available. */
   clientDir?: string | null;
   logger: Logger;
-  status: Status;
+  /** A snapshot, or a getter when Library state should be read per request. */
+  status: Status | (() => Status);
+  /** When present, the Game list/detail and Refresh endpoints are registered. */
+  library?: {
+    games: GamesRepository;
+    refresh: RefreshService;
+  };
 }
 
 /**
@@ -106,7 +115,17 @@ export function createHttpApp(options: CreateHttpAppOptions): FastifyInstance {
     );
   });
 
-  app.get("/api/status", async () => ({ data: options.status }));
+  if (options.library !== undefined) {
+    registerApiRoutes(app, {
+      status: options.status,
+      games: options.library.games,
+      refresh: options.library.refresh,
+    });
+  } else {
+    app.get("/api/status", async () => ({
+      data: typeof options.status === "function" ? options.status() : options.status,
+    }));
+  }
 
   if (clientDir !== null) {
     app.register(fastifyStatic, {

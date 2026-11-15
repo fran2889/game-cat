@@ -48,6 +48,86 @@ export type OwnershipState =
 
 export type LibraryScanStatus = "never" | "ok" | "partial" | "failed";
 
+export type OwnershipStatus = "owned" | "local_only" | "unknown";
+
+export type MetadataSourceStatus =
+  | "ok"
+  | "unavailable"
+  | "missing"
+  | "stale"
+  | "error"
+  | "not_configured"
+  | "invalid_key"
+  | "rate_limited"
+  | "blocked"
+  | "offline"
+  | "unknown";
+
+export interface GameTag {
+  name: string;
+  votes: number;
+}
+
+export interface GamePlatforms {
+  windows?: boolean;
+  mac?: boolean;
+  linux?: boolean;
+}
+
+export interface GameMetadataStatus {
+  tagsStatus: string;
+  storeStatus: string;
+  reviewStatus: string;
+  tagsFetchedAt?: string | null;
+  storeFetchedAt?: string | null;
+  reviewFetchedAt?: string | null;
+}
+
+export interface GameSummary {
+  appId: number;
+  name: string;
+  ownershipStatus: OwnershipStatus;
+  installed: boolean | null;
+  playtimeMinutes: number;
+  lastPlayedAt: string | null;
+  releaseYear: number | null;
+  metacriticScore: number | null;
+  reviewScore: number | null;
+  reviewTier: string | null;
+  reviewCount: number | null;
+  type: string | null;
+  platforms: GamePlatforms | null;
+  tags: GameTag[];
+  metadata: GameMetadataStatus;
+}
+
+export interface GameDetail extends GameSummary {
+  releaseDateRaw: string | null;
+  developers: string[];
+  publishers: string[];
+  genres: string[];
+  categories: string[];
+  steamCollections: Array<{ id: string; name: string; kind: string }>;
+  sizeOnDiskBytes: number | null;
+}
+
+export interface Pagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface GamesResponse {
+  data: GameSummary[];
+  pagination: Pagination;
+  meta: { dataAsOf: string | null };
+}
+
+export interface GameDetailResponse {
+  data: GameDetail;
+}
+
 export type RefreshScope = "library" | "ownership" | "metadata" | "all";
 export type RefreshMode = "fetch" | "full";
 export type RefreshStatus = "queued" | "running" | "succeeded" | "partial" | "failed";
