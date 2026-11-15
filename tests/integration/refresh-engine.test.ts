@@ -28,7 +28,7 @@ import type {
   OwnershipFetchResult,
   SteamOwnershipSource,
 } from "../../src/server/steam/ownership.ts";
-import type { RefreshRun, Status } from "../../src/shared/types.ts";
+import type { RefreshRun, SourceHealth, Status } from "../../src/shared/types.ts";
 import { TEST_STEAM_ID64 } from "../helpers/steam-fixture.ts";
 
 const PORT = 4780;
@@ -240,29 +240,38 @@ interface SeedStatus {
   appId: number;
   status: string;
   fetchedAt?: number | null;
+  updatedAt?: number;
 }
 
 function seedMetadata(db: AppDatabase, source: MetadataSourceName, entries: SeedStatus[]): void {
   const sql: Record<MetadataSourceName, string> = {
     steamspy: `INSERT INTO steamspy_appdetails (app_id, tags_status, tags_fetched_at, updated_at)
-              VALUES (?, ?, ?, 1)
+              VALUES (?, ?, ?, ?)
               ON CONFLICT(app_id) DO UPDATE SET
                 tags_status = excluded.tags_status,
-                tags_fetched_at = excluded.tags_fetched_at`,
+                tags_fetched_at = excluded.tags_fetched_at,
+                updated_at = excluded.updated_at`,
     storefront: `INSERT INTO storefront_appdetails (app_id, store_status, store_fetched_at, updated_at)
-                 VALUES (?, ?, ?, 1)
+                 VALUES (?, ?, ?, ?)
                  ON CONFLICT(app_id) DO UPDATE SET
                    store_status = excluded.store_status,
-                   store_fetched_at = excluded.store_fetched_at`,
+                   store_fetched_at = excluded.store_fetched_at,
+                   updated_at = excluded.updated_at`,
     steam_reviews: `INSERT INTO steam_review_summaries (app_id, review_status, review_fetched_at, updated_at)
-                    VALUES (?, ?, ?, 1)
+                    VALUES (?, ?, ?, ?)
                     ON CONFLICT(app_id) DO UPDATE SET
                       review_status = excluded.review_status,
-                      review_fetched_at = excluded.review_fetched_at`,
+                      review_fetched_at = excluded.review_fetched_at,
+                      updated_at = excluded.updated_at`,
   };
   const statement = db.raw.prepare(sql[source]);
   for (const entry of entries) {
-    statement.run(entry.appId, entry.status, entry.fetchedAt === undefined ? 1 : entry.fetchedAt);
+    statement.run(
+      entry.appId,
+      entry.status,
+      entry.fetchedAt === undefined ? 1 : entry.fetchedAt,
+      entry.updatedAt === undefined ? 1 : entry.updatedAt,
+    );
   }
 }
 
@@ -1453,5 +1462,141 @@ describe("Startup Refresh trigger", () => {
       status: "partial",
       error_code: "OWNERSHIP_NOT_CONFIGURED",
     });
+  });
+});
+
+describe("Metadata source state", () => {
+  /** Resolve only when the engine aborts the request, as shutdown does. */
+  function abortable(signal: AbortSignal | undefined): Promise<never> {
+    return new Promise((_, reject) => {
+      const abort = (): void => reject(new Error("The request was aborted."));
+      if (signal === undefined) {
+        return;
+      }
+      if (signal.aborted) {
+        abort();
+        return;
+      }
+      signal.addEventListener("abort", abort, { once: true });
+    });
+  }
+
+  async function statusSources(test: Harness): Promise<Map<string, SourceHealth>> {
+    const response = await get(test.app, "/api/status");
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as { data: Status };
+    return new Map(body.data.sources.map((source) => [source.name, source]));
+  }
+
+  it("keeps last attempt and completed successes when shutdown interrupts a pass", async () => {
+    const interruptAfterFirst = (name: MetadataSourceName, hostKey?: MetadataHostKey) =>
+      new FakeSource(
+        name,
+        async (context, index) => {
+          if (index === 0) {
+            return { kind: "ok" };
+          }
+          return abortable(context.signal);
+        },
+        hostKey,
+      );
+    const steamspy = interruptAfterFirst("steamspy");
+    const storefront = interruptAfterFirst("storefront", "store");
+    const reviews = interruptAfterFirst("steam_reviews", "steam_web_api");
+    const sources = [steamspy, storefront, reviews];
+    const test = harness({ sources });
+    for (const appId of [1, 2, 3]) {
+      seedGame(test.db, appId);
+    }
+
+    const response = await post(test.app, { scope: "metadata", mode: "fetch" });
+    expect(response.statusCode).toBe(202);
+    await until(() => sources.every((source) => source.calls.length >= 2));
+
+    // The pass is still running: the attempt is already visible and the source
+    // is no longer advertised as never attempted.
+    const running = await statusSources(test);
+    for (const source of sources) {
+      expect(running.get(source.name)?.status).toBe("partial");
+      expect(running.get(source.name)?.lastAttemptAt).not.toBeNull();
+    }
+
+    await test.refresh.shutdown();
+    await test.refresh.waitForIdle();
+
+    const health = await statusSources(test);
+    for (const source of sources) {
+      expect(health.get(source.name)).toMatchObject({
+        status: "partial",
+        lastError: null,
+      });
+      expect(health.get(source.name)?.lastSuccessAt).not.toBeNull();
+      expect(health.get(source.name)?.lastAttemptAt).not.toBeNull();
+    }
+  });
+
+  it("reports error and the safe failure when an interrupted pass has no success", async () => {
+    const source = new FakeSource("steamspy", async (context) => {
+      if (context.game.appId === 1) {
+        return { kind: "error", message: "The source is down.", retryable: false };
+      }
+      return abortable(context.signal);
+    });
+    const test = harness({ sources: [source] });
+    seedGame(test.db, 1);
+    seedGame(test.db, 2);
+
+    await post(test.app, { scope: "metadata", mode: "fetch" });
+    await until(() => source.calls.includes(2));
+    await test.refresh.shutdown();
+    await test.refresh.waitForIdle();
+
+    const health = await statusSources(test);
+    expect(health.get("steamspy")).toMatchObject({
+      status: "error",
+      lastSuccessAt: null,
+      lastError: "The source is down.",
+    });
+    expect(health.get("steamspy")?.lastAttemptAt).not.toBeNull();
+  });
+
+  it("reconciles an unknown source row from per-Game data when a Fetch has no pending work", async () => {
+    const steamspy = new FakeSource("steamspy");
+    const storefront = new FakeSource("storefront", () => ({ kind: "ok" }), "store");
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "steam_web_api");
+    const test = harness({ sources: [steamspy, storefront, reviews] });
+    seedGame(test.db, 1);
+    for (const name of ["steamspy", "storefront", "steam_reviews"] as const) {
+      seedMetadata(test.db, name, [
+        { appId: 1, status: "ok", fetchedAt: NOW - 100, updatedAt: NOW - 90 },
+      ]);
+    }
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+    expect(run).toMatchObject({ status: "succeeded", total: 0, done: 0 });
+    expect([steamspy, storefront, reviews].map((source) => source.calls.length)).toEqual([0, 0, 0]);
+
+    const health = await statusSources(test);
+    for (const name of ["steamspy", "storefront", "steam_reviews"] as const) {
+      expect(health.get(name)).toMatchObject({
+        status: "ok",
+        lastSuccessAt: "2023-11-14T22:11:40Z",
+        lastAttemptAt: "2023-11-14T22:11:50Z",
+      });
+    }
+  });
+
+  it("records ok and both timestamps after a completed pass", async () => {
+    const steamspy = new FakeSource("steamspy");
+    const test = harness({ sources: [steamspy] });
+    seedGame(test.db, 1);
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+    expect(run.status).toBe("succeeded");
+
+    const health = await statusSources(test);
+    expect(health.get("steamspy")).toMatchObject({ status: "ok", lastError: null });
+    expect(health.get("steamspy")?.lastSuccessAt).not.toBeNull();
+    expect(health.get("steamspy")?.lastAttemptAt).not.toBeNull();
   });
 });
