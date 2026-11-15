@@ -15,6 +15,7 @@ import { createLogger, defaultLogPath, type AppLogger } from "./logging/logger.t
 import { acquireLock, type LockHandle } from "./lock.ts";
 import { openBrowserBestEffort } from "./open-browser.ts";
 import { RefreshService } from "./refresh/service.ts";
+import type { MetadataSource } from "./refresh/sources.ts";
 import { assertNodeVersion } from "./node-version.ts";
 import { discoverSteam, type SteamDiscovery, type SteamDiscoveryFn } from "./steam/discovery.ts";
 import { buildStatus } from "./status.ts";
@@ -50,6 +51,16 @@ export interface ServerOptions {
   steamDiscovery?: SteamDiscoveryFn;
   /** Injectable database boundary. Defaults to the bundled migration runner. */
   database?: OpenDatabase;
+  /**
+   * Metadata adapter registration point (#28-#30) and a no-network test seam.
+   * Empty by default; the engine runs without adapters.
+   */
+  metadataSources?: readonly MetadataSource[];
+  /**
+   * Test seam: skip the documented startup `all` + Fetch trigger. Recovery of
+   * interrupted runs still happens.
+   */
+  startupRefresh?: boolean;
 }
 
 export interface RunningServer {
@@ -178,6 +189,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       steamRoot: discovery.root ?? resolved.steamRoot,
       steamId64: discovery.account?.steamId64 ?? resolved.steamId64,
       steamApiKey: resolved.steamApiKey,
+      sources: options.metadataSources ?? [],
       onWarn: (message, details) => logger.warn({ ...details, warning: message }, "scan warning"),
     });
 
@@ -214,6 +226,10 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
     portRef.value = actualPort;
     const url = `http://127.0.0.1:${actualPort}/`;
 
+    // §8.7: recover interrupted runs before the startup Fetch. A queued run
+    // that never started and a running run both become INTERRUPTED.
+    refresh.recoverInterruptedRuns();
+
     logger.info(
       {
         version: APP_VERSION,
@@ -228,6 +244,14 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       },
       "ready",
     );
+
+    // §8.7 startup trigger: one `all` + Fetch after listening, only when a Web
+    // API key is configured. Without a key the server waits for onboarding.
+    if (resolved.steamApiKey !== null && options.startupRefresh !== false) {
+      void refresh.start({ scope: "all", mode: "fetch" }).catch((error: unknown) => {
+        logger.warn({ err: error }, "startup Refresh could not be queued");
+      });
+    }
 
     if (resolved.openBrowser) {
       openBrowserBestEffort(url, { platform, env, logger });
@@ -259,9 +283,10 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
           return;
         }
         closed = true;
-        // §8.9: stop accepting, close the database, then release the lock and
-        // close the log. Active-run marking joins this sequence in #36.
+        // §8.9: stop accepting, mark the active run, then close SQLite and
+        // release the lock.
         await app?.close();
+        await refresh.shutdown();
         database?.close();
         lock?.release();
         await appLogger?.close();

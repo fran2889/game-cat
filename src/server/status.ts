@@ -132,6 +132,63 @@ function ownershipStatus(
   };
 }
 
+type TagsCounts = Status["metadata"]["tags"];
+type StoreCounts = Status["metadata"]["store"];
+type ReviewCounts = Status["metadata"]["reviews"];
+
+function countByStatus(
+  db: BetterSqlite3.Database,
+  query: string,
+  allowed: readonly string[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const status of allowed) {
+    counts[status] = 0;
+  }
+  const rows = db.prepare(query).all() as Array<{ status: string; count: number }>;
+  for (const row of rows) {
+    if ((allowed as readonly string[]).includes(row.status)) {
+      counts[row.status] = row.count;
+    }
+  }
+  return counts;
+}
+
+/**
+ * `Status.metadata` classifies every Game exactly once per source (AC-M16). A
+ * Game with no source row is `missing`; the LEFT JOIN keeps those counted.
+ */
+function metadataState(db: BetterSqlite3.Database): Status["metadata"] {
+  const tags = countByStatus(
+    db,
+    `SELECT COALESCE(sp.tags_status, 'missing') AS status, COUNT(*) AS count
+       FROM games g LEFT JOIN steamspy_appdetails sp ON sp.app_id = g.app_id
+      GROUP BY status`,
+    ["ok", "missing", "stale", "error"],
+  ) as TagsCounts;
+  const store = countByStatus(
+    db,
+    `SELECT COALESCE(sf.store_status, 'missing') AS status, COUNT(*) AS count
+       FROM games g LEFT JOIN storefront_appdetails sf ON sf.app_id = g.app_id
+      GROUP BY status`,
+    ["ok", "unavailable", "missing", "stale", "error"],
+  ) as StoreCounts;
+  const reviews = countByStatus(
+    db,
+    `SELECT COALESCE(sr.review_status, 'missing') AS status, COUNT(*) AS count
+       FROM games g LEFT JOIN steam_review_summaries sr ON sr.app_id = g.app_id
+      GROUP BY status`,
+    ["ok", "unavailable", "missing", "stale", "error"],
+  ) as ReviewCounts;
+  const row = db
+    .prepare(
+      `SELECT MAX(last_success_at) AS last_success_at FROM source_state
+       WHERE name IN ('steamspy', 'storefront', 'steam_reviews')`,
+    )
+    .get() as { last_success_at: number | null } | undefined;
+  return { tags, store, reviews, lastSuccessAt: toIso(row?.last_success_at ?? null) };
+}
+
 /**
  * The Status document. With a database it reports real Library counts, the last
  * local scan, source health, and Refresh-run state; without one it reports the
@@ -212,12 +269,7 @@ export function buildStatus(input: BuildStatusInput): Status {
       lastScanAt: toIso(scan.lastScanAt),
       lastScanStatus: scan.lastScanStatus,
     },
-    metadata: {
-      tags: { ok: 0, missing: 0, stale: 0, error: 0 },
-      store: { ok: 0, unavailable: 0, missing: 0, stale: 0, error: 0 },
-      reviews: { ok: 0, unavailable: 0, missing: 0, stale: 0, error: 0 },
-      lastSuccessAt: null,
-    },
+    metadata: metadataState(input.db),
     sources: sourceHealth(input.db, ownershipConfigured),
     activeRefresh: readActiveRefresh(input.db),
     lastRefresh: readLastRefresh(input.db),

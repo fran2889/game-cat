@@ -109,6 +109,33 @@ describe("SteamOwnershipSource", () => {
     expect(result.kind).toBe("partial");
   });
 
+  it("treats a missing game_count and a longer roster as inconclusive", async () => {
+    const missingCount = await source(
+      jsonResponse({
+        response: {
+          games: [
+            { appid: 620, name: "Portal 2", playtime_forever: 1 },
+            { appid: 570, name: "Dota 2", playtime_forever: 2 },
+          ],
+        },
+      }),
+    ).fetchOwnedGames(STEAM_ID64);
+    expect(missingCount).toMatchObject({ kind: "partial", gameCount: 2 });
+
+    const longer = await source(
+      jsonResponse({
+        response: {
+          game_count: 1,
+          games: [
+            { appid: 620, name: "Portal 2", playtime_forever: 1 },
+            { appid: 570, name: "Dota 2", playtime_forever: 2 },
+          ],
+        },
+      }),
+    ).fetchOwnedGames(STEAM_ID64);
+    expect(longer).toMatchObject({ kind: "partial", gameCount: 1 });
+  });
+
   it("classifies zero Games and a missing games array as empty", async () => {
     const zero = await source(jsonResponse({ response: { game_count: 0 } })).fetchOwnedGames(
       STEAM_ID64,
