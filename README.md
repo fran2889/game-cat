@@ -21,12 +21,26 @@ Node 24 or newer and npm with the committed lockfile are required. The supported
 Git tag or commit; a floating branch can change the data contract.
 
 ```sh
-npm install -g github:fran2889/game-cat#v1.0.0
+npm install -g github:fran2889/game-cat#v0.1.0
 game-cat
 ```
 
 The install runs the package's `prepare` build, installs the `game-cat` binary, and does not require
 a source checkout. Contributors use the development path below.
+
+## Versioning
+
+`v1`, `v2`, `v3`, and `v4` are product phases, not SemVer majors. The package follows ordinary
+SemVer independently:
+
+- The v1 phase ships as `0.1.0`.
+- Backwards-compatible feature milestones bump the minor version (`0.2.0`, `0.3.0`, ...); fixes bump
+  the patch version. Milestones may ship out of order or gain features between them, so future
+  versions are not pinned in advance.
+- `1.0.0` is declared manually when the contract is stable.
+- `DB_SCHEMA_VERSION` is independent of the package version; `game-cat --version` prints both.
+
+`APP_VERSION` is read from `package.json`, which is the single source of truth.
 
 ```sh
 game-cat --help       # documented flags
