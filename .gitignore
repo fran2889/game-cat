@@ -2,6 +2,9 @@ node_modules/
 dist/
 build/
 coverage/
+test-results/
+playwright-report/
+.data/
 *.sqlite
 *.sqlite-*
 .env
