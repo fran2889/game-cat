@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { APP_VERSION } from "../../src/shared/app.ts";
 
 const ROOT = resolve(import.meta.dirname, "..", "..");
 const CLI = join(ROOT, "src", "server", "cli.ts");
@@ -57,7 +58,7 @@ describe("CLI", () => {
   it("--version prints the app version and the schema version", async () => {
     const result = await runCli(["--version"]);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("0.1.0");
+    expect(result.stdout).toContain(APP_VERSION);
     expect(result.stdout).toContain("schema 1");
   });
 
