@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
 import type { Config, Status } from "../../shared/types.ts";
 import { RefreshProvider } from "../refresh-context.tsx";
@@ -28,10 +28,32 @@ export function AppShell({
   applyStatus,
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const drawerWasOpen = useRef(false);
 
   useEffect(() => {
     document.title = "game-cat";
   }, []);
+
+  // Move focus into the mobile drawer when it opens, and back to the menu
+  // button when it closes. The closed drawer is `visibility: hidden`, so its
+  // links are not in the Tab order.
+  useEffect(() => {
+    let frame = 0;
+    if (sidebarOpen) {
+      drawerWasOpen.current = true;
+      // Wait one frame so the drawer's `visibility` change has applied before
+      // moving focus into it.
+      frame = window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>("#sidebar .sidebar-close")?.focus();
+      });
+    } else if (drawerWasOpen.current) {
+      drawerWasOpen.current = false;
+      frame = window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>(".mobile-menu")?.focus();
+      });
+    }
+    return () => window.cancelAnimationFrame(frame);
+  }, [sidebarOpen]);
 
   useEffect(() => {
     if (!sidebarOpen) {

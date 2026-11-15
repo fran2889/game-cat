@@ -96,6 +96,9 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
   }, []);
 
   const installedPressed = viewKind === "installed" || installedOnly;
+  // Search maps to `?q=` on the Library views only; the editor, Steam
+  // Collections, /errors, onboarding, and settings have no search result list.
+  const searchEnabled = location.pathname === "/" || location.pathname === "/installed";
 
   return (
     <header className="topbar">
@@ -121,34 +124,36 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
       </div>
 
       <div className="topbar-tools">
-        <div className="search-wrap">
-          <span className="search-icon" aria-hidden="true">
-            ⌕
-          </span>
-          <input
-            ref={searchRef}
-            type="search"
-            value={draft}
-            placeholder="Search game names"
-            aria-label="Search game names"
-            autoComplete="off"
-            onChange={(event) => setDraft(event.target.value)}
-          />
-          <kbd aria-hidden="true">/</kbd>
-          {draft !== "" && (
-            <button
-              type="button"
-              className="search-clear"
-              aria-label="Clear search"
-              onClick={() => {
-                setDraft("");
-                clearSearch();
-              }}
-            >
-              ×
-            </button>
-          )}
-        </div>
+        {searchEnabled && (
+          <div className="search-wrap">
+            <span className="search-icon" aria-hidden="true">
+              ⌕
+            </span>
+            <input
+              ref={searchRef}
+              type="search"
+              value={draft}
+              placeholder="Search game names"
+              aria-label="Search game names"
+              autoComplete="off"
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            <kbd aria-hidden="true">/</kbd>
+            {draft !== "" && (
+              <button
+                type="button"
+                className="search-clear"
+                aria-label="Clear search"
+                onClick={() => {
+                  setDraft("");
+                  clearSearch();
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
 
         <label className="select-wrap">
           <span className="sr-only">Sort by</span>

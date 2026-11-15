@@ -31,7 +31,10 @@ test("grid is the default and the layout persists per view kind", async ({ page 
   await page.reload();
   await expect(page.locator(".game-table")).toBeVisible();
 
-  await page.getByRole("link", { name: /Installed/ }).click();
+  await page
+    .locator("#sidebar")
+    .getByRole("link", { name: /Installed/ })
+    .click();
   await expect(page).toHaveURL(/\/installed$/);
   await expect(page.locator(".game-grid .game-card").first()).toBeVisible();
   await expect(page.locator(".game-table")).toHaveCount(0);
@@ -177,7 +180,10 @@ test("the Installed toggle maps to installed=true and has no inverse filter", as
   await expect(page.locator(".results-count")).toHaveText("44 total · 44 shown");
   await expect(page.locator(".game-card")).toHaveCount(44);
 
-  await page.getByRole("link", { name: /Installed/ }).click();
+  await page
+    .locator("#sidebar")
+    .getByRole("link", { name: /Installed/ })
+    .click();
   await expect(page.locator(".toggle-button")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".toggle-button")).toBeDisabled();
 });
@@ -228,7 +234,10 @@ test("selection is scoped per view and New from selection hands off a prefilled 
   await expect(page.locator(".selection-count")).toHaveText("2 selected");
   await expect(page.getByRole("button", { name: /New from selection/ })).toBeEnabled();
 
-  await page.getByRole("link", { name: /Installed/ }).click();
+  await page
+    .locator("#sidebar")
+    .getByRole("link", { name: /Installed/ })
+    .click();
   await expect(page.locator(".selection-count")).toHaveText("0 selected");
   await page.locator(".game-card input[type=checkbox]").first().check();
   await expect(page.locator(".selection-count")).toHaveText("1 selected");

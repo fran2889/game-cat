@@ -73,7 +73,10 @@ test("a disconnected server shows the retry banner", async ({ page }) => {
     await page.goto(app.url);
     await expect(page.locator(".game-card").first()).toBeVisible();
     await app.close();
-    await page.getByRole("link", { name: /Installed/ }).click();
+    await page
+      .locator("#sidebar")
+      .getByRole("link", { name: /Installed/ })
+      .click();
     await expect(
       page.getByText("Cannot reach game-cat. Is the server still running?").first(),
     ).toBeVisible();

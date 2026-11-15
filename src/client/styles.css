@@ -1298,21 +1298,6 @@ main {
 
 /* Dialog and toast */
 
-.dialog-slot {
-  max-width: min(920px, calc(100vw - 32px));
-  width: 100%;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface-1);
-  color: var(--text);
-  box-shadow: var(--shadow);
-  padding: 0;
-}
-
-.dialog-slot::backdrop {
-  background: rgba(4, 6, 9, 0.62);
-}
-
 .toast-root {
   position: fixed;
   right: 18px;
@@ -2437,12 +2422,14 @@ main {
     z-index: 45;
     width: min(290px, 86vw);
     transform: translateX(-102%);
+    visibility: hidden;
     transition: transform 160ms ease;
     box-shadow: var(--shadow);
   }
 
   .sidebar.is-open {
     transform: translateX(0);
+    visibility: visible;
   }
 
   .sidebar .sidebar-close {
@@ -2533,9 +2520,15 @@ main {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* The indeterminate sweep would otherwise freeze off-canvas. */
+  .progress-indeterminate > span {
+    transform: none !important;
+    width: 35%;
   }
 }
 

@@ -123,6 +123,50 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
     };
   }, []);
 
+  // Native modal dialogs contain focus in Chromium, but leaving the document
+  // for browser chrome breaks the documented trap. Keep Tab and Shift+Tab
+  // inside the panel explicitly.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      const dialog = dialogRef.current;
+      if (event.key !== "Tab" || dialog === null || !dialog.open) {
+        return;
+      }
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (first === undefined || last === undefined) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const active = document.activeElement;
+      if (!dialog.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const close = () => closeTo(background);
 
   const detail = state.kind === "ready" ? state.detail : null;
@@ -223,7 +267,7 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
               </div>
             </div>
 
-            <div className="detail-scroll" tabIndex={0} aria-label="Game details">
+            <div className="detail-scroll" tabIndex={0} role="region" aria-label="Game details">
               <div className="stat-grid">
                 <Stat label="Playtime" value={formatPlaytime(detail.playtimeMinutes)} />
                 <Stat label="Last played" value={formatDate(detail.lastPlayedAt)} />
