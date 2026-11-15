@@ -81,6 +81,12 @@ export function createHttpApp(options: CreateHttpAppOptions): FastifyInstance {
     bodyLimit: REQUEST_BODY_LIMIT,
     trustProxy: false,
     genReqId: () => randomUUID(),
+    // `close()` must not wait for a browser's idle keep-alive socket. During
+    // graceful shutdown we stop accepting and abort in-flight upstream work,
+    // so closing the remaining HTTP connections is the documented next step.
+    // Without this, `server.close()` can hang until the keep-alive timeout,
+    // delaying shutdown and the v4 wrapper's `close()` resolution.
+    forceCloseConnections: true,
   });
 
   const clientDir =
