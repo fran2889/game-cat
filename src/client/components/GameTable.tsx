@@ -128,7 +128,16 @@ export function GameTable({ games }: GameTableProps) {
                 <td>{formatDate(game.lastPlayedAt)}</td>
                 <td className={`review-text ${reviewTone(game.reviewScore)}`}>{review}</td>
                 <td className="mono">{game.releaseYear ?? "—"}</td>
-                <td>{tags.length > 0 ? tags.join(", ") : "—"}</td>
+                <td>
+                  {tags.length > 0 ? tags.join(", ") : "—"}
+                  <span
+                    className={`tag-status is-${game.metadata.tagsStatus}`}
+                    title={`Tags: ${game.metadata.tagsStatus}`}
+                  >
+                    {" "}
+                    {game.metadata.tagsStatus}
+                  </span>
+                </td>
               </tr>
             );
           })}

@@ -73,6 +73,12 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
           </p>
           <p className={`game-review review-text ${reviewTone(game.reviewScore)}`}>{reviewLabel}</p>
           <p className="game-tags">{tags.length > 0 ? tags.join(" · ") : "No tags yet"}</p>
+          <span
+            className={`tag-status is-${game.metadata.tagsStatus}`}
+            title={`Tags: ${game.metadata.tagsStatus}`}
+          >
+            Tags: {game.metadata.tagsStatus}
+          </span>
         </div>
       </Link>
       <label className="select-check">
