@@ -153,7 +153,8 @@ describe("SteamReviewSource successful summaries", () => {
       .prepare(
         `INSERT INTO games (app_id, name, name_key, name_source, ownership_status,
            playtime_minutes, source_mask, first_seen_at, last_seen_at)
-         VALUES (8, 'Game 8', 'game 8', 'placeholder', 'owned', 0, 1, 1, 1)`,
+         VALUES (8, 'Game 8', 'game 8', 'placeholder', 'owned', 0, 1, 1, 1),
+                (9, 'Game 9', 'game 9', 'placeholder', 'owned', 0, 1, 1, 1)`,
       )
       .run();
 
@@ -182,6 +183,18 @@ describe("SteamReviewSource successful summaries", () => {
           },
         },
       ],
+      [
+        9,
+        {
+          success: 1,
+          query_summary: {
+            total_positive: 0,
+            total_negative: 10,
+            total_reviews: 10,
+            review_score_desc: "Very Negative",
+          },
+        },
+      ],
     ]);
     const reviews = source(async (input) => {
       const appId = Number(new URL(String(input)).pathname.split("/").at(-1));
@@ -193,10 +206,16 @@ describe("SteamReviewSource successful summaries", () => {
       ...test.context,
       game: { appId: 8, name: "Game 8" },
     });
+    await reviews.fetch({
+      ...test.context,
+      game: { appId: 9, name: "Game 9" },
+    });
 
     const repository = new GamesRepository(test.db.raw);
     expect(repository.get(1)?.reviewScore).toBe(13);
     expect(repository.get(8)?.reviewScore).toBe(38);
+    expect(repository.get(9)?.reviewScore).toBe(0);
+    expect(repository.get(9)?.reviewTier).toBe("Very Negative");
   });
 
   it("stores a known zero with no tier and computes no score", async () => {
