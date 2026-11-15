@@ -9,9 +9,11 @@ import { assertDataDirOutsideSteam, prepareDataDir } from "./config/data-dir.ts"
 import { openAppDatabase, type AppDatabase, type OpenDatabase } from "./db/database.ts";
 import { isStartupError, StartupError } from "./errors.ts";
 import { createHttpApp } from "./http/app.ts";
+import { GamesRepository } from "./library/games.ts";
 import { createLogger, defaultLogPath, type AppLogger } from "./logging/logger.ts";
 import { acquireLock, type LockHandle } from "./lock.ts";
 import { openBrowserBestEffort } from "./open-browser.ts";
+import { RefreshService } from "./refresh/service.ts";
 import { assertNodeVersion } from "./node-version.ts";
 import { discoverSteam, type SteamDiscovery, type SteamDiscoveryFn } from "./steam/discovery.ts";
 import { buildStatus } from "./status.ts";
@@ -158,12 +160,22 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       selectedSteamId64,
     });
 
-    const status: Status = buildStatus({
-      discovery,
-      steamApiKey: resolved.steamApiKey,
-      configuredSteamId64: resolved.steamId64,
-      schemaVersion: database.schemaVersion,
-      version: APP_VERSION,
+    const statusForRequest = (): Status =>
+      buildStatus({
+        discovery,
+        steamApiKey: resolved.steamApiKey,
+        configuredSteamId64: resolved.steamId64,
+        schemaVersion: database!.schemaVersion,
+        version: APP_VERSION,
+        db: database!.raw,
+      });
+
+    const games = new GamesRepository(database.raw);
+    const refresh = new RefreshService({
+      db: database.raw,
+      steamRoot: discovery.root ?? resolved.steamRoot,
+      steamId64: discovery.account?.steamId64 ?? resolved.steamId64,
+      onWarn: (message, details) => logger.warn({ ...details, warning: message }, "scan warning"),
     });
 
     const portRef = { value: resolved.port };
@@ -171,7 +183,8 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       port: () => portRef.value,
       clientDir: options.clientDir === undefined ? defaultClientDir() : options.clientDir,
       logger,
-      status,
+      status: statusForRequest,
+      library: { games, refresh },
     });
 
     try {
