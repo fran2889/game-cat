@@ -800,6 +800,56 @@ describe("Metadata progress and failure", () => {
     });
   });
 
+  it("marks a single-item run partial when the source exhausts retries", async () => {
+    const steamspy = new FakeSource("steamspy", () => ({
+      kind: "error",
+      message: "Temporary failure.",
+    }));
+    const test = harness({ sources: [steamspy], jitter: 0.5 });
+    seedGame(test.db, 1);
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+
+    expect(steamspy.calls).toEqual([1, 1, 1, 1, 1]);
+    expect(run.status).toBe("partial");
+    expect(run.stats?.sources.steamspy).toEqual({
+      candidates: 1,
+      done: 0,
+      failed: 1,
+      skipped: 0,
+    });
+    // Five consecutive failures open the source circuit for 15 minutes.
+    expect(sourceState(test.db, "steamspy")).toMatchObject({
+      status: "error",
+      retry_after_at: test.clock.seconds + 900,
+    });
+  });
+
+  it("records a non-retryable single-item failure as partial without retrying", async () => {
+    const storefront = new FakeSource("storefront", () => ({
+      kind: "error",
+      message: "The request shape was rejected.",
+      retryable: false,
+    }));
+    const test = harness({ sources: [storefront] });
+    seedGame(test.db, 1);
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+
+    expect(storefront.calls).toEqual([1]);
+    expect(run.status).toBe("partial");
+    expect(run.stats?.sources.storefront).toEqual({
+      candidates: 1,
+      done: 0,
+      failed: 1,
+      skipped: 0,
+    });
+    expect(sourceState(test.db, "storefront")).toMatchObject({
+      status: "error",
+      retry_after_at: null,
+    });
+  });
+
   it("retries 5xx with full jitter and succeeds on a later attempt", async () => {
     let attempts = 0;
     const steamspy = new FakeSource("steamspy", () => {
