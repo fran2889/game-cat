@@ -1,6 +1,7 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { APP_NAME, APP_VERSION } from "../../shared/app.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
+import { parseAppId } from "../app-id.ts";
 import type {
   MetadataSource,
   MetadataSourceContext,
@@ -227,13 +228,29 @@ interface ParsedStorefront {
   raw: string;
 }
 
-function parseStorefrontData(
-  data: Record<string, unknown>,
-  appId: number,
-): ParsedStorefront | null {
-  if (data.steam_appid !== appId) {
+/**
+ * A `success: true` payload keyed by a different App ID is not the requested
+ * App's data. The outer key is the identity, so this is the only explicit
+ * mismatch case; a canonical mapping keeps the requested outer key (spec §6.6).
+ */
+function mismatchedAppId(payload: unknown, appId: number): number | null {
+  if (!isRecord(payload)) {
     return null;
   }
+  const keys = Object.keys(payload);
+  if (keys.length !== 1) {
+    return null;
+  }
+  const key = keys[0]!;
+  const returned = parseAppId(key);
+  if (returned === null || returned === appId) {
+    return null;
+  }
+  const entry = payload[key];
+  return isRecord(entry) && entry.success === true ? returned : null;
+}
+
+function parseStorefrontData(data: Record<string, unknown>): ParsedStorefront {
   return {
     type: typeof data.type === "string" ? data.type : null,
     name: typeof data.name === "string" && data.name.trim() !== "" ? data.name.trim() : null,
@@ -420,6 +437,13 @@ export class StorefrontSource implements MetadataSource {
 
     const entry = isRecord(payload) ? payload[String(appId)] : undefined;
     if (!isRecord(entry) || entry.success !== true) {
+      const returned = mismatchedAppId(payload, appId);
+      if (returned !== null) {
+        // A safe diagnostic: both identities, never the raw payload.
+        const message = `The storefront returned data for App ID ${returned}, not App ID ${appId}.`;
+        recordFailure(db, appId, now, message);
+        return { kind: "error", message, retryable: false };
+      }
       recordUnavailable(db, appId, now);
       return { kind: "unavailable" };
     }
@@ -430,13 +454,10 @@ export class StorefrontSource implements MetadataSource {
       return { kind: "unavailable" };
     }
 
-    const parsed = parseStorefrontData(data, appId);
-    if (parsed === null) {
-      recordFailure(db, appId, now, "The storefront App ID did not match.");
-      return { kind: "error", message: "The storefront App ID did not match." };
-    }
-
-    persistSuccess(db, appId, now, parsed);
+    // Steam may canonicalize a library App ID while keeping the requested App
+    // ID as the outer key. Store the response against the requested App ID; the
+    // canonical ID remains in `raw_store_json` (spec §6.6).
+    persistSuccess(db, appId, now, parseStorefrontData(data));
     return { kind: "ok" };
   }
 }

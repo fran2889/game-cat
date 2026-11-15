@@ -8,6 +8,25 @@ Game-cat is a local, read-first view of a Steam library: it reads what Steam alr
 An entry in the user's Steam library, identified by its Steam App ID. A Game exists whether or not it is installed.
 _Avoid_: title, app
 
+**App ID**:
+Steam's numeric identifier for a store product. A Game's identity is its App ID.
+_Avoid_: appid, app
+
+**Library Alias**:
+A Library App ID that Steam's storefront resolves to a different Canonical App ID.
+_Avoid_: alias, redirect
+
+**Canonical App ID**:
+The App ID Steam names inside a storefront response when it maps the requested App ID to a different
+store product. The requested App ID remains the Game's identity; the Canonical App ID is retained
+only in the raw payload.
+_Avoid_: returned App ID, mapped App ID
+
+**Canonical Mapping**:
+A storefront response in which the requested App ID resolves to a different Canonical App ID.
+game-cat stores the response under the requested App ID.
+_Avoid_: alias mapping, redirect
+
 **Library**:
 The set of Games game-cat knows about for the Steam account: owned Games plus Games evidenced only by local Steam files. Ownership is a property of a Game, not a precondition for appearing in the Library.
 _Avoid_: collection, catalog

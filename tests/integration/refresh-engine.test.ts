@@ -854,6 +854,58 @@ describe("Metadata progress and failure", () => {
     expect(sourceState(test.db, "steam_reviews")).toMatchObject({ status: "ok" });
   });
 
+  it("retries a 429 without Retry-After with full jitter and succeeds on a later attempt", async () => {
+    let attempts = 0;
+    const storefront = new FakeSource(
+      "storefront",
+      () => {
+        attempts += 1;
+        return attempts < 3
+          ? { kind: "rate_limited", retryAfterAt: null, message: "Slow down." }
+          : { kind: "ok" };
+      },
+      "store",
+    );
+    const test = harness({ sources: [storefront], jitter: 0.5 });
+    seedGame(test.db, 1);
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+
+    expect(storefront.calls).toEqual([1, 1, 1]);
+    expect(run.status).toBe("succeeded");
+    expect(sourceState(test.db, "storefront")).toMatchObject({
+      status: "ok",
+      retry_after_at: null,
+    });
+    // Exponential backoff ran in addition to the 1.5-second host pacing.
+    expect(test.clock.sleeps).toEqual(expect.arrayContaining([1_000, 2_000]));
+  });
+
+  it("pauses the source after five 429 attempts when Steam gives no Retry-After", async () => {
+    const storefront = new FakeSource(
+      "storefront",
+      () => ({ kind: "rate_limited", retryAfterAt: null, message: "Slow down." }),
+      "store",
+    );
+    const test = harness({ sources: [storefront], jitter: 0.5 });
+    seedGame(test.db, 1);
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+
+    expect(storefront.calls).toEqual([1, 1, 1, 1, 1]);
+    expect(run.status).toBe("partial");
+    expect(run.stats?.sources.storefront).toEqual({
+      candidates: 1,
+      done: 0,
+      failed: 0,
+      skipped: 1,
+    });
+    expect(sourceState(test.db, "storefront")).toMatchObject({
+      status: "rate_limited",
+      retry_after_at: test.clock.seconds + 16,
+    });
+  });
+
   it("maps a pass skipped by a 403 block to blocked and leaves the other host running", async () => {
     const storefront = new FakeSource(
       "storefront",

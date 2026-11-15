@@ -207,6 +207,38 @@ describe("StorefrontSource request and success persistence", () => {
   });
 });
 
+describe("StorefrontSource App ID identity", () => {
+  const accepted: Array<[string, Record<string, unknown>]> = [
+    ["missing steam_appid", fullPayload({ steam_appid: undefined })],
+    ["numeric-string steam_appid", fullPayload({ steam_appid: "620" })],
+    ["null steam_appid", fullPayload({ steam_appid: null })],
+    ["object steam_appid", fullPayload({ steam_appid: { id: 620 } })],
+    ["non-integer steam_appid", fullPayload({ steam_appid: 620.5 })],
+    ["zero steam_appid", fullPayload({ steam_appid: 0 })],
+  ];
+
+  for (const [label, data] of accepted) {
+    it(`accepts a response keyed by the requested App ID with ${label}`, async () => {
+      const db = database();
+      seedGame(db, 620);
+      const { source: storefront } = source(json(payload(620, data)));
+
+      expect(await fetchStorefront(db, storefront, 620)).toEqual({ kind: "ok" });
+      expect(row(db, 620)).toMatchObject({
+        store_status: "ok",
+        store_fetched_at: NOW,
+        store_error: null,
+        metacritic_score: 95,
+        release_year: 2011,
+      });
+      expect(db.raw.prepare("SELECT name, name_source FROM games").get()).toEqual({
+        name: "Portal 2",
+        name_source: "storefront",
+      });
+    });
+  }
+});
+
 describe("StorefrontSource unavailable responses", () => {
   const unavailable: Array<[string, unknown]> = [
     ["success false", { "620": { success: false } }],
@@ -280,15 +312,61 @@ describe("StorefrontSource malformed and failed responses", () => {
     expect(String(row(db, 620)!.store_error)).toMatch(/malformed/i);
   });
 
-  it("stores nothing on a steam_appid mismatch and records error without data", async () => {
+  it("stores a live canonical-ID mapping against the requested App ID", async () => {
+    const cases: Array<[number, number, string]> = [
+      [100, 80, "Counter-Strike: Condition Zero"],
+      [870, 550, "Left 4 Dead 2"],
+    ];
+
+    for (const [requested, canonical, name] of cases) {
+      const db = database();
+      seedGame(db, requested);
+      const { source: storefront } = source(
+        json(payload(requested, fullPayload({ steam_appid: canonical, name }))),
+      );
+
+      expect(await fetchStorefront(db, storefront, requested)).toEqual({ kind: "ok" });
+      const stored = row(db, requested)!;
+      expect(stored).toMatchObject({
+        store_status: "ok",
+        store_fetched_at: NOW,
+        store_error: null,
+      });
+      // The canonical ID remains visible in the raw payload, not as an error.
+      expect(JSON.parse(stored.raw_store_json as string).steam_appid).toBe(canonical);
+      expect(db.raw.prepare("SELECT app_id, name, name_source FROM games").get()).toEqual({
+        app_id: requested,
+        name,
+        name_source: "storefront",
+      });
+    }
+  });
+
+  it("stores the response keyed by the requested App ID even when steam_appid differs", async () => {
     const db = database();
     seedGame(db, 620);
     const { source: storefront } = source(
-      json({ "620": { success: true, data: fullPayload({ steam_appid: 999 }) } }),
+      json({ "620": { success: true, data: fullPayload({ steam_appid: "999" }) } }),
+    );
+
+    expect(await fetchStorefront(db, storefront, 620)).toEqual({ kind: "ok" });
+    expect(row(db, 620)).toMatchObject({
+      store_status: "ok",
+      store_error: null,
+      metacritic_score: 95,
+    });
+    expect(db.raw.prepare("SELECT name FROM games").get()).toEqual({ name: "Portal 2" });
+  });
+
+  it("stores nothing when the response is keyed by a different App ID", async () => {
+    const db = database();
+    seedGame(db, 620);
+    const { source: storefront } = source(
+      json({ "999": { success: true, data: fullPayload({ steam_appid: 999 }) } }),
     );
 
     const outcome = await fetchStorefront(db, storefront, 620);
-    expect(outcome).toMatchObject({ kind: "error" });
+    expect(outcome).toMatchObject({ kind: "error", retryable: false });
     expect(row(db, 620)).toMatchObject({
       type: null,
       developers_json: "[]",
@@ -296,7 +374,36 @@ describe("StorefrontSource malformed and failed responses", () => {
       store_fetched_at: null,
       raw_store_json: null,
     });
-    expect(String(row(db, 620)!.store_error)).toMatch(/App ID/i);
+    expect(String(row(db, 620)!.store_error)).toMatch(/620/);
+    expect(String(row(db, 620)!.store_error)).toMatch(/999/);
+    expect(db.raw.prepare("SELECT name FROM games").get()).toEqual({ name: "Game 620" });
+  });
+
+  it("keeps last-known-good data and writes only both IDs when the response key differs", async () => {
+    const db = database();
+    seedGame(db, 620);
+    seedStorefront(db, 620);
+    const { source: storefront } = source(
+      json({ "999": { success: true, data: fullPayload({ steam_appid: 999 }) } }),
+    );
+
+    const outcome = await fetchStorefront(db, storefront, 620);
+    expect(outcome).toMatchObject({ kind: "error" });
+    const stored = row(db, 620)!;
+    expect(stored).toMatchObject({
+      type: "game",
+      developers_json: '["Valve"]',
+      metacritic_score: 95,
+      store_status: "stale",
+      store_fetched_at: NOW - 100,
+      raw_store_json: '{"cached":true}',
+    });
+
+    // The diagnostic names both App IDs and never leaks the payload.
+    expect(String(stored.store_error)).toContain("620");
+    expect(String(stored.store_error)).toContain("999");
+    expect(String(stored.store_error)).not.toContain("Portal 2");
+    expect(String(stored.store_error)).not.toContain("Valve");
     expect(db.raw.prepare("SELECT name FROM games").get()).toEqual({ name: "Game 620" });
   });
 
@@ -548,5 +655,58 @@ describe("Refresh engine integration", () => {
         .get(),
     ).toEqual({ status: "error", retry_after_at: null });
     expect(row(db, 620)).toMatchObject({ store_status: "error", store_error: expect.any(String) });
+  });
+
+  it("records a mismatched App ID as a per-Game failure without pausing the source", async () => {
+    const db = database();
+    seedGame(db, 620);
+    seedGame(db, 621);
+    const now = { seconds: NOW };
+    let calls = 0;
+    const storefront = new StorefrontSource({
+      fetch: async (url) => {
+        calls += 1;
+        const requested = new URL(url).searchParams.get("appids");
+        return requested === "620"
+          ? json({ "999": { success: true, data: fullPayload({ steam_appid: 999 }) } })
+          : json(payload(621, fullPayload({ name: "Portal 2", steam_appid: 621 })));
+      },
+    });
+    const refresh = new RefreshService({
+      db: db.raw,
+      steamRoot: null,
+      steamId64: null,
+      now: () => now.seconds,
+      jitter: () => 0,
+      sleep: async (milliseconds) => {
+        now.seconds += milliseconds / 1_000;
+      },
+      sources: [storefront],
+    });
+
+    const started = await refresh.start({ scope: "metadata", mode: "full", appIds: [620, 621] });
+    await refresh.waitForIdle();
+    const run = readRefreshRun(db.raw, Number(started.run.id))!;
+
+    // A definitive different-key answer is not transient: fetch once, record
+    // the per-Game error, then continue with the next Game.
+    expect(calls).toBe(2);
+    expect(run.status).toBe("partial");
+    expect(run.stats?.sources.storefront).toEqual({
+      candidates: 2,
+      done: 1,
+      failed: 1,
+      skipped: 0,
+    });
+    expect(
+      db.raw
+        .prepare("SELECT status, retry_after_at FROM source_state WHERE name = 'storefront'")
+        .get(),
+    ).toEqual({ status: "partial", retry_after_at: null });
+    expect(row(db, 620)).toMatchObject({
+      store_status: "error",
+      store_error: expect.stringContaining("999"),
+    });
+    expect(row(db, 621)).toMatchObject({ store_status: "ok", store_error: null });
   });
 });
