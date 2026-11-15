@@ -150,6 +150,19 @@ export interface Pagination {
   totalPages: number;
 }
 
+/** The four storefront-backed Rule value pickers (§4.3). */
+export type RuleValueField = "genre" | "category" | "developer" | "publisher";
+
+export interface RuleValue {
+  value: string;
+  gameCount: number;
+}
+
+export interface RuleValuesResponse {
+  data: RuleValue[];
+  pagination: Pagination;
+}
+
 export interface GamesResponse {
   data: GameSummary[];
   pagination: Pagination;

@@ -30,8 +30,9 @@ export interface MetadataSourceContext {
  * already persisted the per-Game row and its `*_fetched_at`; the engine counts
  * one completed item and keeps the data.
  *
- * `rate_limited` and `blocked` pause the whole source. `error` is a transient
- * upstream failure the engine retries and ultimately records as `failed`.
+ * `rate_limited` and `blocked` pause the whole source. `error` is an upstream
+ * failure the engine retries and ultimately records as `failed`; set
+ * `retryable: false` for a terminal request-shape failure such as a `400`.
  */
 export type MetadataSourceOutcome =
   | { kind: "ok" }
@@ -39,7 +40,7 @@ export type MetadataSourceOutcome =
   | { kind: "unavailable" }
   | { kind: "rate_limited"; retryAfterAt: number | null; message: string }
   | { kind: "blocked"; message: string }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; retryable?: boolean };
 
 export interface MetadataSource {
   readonly name: MetadataSourceName;

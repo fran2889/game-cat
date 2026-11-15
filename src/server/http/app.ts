@@ -13,6 +13,7 @@ import { ERROR_CODES, type ErrorDetail, type Status } from "../../shared/types.t
 import { HttpError } from "../errors.ts";
 import type { GamesRepository } from "../library/games.ts";
 import type { SteamCollectionsRepository } from "../library/collections.ts";
+import type { RuleValuesRepository } from "../library/rule-values.ts";
 import { redactUrl } from "../logging/logger.ts";
 import type { RefreshService } from "../refresh/service.ts";
 import { registerApiRoutes } from "./api-routes.ts";
@@ -47,6 +48,7 @@ export interface CreateHttpAppOptions {
   library?: {
     games: GamesRepository;
     collections: SteamCollectionsRepository;
+    ruleValues: RuleValuesRepository;
     refresh: RefreshService;
   };
 }
@@ -122,6 +124,7 @@ export function createHttpApp(options: CreateHttpAppOptions): FastifyInstance {
       status: options.status,
       games: options.library.games,
       collections: options.library.collections,
+      ruleValues: options.library.ruleValues,
       refresh: options.library.refresh,
     });
   } else {
