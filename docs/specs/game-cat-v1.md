@@ -321,6 +321,11 @@ data. A run has a scope and, for Metadata, a mode.
 `appIds` is valid only with `metadata` + `full`; it is rejected with `fetch`, `all`, `library`, and
 `ownership`. This keeps an expensive full-Library re-fetch from being an accidental one-click action.
 
+This table is the canonical scope/mode/selection matrix. The SQL CHECK in [§3.3](#33-migration-0001),
+the request validation in [§4.3](#43-endpoints), the run contract in
+[§8.7](#87-run-model-triggers-and-recovery), and `AC-S9` in
+[§9.1](#91-schema-and-migrations) restate it for enforcement and must agree.
+
 **Fetch** is completion-based, not age-based. It is not a TTL. It selects only sources with no usable
 current data, so a settled miss is not retried forever and a `stale` or `error` source is retried
 without waiting a week.
