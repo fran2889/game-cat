@@ -18,27 +18,11 @@ documented endpoint is live and keyless: a request from the verification host re
 ## Decision
 
 Use `GET https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/` for review summaries.
-Pass the query as `input_json` and request `format=json`:
+Pass the query as `input_json` and request `format=json`; the normative query and field semantics
+are in [spec §6.1](../specs/game-cat-v1.md#61-sources-and-request-contract). Field names and value
+semantics follow Valve's
+[IUserReviewsService documentation](https://partner.steamgames.com/doc/webapi/IUserReviewsService).
 
-```json
-{
-  "appid": 620,
-  "languages": ["all"],
-  "purchase_type": 1,
-  "review_type": 0,
-  "filter": 1,
-  "num_per_page": 1,
-  "filter_offtopic_activity": false,
-  "display_language": "english"
-}
-```
-
-- `purchase_type: 1` is All and `review_type: 0` is All, matching the old `purchase_type=all`.
-- `filter: 1` is Recent; it avoids the Helpful filter's day-range widening. The score fields are
-  returned on the first page when `review_type` is All.
-- `num_per_page: 1` is the smallest first page that returns the score fields.
-- `filter_offtopic_activity: false` preserves the "no review-bomb adjustment" rule.
-- `display_language: "english"` pins the tier string to English.
 - No API key is sent. The key is only for `GetOwnedGames`; the new endpoint's higher rate limit is
   for a key associated with the app, which a normal player key is not.
 - The replacement endpoint returned `200` directly in live checks for App IDs 100, 870, 620, 570,

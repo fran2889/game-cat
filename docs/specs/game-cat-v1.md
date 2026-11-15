@@ -2264,7 +2264,8 @@ normative behavior.
   `purchase_type: 1` is All, `review_type: 0` is All, and `filter: 1` is Recent. `num_per_page: 1`
   is the smallest first page that returns the score fields. `filter_offtopic_activity: false`
   preserves the no-review-bomb-adjustment rule. No `key` is sent; the Web API key is only for
-  `GetOwnedGames`.
+  `GetOwnedGames`. Field names and value semantics follow Valve's
+  [IUserReviewsService documentation](https://partner.steamgames.com/doc/webapi/IUserReviewsService).
 - The storefront and reviews use different hosts. Their passes may run in parallel; a pause applies
   only to the affected source. SteamSpy is independent of both and may also run in parallel, but is
   serial within itself. Reviews use the `steam_web_api` host key, matching the Web API host;

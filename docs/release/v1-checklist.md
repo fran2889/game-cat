@@ -107,9 +107,10 @@ fake sources and fake HTTP responses in the integration suites.
 - **Fetch and adapter cases.** `npm test` runs `tests/integration/refresh-engine.test.ts`,
   `steamspy-source.test.ts`, `storefront-source.test.ts`, and `steam-review-source.test.ts`; `npm run
 test:e2e` runs the onboarding, detail, and Launch UI cases.
-- **Live review request.** Build the query and send it anonymously:
+- **Live review request.** Copy the §6.1 query and send it anonymously:
   `curl -G 'https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/' --data-urlencode 'input_json={"appid":620,"languages":["all"],"purchase_type":1,"review_type":0,"filter":1,"num_per_page":1,"filter_offtopic_activity":false,"display_language":"english"}' --data-urlencode 'format=json'`.
-  The response is `{"response":{"query_summary":...}}`; there is no `success` field.
+  The response is `{"response":{"query_summary":...}}`; there is no `success` field. Compare the
+  returned counts and tier with the public store page for the same App and record any mismatch.
 - **Live review Refresh (release gate).** Not run here. Use the live runtime with a library
   containing App 620 and a zero-review App, send `POST /api/refresh` with
   `{ "scope": "metadata", "mode": "fetch" }`, then read `steam_review_summaries`: App 620 should be
