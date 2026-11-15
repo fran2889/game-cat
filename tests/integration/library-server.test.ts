@@ -63,7 +63,19 @@ describe("local scan through the real server", () => {
     });
     expect(refresh.status).toBe(202);
     expect(refresh.headers.get("location")).toMatch(/^\/api\/refresh\/\d+$/);
-    const run = (await refresh.json()) as { data: RefreshRun };
+    const started = (await refresh.json()) as { data: RefreshRun };
+
+    let run = started;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const poll = (await (await fetch(`${server.url}api/refresh/${started.data.id}`)).json()) as {
+        data: RefreshRun;
+      };
+      run = poll;
+      if (poll.data.status !== "queued" && poll.data.status !== "running") {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
     expect(run.data.status).toBe("succeeded");
     expect(run.data.stats).toBeNull();
 

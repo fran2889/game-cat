@@ -469,7 +469,7 @@ export class GamesRepository {
     const row = this.db
       .prepare(
         `SELECT status, finished_at FROM refresh_runs
-         WHERE scope = 'library'
+         WHERE scope = 'library' AND finished_at IS NOT NULL
          ORDER BY id DESC LIMIT 1`,
       )
       .get() as { status: string; finished_at: number | null } | undefined;

@@ -20,6 +20,7 @@ const fixtures: SteamFixture[] = [];
 const dataDirs: string[] = [];
 const databases: AppDatabase[] = [];
 const apps: Array<ReturnType<typeof createHttpApp>> = [];
+const refreshes = new WeakMap<object, RefreshService>();
 
 afterEach(async () => {
   while (apps.length > 0) {
@@ -89,6 +90,7 @@ function harness(steam = fixture()): Harness {
     library: { games, collections, refresh },
   });
   apps.push(app);
+  refreshes.set(app, refresh);
   return { db, steam, app, refresh };
 }
 
@@ -97,7 +99,11 @@ async function get(app: Harness["app"], url: string) {
 }
 
 async function post(app: Harness["app"], url: string, payload: object) {
-  return app.inject({ method: "POST", url, headers: { host: HOST }, payload });
+  const response = await app.inject({ method: "POST", url, headers: { host: HOST }, payload });
+  if (url === "/api/refresh" && response.statusCode === 202) {
+    await refreshes.get(app)?.waitForIdle();
+  }
+  return response;
 }
 
 function seedGame(
@@ -151,7 +157,20 @@ describe("POST /api/refresh (library)", () => {
 
     expect(response.statusCode).toBe(202);
     expect(response.headers.location).toMatch(/^\/api\/refresh\/\d+$/);
-    const body = response.json() as { data: RefreshRun };
+    const started = response.json() as { data: RefreshRun };
+    expect(started.data).toMatchObject({
+      scope: "library",
+      mode: null,
+      status: expect.stringMatching(/^(queued|running)$/),
+      appIds: null,
+      stats: null,
+      error: null,
+    });
+    expect(started.data.id).toBe(response.headers.location?.split("/").at(-1));
+
+    const run = await get(test.app, `/api/refresh/${started.data.id}`);
+    expect(run.statusCode).toBe(200);
+    const body = run.json() as { data: RefreshRun };
     expect(body.data).toMatchObject({
       scope: "library",
       mode: null,
@@ -162,12 +181,7 @@ describe("POST /api/refresh (library)", () => {
       stats: null,
       error: null,
     });
-    expect(body.data.id).toBe(response.headers.location?.split("/").at(-1));
     expect(body.data.finishedAt).not.toBeNull();
-
-    const run = await get(test.app, `/api/refresh/${body.data.id}`);
-    expect(run.statusCode).toBe(200);
-    expect((run.json() as { data: RefreshRun }).data).toEqual(body.data);
 
     const unknown = await get(test.app, "/api/refresh/999");
     expect(unknown.statusCode).toBe(404);
@@ -231,14 +245,18 @@ describe("POST /api/refresh (library)", () => {
     });
 
     const response = await post(app, "/api/refresh", { scope: "library" });
-    const body = response.json() as { data: RefreshRun };
-    expect(body.data.status).toBe("partial");
-    expect(body.data.error).toBeNull();
+    const started = response.json() as { data: RefreshRun };
+    await refresh.waitForIdle();
+    const finished = (await get(app, `/api/refresh/${started.data.id}`)).json() as {
+      data: RefreshRun;
+    };
+    expect(finished.data.status).toBe("partial");
+    expect(finished.data.error).toBeNull();
     expect(test.db.raw.prepare("SELECT COUNT(*) AS count FROM games").get()).toEqual({ count: 0 });
     await app.close();
   });
 
-  it("rejects modes, appIds, and scopes this build does not implement", async () => {
+  it("rejects invalid combinations and accepts the documented scopes", async () => {
     const test = harness();
 
     const withMode = await post(test.app, "/api/refresh", { scope: "library", mode: "fetch" });
@@ -258,10 +276,10 @@ describe("POST /api/refresh (library)", () => {
     );
 
     const metadata = await post(test.app, "/api/refresh", { scope: "metadata", mode: "fetch" });
-    expect(metadata.statusCode).toBe(422);
+    expect(metadata.statusCode).toBe(202);
 
     const all = await post(test.app, "/api/refresh", { scope: "all", mode: "fetch" });
-    expect(all.statusCode).toBe(422);
+    expect(all.statusCode).toBe(202);
 
     const missing = await post(test.app, "/api/refresh", {});
     expect(missing.statusCode).toBe(422);
@@ -673,7 +691,10 @@ describe("GET /api/status with a Library", () => {
     rmSync(second, { recursive: true, force: true });
     const test = harness(steam);
 
-    const run = (await post(test.app, "/api/refresh", { scope: "library" })).json() as {
+    const started = (await post(test.app, "/api/refresh", { scope: "library" })).json() as {
+      data: RefreshRun;
+    };
+    const run = (await get(test.app, `/api/refresh/${started.data.id}`)).json() as {
       data: RefreshRun;
     };
     expect(run.data.status).toBe("partial");
