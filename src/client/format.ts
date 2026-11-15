@@ -130,6 +130,32 @@ export function reviewPillLabel(score: number | null): string | null {
   return score === null ? null : `${score}%`;
 }
 
+/** Card line: tier and count, or the documented empty-state copy. */
+export function reviewCardLabel(tier: string | null, count: number | null): string {
+  if (count === 0) {
+    return "No user reviews";
+  }
+  if (count === null) {
+    return "Reviews unavailable";
+  }
+  return `${tier ?? "—"} · ${formatCount(count)} reviews`;
+}
+
+/** Detail and table line: score, tier, and count, or the empty-state copy. */
+export function reviewSummaryLabel(
+  score: number | null,
+  tier: string | null,
+  count: number | null,
+): string {
+  if (count === 0) {
+    return "No user reviews";
+  }
+  if (score === null) {
+    return "Reviews unavailable";
+  }
+  return `${score}% · ${tier ?? "—"} · ${formatCount(count ?? 0)} reviews`;
+}
+
 export function platformLabels(
   platforms: {
     windows?: boolean;

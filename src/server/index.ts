@@ -15,6 +15,7 @@ import { createLogger, defaultLogPath, type AppLogger } from "./logging/logger.t
 import { acquireLock, type LockHandle } from "./lock.ts";
 import { openBrowserBestEffort } from "./open-browser.ts";
 import { RefreshService } from "./refresh/service.ts";
+import { SteamReviewSource } from "./refresh/reviews.ts";
 import type { MetadataSource } from "./refresh/sources.ts";
 import { assertNodeVersion } from "./node-version.ts";
 import { discoverSteam, type SteamDiscovery, type SteamDiscoveryFn } from "./steam/discovery.ts";
@@ -53,7 +54,7 @@ export interface ServerOptions {
   database?: OpenDatabase;
   /**
    * Metadata adapter registration point (#28-#30) and a no-network test seam.
-   * Empty by default; the engine runs without adapters.
+   * The production list registers the Steam review source; tests inject fakes.
    */
   metadataSources?: readonly MetadataSource[];
   /**
@@ -189,7 +190,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       steamRoot: discovery.root ?? resolved.steamRoot,
       steamId64: discovery.account?.steamId64 ?? resolved.steamId64,
       steamApiKey: resolved.steamApiKey,
-      sources: options.metadataSources ?? [],
+      sources: options.metadataSources ?? [new SteamReviewSource()],
       onWarn: (message, details) => logger.warn({ ...details, warning: message }, "scan warning"),
     });
 

@@ -403,6 +403,97 @@ describe("GET /api/games", () => {
       expect(body.error.details.fieldErrors).toHaveProperty(field);
     }
   });
+
+  it("filters by every documented review status and rejects others", async () => {
+    const test = harness();
+    const statuses = ["ok", "unavailable", "stale", "error"] as const;
+    for (const [index, status] of statuses.entries()) {
+      const appId = 10 + index;
+      seedGame(test.db, appId);
+      test.db.raw
+        .prepare(
+          `INSERT INTO steam_review_summaries (app_id, review_status, updated_at)
+           VALUES (?, ?, ?)`,
+        )
+        .run(appId, status, 1);
+    }
+    seedGame(test.db, 99);
+
+    for (const [index, status] of statuses.entries()) {
+      const response = await get(test.app, `/api/games?reviewStatus=${status}`);
+      expect(response.statusCode, status).toBe(200);
+      const body = response.json() as { data: GameSummary[]; pagination: { totalItems: number } };
+      expect(
+        body.data.map((game) => game.appId),
+        status,
+      ).toEqual([10 + index]);
+      expect(body.pagination.totalItems, status).toBe(1);
+    }
+
+    const missing = await get(test.app, "/api/games?reviewStatus=missing");
+    expect((missing.json() as { data: GameSummary[] }).data.map((game) => game.appId)).toEqual([
+      99,
+    ]);
+
+    for (const value of ["rate_limited", "blocked", "unknown", ""]) {
+      const response = await get(test.app, `/api/games?reviewStatus=${value}`);
+      if (value === "") {
+        expect(response.statusCode).toBe(200);
+      } else {
+        expect(response.statusCode, value).toBe(422);
+        const body = response.json() as {
+          error: { code: string; details: { fieldErrors: object } };
+        };
+        expect(body.error.code).toBe("VALIDATION_ERROR");
+        expect(body.error.details.fieldErrors).toHaveProperty("reviewStatus");
+      }
+    }
+  });
+
+  it("distinguishes a known zero from an unknown review count", async () => {
+    const test = harness();
+    seedGame(test.db, 10, { name: "Zero Reviews" });
+    seedGame(test.db, 20, { name: "Unknown Reviews" });
+    test.db.raw
+      .prepare(
+        `INSERT INTO steam_review_summaries (
+           app_id, review_positive, review_negative, review_total, review_tier,
+           review_status, review_fetched_at, updated_at
+         ) VALUES (10, 0, 0, 0, NULL, 'unavailable', 100, 100)`,
+      )
+      .run();
+    test.db.raw
+      .prepare(
+        `INSERT INTO steam_review_summaries (
+           app_id, review_status, review_fetched_at, updated_at
+         ) VALUES (20, 'stale', 100, 100)`,
+      )
+      .run();
+
+    const list = (await get(test.app, "/api/games?sort=appId")).json() as { data: GameSummary[] };
+    expect(list.data[0]).toMatchObject({
+      appId: 10,
+      reviewScore: null,
+      reviewTier: null,
+      reviewCount: 0,
+      metadata: { reviewStatus: "unavailable" },
+    });
+    expect(list.data[1]).toMatchObject({
+      appId: 20,
+      reviewScore: null,
+      reviewTier: null,
+      reviewCount: null,
+      metadata: { reviewStatus: "stale" },
+    });
+
+    const zeroDetail = ((await get(test.app, "/api/games/10")).json() as { data: GameDetail }).data;
+    expect(zeroDetail).toMatchObject({
+      reviewScore: null,
+      reviewTier: null,
+      reviewCount: 0,
+      metadata: { reviewStatus: "unavailable", reviewFetchedAt: "1970-01-01T00:01:40Z" },
+    });
+  });
 });
 
 describe("GET /api/games/{appId}", () => {

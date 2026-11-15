@@ -57,6 +57,19 @@ test("grid cards show the documented badges, ownership, tags, and cover fallback
   await expect(card.locator(".game-cover-fallback")).toHaveText("P2");
 });
 
+test("review tier and count appear on cards and in the table", async ({ page }) => {
+  await page.goto(app.url);
+  await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
+  const card = page.locator(".game-card");
+  await expect(card).toHaveCount(1);
+  await expect(card.locator(".game-review")).toHaveText("Overwhelmingly Positive · 1,000 reviews");
+
+  await page.getByRole("button", { name: "Table view" }).click();
+  await expect(page.locator(".game-table tbody td.review-text")).toHaveText(
+    "98% · Overwhelmingly Positive · 1,000 reviews",
+  );
+});
+
 test("an unknown stored layout falls back to grid", async ({ page }) => {
   await page.goto(app.url);
   await page.evaluate(() => {

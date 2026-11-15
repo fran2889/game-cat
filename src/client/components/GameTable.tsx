@@ -7,7 +7,7 @@ import {
   formatDate,
   formatPlaytime,
   ownershipLabel,
-  reviewPillLabel,
+  reviewSummaryLabel,
   reviewTone,
 } from "../format.ts";
 import { GameCover } from "./GameCover.tsx";
@@ -94,7 +94,7 @@ export function GameTable({ games }: GameTableProps) {
         <tbody>
           {games.map((game) => {
             const selected = isSelected(game.appId);
-            const review = reviewPillLabel(game.reviewScore);
+            const review = reviewSummaryLabel(game.reviewScore, game.reviewTier, game.reviewCount);
             const tags = game.tags.slice(0, 3).map((tag) => tag.name);
             return (
               <tr key={game.appId} className={selected ? "is-selected" : undefined}>
@@ -126,13 +126,7 @@ export function GameTable({ games }: GameTableProps) {
                 <td>{game.installed === true ? "Yes" : game.installed === false ? "No" : "—"}</td>
                 <td className="mono">{formatPlaytime(game.playtimeMinutes)}</td>
                 <td>{formatDate(game.lastPlayedAt)}</td>
-                <td
-                  className={
-                    review === null ? "" : `mono review-text ${reviewTone(game.reviewScore)}`
-                  }
-                >
-                  {review ?? "—"}
-                </td>
+                <td className={`review-text ${reviewTone(game.reviewScore)}`}>{review}</td>
                 <td className="mono">{game.releaseYear ?? "—"}</td>
                 <td>{tags.length > 0 ? tags.join(", ") : "—"}</td>
               </tr>
