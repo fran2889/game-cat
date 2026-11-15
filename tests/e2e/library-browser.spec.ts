@@ -221,6 +221,15 @@ test("selection is scoped per view and New from selection hands off a prefilled 
   await page.getByRole("link", { name: "All games" }).click();
   await expect(page.locator(".selection-count")).toHaveText("2 selected");
 
+  await page.route("**/api/refresh", async (route) => {
+    await route.fulfill({
+      status: 422,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: { code: "VALIDATION_ERROR", message: "The metadata scope is unavailable." },
+      }),
+    });
+  });
   await page.getByRole("button", { name: "Refresh selected" }).click();
   await expect(
     page.getByText("Metadata Refresh is not available in this build yet."),
