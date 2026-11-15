@@ -1330,8 +1330,11 @@ export class RefreshService {
 
     // Per-Game rows can exist without a source row when an earlier pass was
     // interrupted. Reconcile a source with no pending work so a no-op Fetch
-    // still reports its real last success and attempt.
-    this.reconcileMetadataSourceState(plan);
+    // still reports its real last success and attempt. A Full Refresh always
+    // selects its Games, so this repair belongs to Fetch only.
+    if (row.mode === "fetch") {
+      this.reconcileMetadataSourceState(plan);
+    }
 
     // Source-wide backoff skips candidates without touching their data. The
     // work remains pending for a later Fetch.
@@ -1462,12 +1465,12 @@ export class RefreshService {
     let successes = 0;
     let failures = 0;
     let nonRetryableFailures = 0;
-    let lastFailureMessage: string | null = null;
-    let lastAttemptError: string | null = null;
+    // A failure counted against the pass; it outranks the message from the most
+    // recent failed attempt when the interruption write picks a last error.
+    let lastCountedFailureMessage: string | null = null;
+    let lastAttemptFailureMessage: string | null = null;
     let lastSuccessAt: number | null = null;
     let attemptedAt: number | null = null;
-    let firstAttempted = false;
-    let stateRecorded = false;
     let paused = false;
 
     try {
@@ -1491,11 +1494,11 @@ export class RefreshService {
           // §6.4: a source row is committed as work completes. Record the first
           // attempt before the request so an in-flight or interrupted pass is
           // visible in `/errors`, not only in the run record.
-          attemptedAt = this.now();
-          if (!firstAttempted) {
-            firstAttempted = true;
-            this.markMetadataSourceAttempted(source.name, attemptedAt);
+          const startedAt = this.now();
+          if (attemptedAt === null) {
+            this.markMetadataSourceAttempted(source.name, startedAt);
           }
+          attemptedAt = startedAt;
           let outcome: MetadataSourceOutcome;
           try {
             outcome = await source.fetch({
@@ -1522,7 +1525,7 @@ export class RefreshService {
             plan.stats.sources[source.name].done += 1;
             successes += 1;
             lastSuccessAt = this.now();
-            lastAttemptError = null;
+            lastAttemptFailureMessage = null;
             consecutiveFailures = 0;
             this.resolveGame(plan, item.appId);
             persistIfNeeded();
@@ -1532,7 +1535,7 @@ export class RefreshService {
           // A non-success outcome is the most recent failed attempt. The
           // pass-end or interruption write reports it when no source-wide
           // terminal message exists.
-          lastAttemptError = outcome.message;
+          lastAttemptFailureMessage = outcome.message;
 
           if (outcome.kind === "rate_limited") {
             // No Retry-After means Steam gives no deadline: retry this request
@@ -1558,7 +1561,6 @@ export class RefreshService {
               retryAfterAt: until,
               lastError: outcome.message,
             });
-            stateRecorded = true;
             paused = true;
             this.skipFrom(plan, source.name, items, index);
             persistIfNeeded();
@@ -1580,7 +1582,6 @@ export class RefreshService {
               retryAfterAt: until,
               lastError: outcome.message,
             });
-            stateRecorded = true;
             paused = true;
             this.skipFrom(plan, source.name, items, index);
             persistIfNeeded();
@@ -1593,7 +1594,7 @@ export class RefreshService {
             plan.stats.sources[source.name].failed += 1;
             failures += 1;
             nonRetryableFailures += 1;
-            lastFailureMessage = outcome.message;
+            lastCountedFailureMessage = outcome.message;
             // A failed Game always makes the run partial, even when it is the
             // only Game and no retry follows (§6.4).
             plan.partial = true;
@@ -1615,10 +1616,9 @@ export class RefreshService {
               retryAfterAt: until,
               lastError: outcome.message,
             });
-            stateRecorded = true;
             plan.stats.sources[source.name].failed += 1;
             failures += 1;
-            lastFailureMessage = outcome.message;
+            lastCountedFailureMessage = outcome.message;
             plan.partial = true;
             this.resolveGame(plan, item.appId);
             paused = true;
@@ -1630,7 +1630,7 @@ export class RefreshService {
           if (attempt >= MAX_ATTEMPTS) {
             plan.stats.sources[source.name].failed += 1;
             failures += 1;
-            lastFailureMessage = outcome.message;
+            lastCountedFailureMessage = outcome.message;
             // A failed Game always makes the run partial, even when no successful
             // Game hides the failure (§6.4 regression).
             plan.partial = true;
@@ -1643,9 +1643,6 @@ export class RefreshService {
         }
       }
 
-      if (this.stopping) {
-        return;
-      }
       if (!paused) {
         const finishedAt = this.now();
         // A non-retryable (source-wide) failure is recorded as `error`; if other
@@ -1666,24 +1663,27 @@ export class RefreshService {
           lastSuccessAt: successes > 0 ? finishedAt : null,
           retryAfterAt: null,
           lastError:
-            failures > 0 ? (lastFailureMessage ?? "Some Games could not be fetched.") : null,
+            failures > 0 ? (lastCountedFailureMessage ?? "Some Games could not be fetched.") : null,
         });
-        stateRecorded = true;
       }
       persistIfNeeded();
     } finally {
       // An interrupted pass still carries evidence: the latest attempt time, any
       // success before the stop, and the last safe failure. Without this the
       // source row would keep its last completed pass instead.
-      if (!stateRecorded && this.stopping && attemptedAt !== null) {
-        const message = lastFailureMessage ?? lastAttemptError;
+      if (!paused && this.stopping && attemptedAt !== null) {
         this.updateMetadataSourceState(source.name, {
-          status: successes > 0 ? "partial" : "error",
-          lastAttemptAt: attemptedAt,
+          // A shutdown is not a failed attempt, so an interrupted pass is always
+          // partial: it started (and maybe read data) but did not finish.
+          status: "partial",
+          // A success completes after the request started, so never let the
+          // attempt timestamp land before the success timestamp.
+          lastAttemptAt: Math.max(attemptedAt, lastSuccessAt ?? 0),
           lastSuccessAt,
           retryAfterAt: null,
           lastError:
-            message ??
+            lastCountedFailureMessage ??
+            lastAttemptFailureMessage ??
             (successes > 0 ? null : "The Refresh run stopped before this source finished."),
         });
       }
@@ -1722,10 +1722,11 @@ export class RefreshService {
   }
 
   /**
-   * Reconcile an `unknown` Metadata source row from its per-Game rows when the
-   * source has no pending work. Per-Game rows are committed before the source
-   * row, so an interrupted pass can leave real data with no source-level
-   * record, and a later Fetch with nothing to do would never write it.
+   * Reconcile a Metadata source row from its per-Game rows when the source has
+   * no pending work. Per-Game rows are committed before the source row, so an
+   * interrupted pass can leave real data with no final source-level record, and
+   * a later Fetch with nothing to do would never write it. A hard kill leaves
+   * the row `partial`, so any non-`ok` row is repaired, not only `unknown`.
    *
    * A `missing` row with no `*_fetched_at` is pending, not attempted (§6.2), and
    * a source with any pending or failed per-Game row is skipped here because
@@ -1740,7 +1741,7 @@ export class RefreshService {
       const row = this.db
         .prepare("SELECT status FROM source_state WHERE name = ?")
         .get(source.name) as { status: SourceStatus } | undefined;
-      if (row === undefined || row.status !== "unknown") {
+      if (row === undefined || row.status === "ok") {
         continue;
       }
       const aggregate = this.db
@@ -1762,7 +1763,11 @@ export class RefreshService {
       this.db
         .prepare(
           `UPDATE source_state
-              SET status = 'ok', last_success_at = ?, last_attempt_at = ?
+              SET status = 'ok',
+                  last_success_at = ?,
+                  last_attempt_at = ?,
+                  retry_after_at = NULL,
+                  last_error = NULL
             WHERE name = ?`,
         )
         .run(aggregate.last_success_at, aggregate.last_attempt_at, source.name);

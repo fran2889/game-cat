@@ -225,6 +225,12 @@ async function startAndWait(
   return { response, run: run.data };
 }
 
+async function readStatus(test: Harness): Promise<Status> {
+  const response = await get(test.app, "/api/status");
+  expect(response.statusCode).toBe(200);
+  return (response.json() as { data: Status }).data;
+}
+
 function seedGame(db: AppDatabase, appId: number): void {
   db.raw
     .prepare(
@@ -411,9 +417,9 @@ describe("Refresh worker and run API", () => {
       data: RefreshRun;
     };
     expect(["queued", "running"]).toContain(polling.data.status);
-    const status = (await get(test.app, "/api/status")).json() as { data: Status };
-    expect(status.data.activeRefresh?.id).toBe(started.data.id);
-    expect(status.data.lastRefresh?.id).toBe(started.data.id);
+    const status = await readStatus(test);
+    expect(status.activeRefresh?.id).toBe(started.data.id);
+    expect(status.lastRefresh?.id).toBe(started.data.id);
 
     gate.release();
     await test.refresh.waitForIdle();
@@ -435,9 +441,9 @@ describe("Refresh worker and run API", () => {
       failed: 0,
       skipped: 0,
     });
-    const after = (await get(test.app, "/api/status")).json() as { data: Status };
-    expect(after.data.activeRefresh).toBeNull();
-    expect(after.data.lastRefresh?.id).toBe(started.data.id);
+    const after = await readStatus(test);
+    expect(after.activeRefresh).toBeNull();
+    expect(after.lastRefresh?.id).toBe(started.data.id);
   });
 
   it("deduplicates an identical running request and rejects a different one", async () => {
@@ -1471,6 +1477,7 @@ describe("Metadata source state", () => {
     return new Promise((_, reject) => {
       const abort = (): void => reject(new Error("The request was aborted."));
       if (signal === undefined) {
+        reject(new Error("abortable requires an abort signal."));
         return;
       }
       if (signal.aborted) {
@@ -1482,10 +1489,8 @@ describe("Metadata source state", () => {
   }
 
   async function statusSources(test: Harness): Promise<Map<string, SourceHealth>> {
-    const response = await get(test.app, "/api/status");
-    expect(response.statusCode).toBe(200);
-    const body = response.json() as { data: Status };
-    return new Map(body.data.sources.map((source) => [source.name, source]));
+    const status = await readStatus(test);
+    return new Map(status.sources.map((source) => [source.name, source]));
   }
 
   it("keeps last attempt and completed successes when shutdown interrupts a pass", async () => {
@@ -1532,10 +1537,14 @@ describe("Metadata source state", () => {
       });
       expect(health.get(source.name)?.lastSuccessAt).not.toBeNull();
       expect(health.get(source.name)?.lastAttemptAt).not.toBeNull();
+      expect(
+        (health.get(source.name)?.lastAttemptAt ?? "") >=
+          (health.get(source.name)?.lastSuccessAt ?? ""),
+      ).toBe(true);
     }
   });
 
-  it("reports error and the safe failure when an interrupted pass has no success", async () => {
+  it("reports partial and the safe failure when an interrupted pass has no success", async () => {
     const source = new FakeSource("steamspy", async (context) => {
       if (context.game.appId === 1) {
         return { kind: "error", message: "The source is down.", retryable: false };
@@ -1553,7 +1562,7 @@ describe("Metadata source state", () => {
 
     const health = await statusSources(test);
     expect(health.get("steamspy")).toMatchObject({
-      status: "error",
+      status: "partial",
       lastSuccessAt: null,
       lastError: "The source is down.",
     });
@@ -1584,6 +1593,53 @@ describe("Metadata source state", () => {
         lastAttemptAt: "2023-11-14T22:11:50Z",
       });
     }
+  });
+
+  it("reconciles a partial source row left by a hard kill", async () => {
+    const steamspy = new FakeSource("steamspy");
+    const test = harness({ sources: [steamspy] });
+    seedGame(test.db, 1);
+    seedMetadata(test.db, "steamspy", [
+      { appId: 1, status: "ok", fetchedAt: NOW - 100, updatedAt: NOW - 90 },
+    ]);
+    test.db.raw
+      .prepare(
+        `UPDATE source_state
+            SET status = 'partial',
+                last_attempt_at = ?,
+                last_error = 'The Refresh run stopped before this source finished.'
+          WHERE name = 'steamspy'`,
+      )
+      .run(NOW - 95);
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+    expect(run).toMatchObject({ status: "succeeded", total: 0, done: 0 });
+    expect(steamspy.calls.length).toBe(0);
+
+    expect((await statusSources(test)).get("steamspy")).toMatchObject({
+      status: "ok",
+      lastSuccessAt: "2023-11-14T22:11:40Z",
+      lastAttemptAt: "2023-11-14T22:11:50Z",
+      lastError: null,
+    });
+  });
+
+  it("does not reconcile source state during a Full Refresh", async () => {
+    const steamspy = new FakeSource("steamspy");
+    const test = harness({ sources: [steamspy] });
+    seedGame(test.db, 1);
+    seedMetadata(test.db, "steamspy", [
+      { appId: 1, status: "ok", fetchedAt: NOW - 100, updatedAt: NOW - 90 },
+    ]);
+
+    const { run } = await startAndWait(test, {
+      scope: "metadata",
+      mode: "full",
+      appIds: [999],
+    });
+    expect(run.status).toBe("partial");
+    expect(steamspy.calls.length).toBe(0);
+    expect((await statusSources(test)).get("steamspy")?.status).toBe("unknown");
   });
 
   it("records ok and both timestamps after a completed pass", async () => {
