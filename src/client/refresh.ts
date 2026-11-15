@@ -6,7 +6,7 @@ import type {
   SourceStatus,
   Status,
 } from "../shared/types.ts";
-import { fetchGames } from "./api.ts";
+import { fetchGames, type FetchGamesParams } from "./api.ts";
 
 export type RefreshPhase = "library" | "ownership" | "metadata";
 
@@ -18,13 +18,25 @@ export const METADATA_SOURCE_LABELS: Record<MetadataSource, string> = {
   steam_reviews: "Reviews",
 };
 
-/** The three per-Game statuses that make a Metadata row affected (§7.7). */
-export const AFFECTED_METADATA_STATUSES = ["missing", "stale", "error"] as const;
+/** The per-Game statuses that mean the last attempt failed (§7.7): `stale` or `error`. */
+export const AFFECTED_METADATA_STATUSES = ["stale", "error"] as const;
 
-const METADATA_STATUS_FILTER: Record<MetadataSource, string> = {
+/** The status a never-attempted source reads as, before it has a fetch timestamp. */
+const PENDING_METADATA_STATUS = "missing";
+
+type MetadataStatusFilter = "tagsStatus" | "storeStatus" | "reviewStatus";
+type MetadataFetchedFilter = "tagsFetched" | "storeFetched" | "reviewFetched";
+
+const METADATA_STATUS_FILTER: Record<MetadataSource, MetadataStatusFilter> = {
   steamspy: "tagsStatus",
   storefront: "storeStatus",
   steam_reviews: "reviewStatus",
+};
+
+const METADATA_FETCHED_FILTER: Record<MetadataSource, MetadataFetchedFilter> = {
+  steamspy: "tagsFetched",
+  storefront: "storeFetched",
+  steam_reviews: "reviewFetched",
 };
 
 /** Rebuild the request that produced a run, for a Retry with the same shape. */
@@ -179,52 +191,72 @@ export function isMetadataSource(name: SourceName): name is MetadataSource {
 
 /**
  * Return the base name of the affected statuses. Kept as a small pure helper so
- * the `/errors` view and its tests agree on the exclusion of `ok` and
- * `unavailable`.
+ * the `/errors` view and its tests agree that affected means a failed attempt:
+ * `stale` or `error`, never `missing`, `ok`, or `unavailable`.
  */
 export function affectedStatuses(): readonly string[] {
   return AFFECTED_METADATA_STATUSES;
 }
 
-export interface AffectedGames {
-  ids: number[];
-  count: number;
+export interface AffectedAndPendingGames {
+  affectedIds: number[];
+  affectedCount: number;
+  /** Never-attempted Games: `missing` with no `*_fetched_at` (§7.7). */
+  pendingCount: number;
+}
+
+function statusQuery(
+  filter: MetadataStatusFilter,
+  status: string,
+  page: number,
+  pageSize: number,
+): FetchGamesParams {
+  const query: FetchGamesParams = { page, pageSize };
+  query[filter] = status;
+  return query;
 }
 
 /**
- * Find Games whose status for a Metadata source is missing, stale, or error.
- * Counts come from `pagination.totalItems`; IDs are paged with the documented
- * `GET /api/games` filter so the selection bar can act on them.
+ * Find Games whose last attempt for a Metadata source failed (`stale` or
+ * `error`) and count the Games the source has not attempted yet (`missing` with
+ * `*_fetched_at IS NULL`). Settled misses are neither affected nor pending.
+ * The affected count is the number of IDs collected, so the displayed number
+ * and `Select affected` always agree. The pending count comes from
+ * `pagination.totalItems`; IDs are paged with the documented `GET /api/games`
+ * filters so the selection bar can act on them.
  */
-export async function fetchAffectedGames(
+export async function fetchAffectedAndPendingGames(
   source: MetadataSource,
   signal?: AbortSignal,
-): Promise<AffectedGames> {
+): Promise<AffectedAndPendingGames> {
   const filter = METADATA_STATUS_FILTER[source];
-  const ids = new Set<number>();
-  let count = 0;
+  const fetchedFilter = METADATA_FETCHED_FILTER[source];
+  const affectedIds = new Set<number>();
+
+  const pendingQuery: FetchGamesParams = { page: 1, pageSize: 1 };
+  pendingQuery[filter] = PENDING_METADATA_STATUS;
+  pendingQuery[fetchedFilter] = false;
+  const pending = await fetchGames(pendingQuery, signal);
+  const pendingCount = pending.pagination.totalItems;
 
   for (const status of AFFECTED_METADATA_STATUSES) {
-    const first = await fetchGames(
-      { page: 1, pageSize: 200, [filter]: status } as Parameters<typeof fetchGames>[0],
-      signal,
-    );
-    count += first.pagination.totalItems;
+    const first = await fetchGames(statusQuery(filter, status, 1, 200), signal);
     for (const game of first.data) {
-      ids.add(game.appId);
+      affectedIds.add(game.appId);
     }
     for (let page = 2; page <= first.pagination.totalPages; page += 1) {
-      const next = await fetchGames(
-        { page, pageSize: 200, [filter]: status } as Parameters<typeof fetchGames>[0],
-        signal,
-      );
+      const next = await fetchGames(statusQuery(filter, status, page, 200), signal);
       for (const game of next.data) {
-        ids.add(game.appId);
+        affectedIds.add(game.appId);
       }
     }
   }
 
-  return { ids: [...ids].sort((left, right) => left - right), count };
+  return {
+    affectedIds: [...affectedIds].sort((left, right) => left - right),
+    affectedCount: affectedIds.size,
+    pendingCount,
+  };
 }
 
 export function sourceLabel(source: SourceHealth): string {

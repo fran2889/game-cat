@@ -5,18 +5,18 @@ import { useBrowse } from "../browse-context.tsx";
 import { formatCount, formatTimestamp } from "../format.ts";
 import { useRefresh } from "../refresh-context.tsx";
 import {
-  fetchAffectedGames,
+  fetchAffectedAndPendingGames,
   isMetadataSource,
   sourceLabel,
   sourceStatusTone,
-  type AffectedGames,
+  type AffectedAndPendingGames,
   type MetadataSource,
 } from "../refresh.ts";
 import type { ShellContext } from "../shell-context.ts";
 
 const METADATA_SOURCES: readonly MetadataSource[] = ["steamspy", "storefront", "steam_reviews"];
 
-type AffectedState = Record<MetadataSource, AffectedGames | null>;
+type AffectedState = Record<MetadataSource, AffectedAndPendingGames | null>;
 
 function emptyAffected(): AffectedState {
   return { steamspy: null, storefront: null, steam_reviews: null };
@@ -25,9 +25,10 @@ function emptyAffected(): AffectedState {
 /**
  * `/errors` — one row per source in the documented order (§1.7, §7.7).
  *
- * Counts and IDs for affected Games come from the documented `/api/games`
- * status filters. The view never renders per-Game error text or upstream
- * payloads; only the safe per-source `lastError` crosses this surface.
+ * Affected counts and IDs come from the documented `/api/games` status filters;
+ * pending counts combine `missing` with no `*_fetched_at`. The view never
+ * renders per-Game error text or upstream payloads; only the safe per-source
+ * `lastError` crosses this surface.
  */
 export function ErrorsView() {
   const { status } = useOutletContext<ShellContext>();
@@ -52,7 +53,7 @@ export function ErrorsView() {
 
     void Promise.all(
       METADATA_SOURCES.map(async (source) => {
-        const result = await fetchAffectedGames(source, controller.signal);
+        const result = await fetchAffectedAndPendingGames(source, controller.signal);
         return [source, result] as const;
       }),
     )
@@ -83,12 +84,12 @@ export function ErrorsView() {
 
   const selectAffected = async (source: MetadataSource): Promise<void> => {
     const known = affected[source];
-    if (known === null || known.ids.length === 0) {
+    if (known === null || known.affectedIds.length === 0) {
       return;
     }
     setSelecting(source);
     try {
-      replaceSelection(known.ids);
+      replaceSelection(known.affectedIds);
       navigate("/");
     } finally {
       setSelecting(null);
@@ -115,7 +116,8 @@ export function ErrorsView() {
         <div>
           <h2 id="errors-heading">Refresh errors</h2>
           <p>
-            Per-source health for the five Refresh sources. The Library stays usable with cached
+            Per-source health for the five Refresh sources. Affected Games have a failed last
+            attempt; pending Games have not been attempted yet. The Library stays usable with cached
             data while a source recovers.
           </p>
         </div>
@@ -135,11 +137,12 @@ export function ErrorsView() {
           const metadataName = isMetadataSource(source.name) ? source.name : null;
           const metadata = metadataName !== null;
           const affectedEntry = metadataName === null ? null : affected[metadataName];
-          const count = affectedEntry === null ? null : affectedEntry.count;
+          const count = affectedEntry === null ? null : affectedEntry.affectedCount;
+          const pendingCount = affectedEntry?.pendingCount ?? 0;
           const canSelect =
             metadataName !== null &&
             affectedEntry !== null &&
-            affectedEntry.ids.length > 0 &&
+            affectedEntry.affectedIds.length > 0 &&
             !loadingAffected &&
             !affectedError;
           return (
@@ -174,7 +177,9 @@ export function ErrorsView() {
                       ? "Counting affected Games…"
                       : affectedError
                         ? "Affected Games could not be counted."
-                        : `${formatCount(count ?? 0)} affected ${count === 1 ? "Game" : "Games"}`}
+                        : `${formatCount(count ?? 0)} affected ${
+                            count === 1 ? "Game" : "Games"
+                          } · ${formatCount(pendingCount)} pending`}
                   </p>
                 )}
               </div>

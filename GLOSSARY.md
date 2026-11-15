@@ -105,6 +105,14 @@ _Avoid_: sync, sync job
 A Refresh mode that requests only Metadata sources with no usable current data: a source with no row, a never-attempted missing value, or a stale or failed value. It skips sources that are already `ok`, settled missing, or `unavailable`.
 _Avoid_: sync, update
 
+**Pending**:
+A Metadata source state for a Game on the Refresh-errors view: no row, or `missing` with no `*_fetched_at`, so the source has not attempted it yet. Fetch also treats `stale` and `error` as pending work; on `/errors` those are Affected instead.
+_Avoid_: failed, affected
+
+**Affected**:
+A Game that the Refresh-errors view counts for a Metadata source because its last attempt failed: `stale` or `error`. Pending and settled `missing` are never affected.
+_Avoid_: pending, broken
+
 **Full Refresh**:
 A Refresh mode that re-requests all three Metadata sources for an explicit selection of Games, even when the stored data is current. It is only available for selected Games.
 _Avoid_: sync all, force refresh

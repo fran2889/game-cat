@@ -24,6 +24,9 @@ export interface GamesQuery {
   tagsStatus: string | null;
   storeStatus: string | null;
   reviewStatus: string | null;
+  tagsFetched: boolean | null;
+  storeFetched: boolean | null;
+  reviewFetched: boolean | null;
   page: number;
   pageSize: number;
 }
@@ -97,16 +100,21 @@ export function parseGamesQuery(raw: RawQuery, pageSizeMax = 200): GamesQuery {
     fieldErrors.order = "must be asc or desc";
   }
 
-  let installed: boolean | null = null;
-  if (raw.installed !== undefined && raw.installed !== "") {
-    if (raw.installed === "true") {
-      installed = true;
-    } else if (raw.installed === "false") {
-      installed = false;
-    } else {
-      fieldErrors.installed = "must be true or false";
+  const booleanFilter = (value: string | undefined, key: string): boolean | null => {
+    if (value === undefined || value === "") {
+      return null;
     }
-  }
+    if (value === "true") {
+      return true;
+    }
+    if (value === "false") {
+      return false;
+    }
+    fieldErrors[key] = "must be true or false";
+    return null;
+  };
+
+  const installed = booleanFilter(raw.installed, "installed");
 
   const statusFilter = (
     value: string | undefined,
@@ -128,6 +136,9 @@ export function parseGamesQuery(raw: RawQuery, pageSizeMax = 200): GamesQuery {
   const tagsStatus = statusFilter(raw.tagsStatus, "tags", "tagsStatus");
   const storeStatus = statusFilter(raw.storeStatus, "store", "storeStatus");
   const reviewStatus = statusFilter(raw.reviewStatus, "review", "reviewStatus");
+  const tagsFetched = booleanFilter(raw.tagsFetched, "tagsFetched");
+  const storeFetched = booleanFilter(raw.storeFetched, "storeFetched");
+  const reviewFetched = booleanFilter(raw.reviewFetched, "reviewFetched");
 
   if (Object.keys(fieldErrors).length > 0) {
     throw validationError(fieldErrors);
@@ -141,6 +152,9 @@ export function parseGamesQuery(raw: RawQuery, pageSizeMax = 200): GamesQuery {
     tagsStatus,
     storeStatus,
     reviewStatus,
+    tagsFetched,
+    storeFetched,
+    reviewFetched,
     page,
     pageSize,
   };
@@ -373,6 +387,17 @@ export class GamesRepository {
     if (query.reviewStatus !== null) {
       where.push("review_status = ?");
       parameters.push(query.reviewStatus);
+    }
+    if (query.tagsFetched !== null) {
+      where.push(query.tagsFetched ? "tags_fetched_at IS NOT NULL" : "tags_fetched_at IS NULL");
+    }
+    if (query.storeFetched !== null) {
+      where.push(query.storeFetched ? "store_fetched_at IS NOT NULL" : "store_fetched_at IS NULL");
+    }
+    if (query.reviewFetched !== null) {
+      where.push(
+        query.reviewFetched ? "review_fetched_at IS NOT NULL" : "review_fetched_at IS NULL",
+      );
     }
 
     const whereSql = where.length === 0 ? "" : `WHERE ${where.join(" AND ")}`;

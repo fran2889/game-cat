@@ -191,14 +191,14 @@ test("keyboard-only /errors flow selects the affected Games", async ({ page }) =
     for (const appId of [620, 570, 730]) {
       db.prepare(
         `INSERT OR REPLACE INTO steamspy_appdetails (app_id, tags_status, tags_fetched_at, updated_at)
-         VALUES (?, 'missing', NULL, 1)`,
+         VALUES (?, 'stale', 1, 1)`,
       ).run(appId);
     }
 
     await page.goto(`${errors.url}errors`);
     await expect(page.locator(".error-row")).toHaveCount(5);
     await expect(page.locator('.error-row[data-source="steamspy"]')).toContainText(
-      "5 affected Games",
+      "3 affected Games · 2 pending",
     );
 
     await focusMain(page);
@@ -209,7 +209,7 @@ test("keyboard-only /errors flow selects the affected Games", async ({ page }) =
     await page.keyboard.press("Enter");
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.locator(".selection-count")).toHaveText("5 selected");
+    await expect(page.locator(".selection-count")).toHaveText("3 selected");
   } finally {
     await errors.close();
   }

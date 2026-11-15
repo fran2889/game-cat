@@ -308,6 +308,33 @@ test("a failed run shows the run error and Retry, and INTERRUPTED explains resum
   }
 });
 
+test("an interrupted Fetch shows only attempted failures as affected", async ({ page }) => {
+  const app = await startTestApp({ games: 5, metadataSources: fakeSources() });
+  try {
+    insertRun(app, {
+      scope: "metadata",
+      mode: "fetch",
+      status: "failed",
+      startedAt: NOW() - 60,
+      finishedAt: NOW() - 20,
+      errorCode: "INTERRUPTED",
+      errorMessage: "The Refresh run was interrupted. The next Fetch resumes pending work.",
+    });
+    seedMetadata(app, "steamspy", [
+      { appId: 620, status: "stale" },
+      { appId: 570, status: "error" },
+      { appId: 730, status: "missing", fetchedAt: null },
+    ]);
+
+    await page.goto(`${app.url}errors`);
+    const steamspy = page.locator('.error-row[data-source="steamspy"]');
+    await expect(steamspy).toContainText("2 affected Games · 3 pending");
+    await expect(steamspy.getByRole("button", { name: "Select affected" })).toBeEnabled();
+  } finally {
+    await app.close();
+  }
+});
+
 test("ownership failure shows counts and actions, and Retry sends ownership", async ({ page }) => {
   const app = await startTestApp({ games: 5, metadataSources: fakeSources() });
   try {
@@ -370,7 +397,8 @@ test("/errors lists five source rows in order with health, backoff, and safe err
       { appId: 570, status: "stale" },
       { appId: 730, status: "error" },
       { appId: 1004, status: "ok" },
-      { appId: 1005, status: "ok" },
+      // A settled miss is neither affected nor pending.
+      { appId: 1005, status: "missing", fetchedAt: 1 },
     ]);
     seedMetadata(app, "storefront", [
       { appId: 620, status: "error" },
@@ -410,7 +438,7 @@ test("/errors lists five source rows in order with health, backoff, and safe err
     await expect(steamspy).toContainText("Last attempt");
     await expect(steamspy).toContainText("Retry after");
     await expect(steamspy).toContainText("SteamSpy is rate limited.");
-    await expect(steamspy).toContainText("3 affected Games");
+    await expect(steamspy).toContainText("2 affected Games · 1 pending");
     await expect(steamspy.getByRole("button", { name: "Fetch now" })).toBeVisible();
     await expect(steamspy.getByRole("button", { name: "Select affected" })).toBeEnabled();
 
@@ -421,7 +449,7 @@ test("/errors lists five source rows in order with health, backoff, and safe err
       "The store returned malformed JSON.",
     );
     await expect(page.locator('.error-row[data-source="storefront"]')).toContainText(
-      "3 affected Games",
+      "2 affected Games · 1 pending",
     );
 
     // No per-Game error text or raw payload ever crosses this surface.
@@ -446,19 +474,31 @@ test("Select affected excludes ok/unavailable and Refresh selected sends metadat
 
     await page.goto(`${app.url}errors`);
     const steamspy = page.locator('.error-row[data-source="steamspy"]');
-    await expect(steamspy).toContainText("3 affected Games");
+    await expect(steamspy).toContainText("2 affected Games · 1 pending");
     await steamspy.getByRole("button", { name: "Select affected" }).click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.locator(".selection-count")).toHaveText("3 selected");
-    await expect(page.locator(".game-card.is-selected")).toHaveCount(3);
+    await expect(page.locator(".selection-count")).toHaveText("2 selected");
+    await expect(page.locator(".game-card.is-selected")).toHaveCount(2);
 
     const before = latestRun(app)?.id ?? 0;
     await page.getByRole("button", { name: "Refresh selected" }).click();
     await expect.poll(() => latestRun(app)?.id ?? 0, { timeout: 5_000 }).toBeGreaterThan(before);
     const run = latestRun(app);
     expect(run).toMatchObject({ scope: "metadata", mode: "full" });
-    expect(JSON.parse(run?.app_ids_json ?? "[]")).toEqual([570, 620, 730]);
+    expect(JSON.parse(run?.app_ids_json ?? "[]")).toEqual([570, 730]);
+  } finally {
+    await app.close();
+  }
+});
+
+test("a fresh Library shows pending Games as pending, never as affected", async ({ page }) => {
+  const app = await startTestApp({ games: 5, metadataSources: fakeSources() });
+  try {
+    await page.goto(`${app.url}errors`);
+    const steamspy = page.locator('.error-row[data-source="steamspy"]');
+    await expect(steamspy).toContainText("0 affected Games · 5 pending");
+    await expect(steamspy.getByRole("button", { name: "Select affected" })).toBeDisabled();
   } finally {
     await app.close();
   }

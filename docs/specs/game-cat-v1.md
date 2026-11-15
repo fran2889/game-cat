@@ -158,7 +158,7 @@ These were left open by earlier tickets. They are normative for v1.
 | Autosave                  | A new Smart Collection is created by an explicit Save. After that, name and Rule edits autosave 600 ms after the last change. One save is in flight at a time; newer edits coalesce into the next save. No undo in v1.                                      |
 | Autosave failure          | Retry after 2 s, 5 s, and 15 s. Keep local edits, show `Save failed`, and offer Retry. Block navigation with a confirmation while the save is failed.                                                                                                       |
 | Save conflicts            | Last-write-wins. v1 is single-user and has no ETag/version field.                                                                                                                                                                                           |
-| Refresh-errors view       | A separate route, `/errors`, linked from the refresh banner. It lists one row per source with status, timestamps, retry deadline, safe last error, affected-Game count, and actions.                                                                        |
+| Refresh-errors view       | A separate route, `/errors`, linked from the refresh banner. It lists one row per source with status, timestamps, retry deadline, safe last error, affected and pending Game counts, and actions.                                                           |
 | Per-Game error text       | Not exposed. The API exposes per-Game statuses and per-source `lastError`; raw upstream bodies and per-Game error strings stay server-side.                                                                                                                 |
 | Launch                    | Enabled only when `installed === true`. Opens `steam://rungameid/<appId>`. v1 cannot detect a launch failure; it shows an "Opening Steam" toast and never writes Steam files.                                                                               |
 | Non-game Library entries  | Shown in the Library by default. `storefrontType` is a Rule Field, so DLC, demos, tools, and soundtracks can be filtered without being silently hidden.                                                                                                     |
@@ -253,6 +253,10 @@ status vocabularies are independent per Metadata source:
 A Game with no row for a source is read as `missing` with unknown values. `tags_status` has no
 `unavailable`: a successful SteamSpy response with no Tags is a settled `missing` with
 `tags_fetched_at` set, not a pending fetch.
+
+A never-attempted `missing` (`*_fetched_at IS NULL`) is **pending**, while `missing` with
+`*_fetched_at` set is a **settled miss**. Neither is an **affected** failure: `/errors` counts only
+`stale` and `error` as affected (§7.7).
 
 Review semantics:
 
@@ -1422,25 +1426,29 @@ Returns `200` whenever the server is running, including when Steam is missing, t
 unconfigured, and the database is empty. The UI uses `steam.state`, `ownership.state`, and
 `library.lastScanStatus` to choose the onboarding or degraded state.
 
-Metadata coverage is aggregate here; per-Game statuses are in `GameSummary`/`GameDetail`, and
-`GET /api/games?tagsStatus=missing` (or `storeStatus=` / `reviewStatus=`) finds Games that need a
-targeted Refresh.
+Metadata coverage is aggregate here; per-Game statuses are in `GameSummary`/`GameDetail`.
+`GET /api/games?tagsStatus=stale` (plus `error`) finds Games whose last attempt failed, while
+`tagsStatus=missing` with `tagsFetched=false` finds never-attempted Games. The store and review
+filters have the same pairs.
 
 #### `GET /api/games`
 
 Query parameters:
 
-| Name           | Type    | Default | Rules                                                                                       |
-| -------------- | ------- | ------- | ------------------------------------------------------------------------------------------- |
-| `search`       | string  | —       | Trimmed and normalized; case-insensitive substring of `games.name_key`; max 200 characters. |
-| `sort`         | enum    | `name`  | `name`, `playtime`, `lastPlayed`, `releaseYear`, `metacritic`, `appId`.                     |
-| `order`        | enum    | `asc`   | `asc` or `desc`.                                                                            |
-| `installed`    | boolean | —       | `true` → installed = 1; `false` → installed = 0; omitted → any, including `null`.           |
-| `tagsStatus`   | enum    | —       | `ok`, `missing`, `stale`, or `error`.                                                       |
-| `storeStatus`  | enum    | —       | `ok`, `unavailable`, `missing`, `stale`, or `error`.                                        |
-| `reviewStatus` | enum    | —       | `ok`, `unavailable`, `missing`, `stale`, or `error`.                                        |
-| `page`         | integer | `1`     | `>= 1`.                                                                                     |
-| `pageSize`     | integer | `60`    | `1..200`.                                                                                   |
+| Name            | Type    | Default | Rules                                                                                       |
+| --------------- | ------- | ------- | ------------------------------------------------------------------------------------------- |
+| `search`        | string  | —       | Trimmed and normalized; case-insensitive substring of `games.name_key`; max 200 characters. |
+| `sort`          | enum    | `name`  | `name`, `playtime`, `lastPlayed`, `releaseYear`, `metacritic`, `appId`.                     |
+| `order`         | enum    | `asc`   | `asc` or `desc`.                                                                            |
+| `installed`     | boolean | —       | `true` → installed = 1; `false` → installed = 0; omitted → any, including `null`.           |
+| `tagsStatus`    | enum    | —       | `ok`, `missing`, `stale`, or `error`.                                                       |
+| `storeStatus`   | enum    | —       | `ok`, `unavailable`, `missing`, `stale`, or `error`.                                        |
+| `reviewStatus`  | enum    | —       | `ok`, `unavailable`, `missing`, `stale`, or `error`.                                        |
+| `tagsFetched`   | boolean | —       | `true` → `tags_fetched_at` is set; `false` → it is null.                                    |
+| `storeFetched`  | boolean | —       | `true` → `store_fetched_at` is set; `false` → it is null.                                   |
+| `reviewFetched` | boolean | —       | `true` → `review_fetched_at` is set; `false` → it is null.                                  |
+| `page`          | integer | `1`     | `>= 1`.                                                                                     |
+| `pageSize`      | integer | `60`    | `1..200`.                                                                                   |
 
 Response: `{ data: GameSummary[], pagination, meta: { dataAsOf } }`.
 
@@ -1449,6 +1457,11 @@ drive a targeted Refresh without fetching every Game detail. `dataAsOf` is the l
 successful local scan, ownership refresh, and Metadata completion, or `null` if none has succeeded.
 Search does not match Tags, Genres, developers, or publishers. Substring search is a scan; the
 `name_key` index supports sorting and prefix/equality lookups. FTS5 is deliberately deferred.
+
+The `*Fetched` filters match whether the source's `*_fetched_at` is set. Combine one with
+`*Status=missing` to separate a never-attempted pending value (`false`) from a settled miss (`true`).
+An `error` or `stale` row is never treated as pending, even when its `*_fetched_at` is null. The
+`/errors` view uses this pair to count pending Games without counting them as affected (§7.7).
 
 #### `GET /api/games/{appId}`
 
@@ -2299,7 +2312,7 @@ A source is **pending** for a Game when:
 - Fetch skips a source whose `source_state.retry_after_at` is in the future. The skipped work stays
   pending; the run records it and finishes `partial`.
 - Fetch runs across the whole Library. It does not take `appIds`; a narrowed retry is a Full Refresh of
-  the affected Games.
+  the Games that need it.
 - The selection is computed at the start of the Metadata phase, so an `all` run sees Games added or
   removed by its library and ownership phases.
 - A `metadata` + Fetch with no pending work creates a `succeeded` run with `total: 0`, makes no
@@ -2851,17 +2864,29 @@ The Library, search, detail, and editor remain usable. Cached data is never bloc
 - last success and last attempt timestamps;
 - `retryAfterAt` when the source is in backoff;
 - the safe `lastError` message, never a raw upstream body;
-- the affected-Game count for Metadata sources;
+- the affected and pending Game counts for Metadata sources;
 - actions **Fetch now** and **Select affected** for Metadata sources.
 
 **Fetch now** sends the same `all` + Fetch as the primary action. **Select affected** selects Games
-whose status for that source is `missing`, `stale`, or `error`, excludes `ok` and `unavailable`,
-navigates to `/`, and shows the selection bar. The selection bar then offers **Refresh selected**,
-which sends `{ "scope": "metadata", "mode": "full", "appIds": [...] }` and is disabled above 5,000
-selected Games.
+whose last attempt for that source failed (`stale` or `error`), excludes `ok`, `unavailable`, pending
+`missing`, and settled `missing`, navigates to `/`, and shows the selection bar. The selection bar
+then offers **Refresh selected**, which sends `{ "scope": "metadata", "mode": "full", "appIds": [...] }`
+and is disabled above 5,000 selected Games.
 
-The affected counts are computed with `GET /api/games?tagsStatus=…` (and the store/review equivalents)
-and `pagination.totalItems`. Per-Game error text is not exposed; the view uses statuses and counts.
+A Game is **pending** for a source on `/errors` when it has no row or is `missing` with
+`*_fetched_at IS NULL`: the source has not attempted it yet. Pending is not affected, so a fresh
+Library shows `0 affected` even when all of its Games are pending. A settled miss (`missing` with
+`*_fetched_at` set) is neither pending nor affected, because the source answered successfully and
+Fetch does not retry it. The row shows both numbers as `N affected Games · N pending`, using the
+singular `Game` when the affected count is one, and the copy never labels pending Games as failures.
+This is narrower than §6.2's Fetch-pending set, which also includes `stale` and `error` because Fetch
+retries them; `/errors` reports those as affected instead.
+
+Affected IDs are paged with `GET /api/games?tagsStatus=stale` plus `tagsStatus=error` (and the
+store/review equivalents); the affected count is the number of IDs collected, so it always matches
+**Select affected**. Pending uses `tagsStatus=missing` combined with `tagsFetched=false` (and the
+equivalents) and `pagination.totalItems`. Per-Game error text is not exposed; the view uses statuses,
+fetch timestamps, and counts.
 
 ### 7.8 States and copy
 
@@ -3246,8 +3271,8 @@ This section defines the run record, triggers, and recovery.
 - **Selection action:** Refresh selected sends
   `{ "scope": "metadata", "mode": "full", "appIds": [...] }`. It is the only full re-fetch and is
   never triggered automatically.
-- **Refresh-errors view:** a Fetch action retries all gaps. To force a re-fetch of affected Games, the
-  user selects them and uses Refresh selected.
+- **Refresh-errors view:** a Fetch action retries all gaps. To force a re-fetch of Games with failed
+  attempts, the user selects them and uses Refresh selected.
 - There is no timer, periodic job, watch loop, cron, or background scheduler in v1. Closing and
   reopening the app is the only automatic retry. No Full Refresh is ever automatic.
 - A startup `all` + Fetch with no pending Metadata work is a cheap zero-item Metadata phase. It still
@@ -3506,7 +3531,9 @@ issues, PRs, and test names.
 - [ ] `AC-M16` `Status.metadata` classifies every Game exactly once per source, including Games with no
       source row.
 - [ ] `AC-M17` `GET /api/games?tagsStatus=`, `?storeStatus=`, and `?reviewStatus=` accept exactly the
-      documented values and return only Games with that status.
+      documented values and return only Games with that status. `tagsFetched`, `storeFetched`, and
+      `reviewFetched` accept only `true` or `false` and filter on the matching `*_fetched_at`; combined
+      with `missing`, they separate pending never-attempted Games from settled misses.
 - [ ] `AC-M18` An `all` + Fetch with no pending Metadata still scans local files; when ownership is
       configured it makes exactly one ownership request. Without a key or Account it skips ownership
       and finishes `partial`. Its Metadata candidates are 0, no Metadata source is called, and its
@@ -3686,8 +3713,10 @@ issues, PRs, and test names.
       Partial, failed, and ownership-failure banners include View refresh errors and Retry; a partial
       run with `error: null` uses the generic failure copy.
 - [ ] `AC-U16` The banner links to `/errors`; the view lists five source rows with the documented
-      fields; Fetch now and Select affected work; affected Games exclude `ok` and `unavailable`; per-
-      Game error text is absent.
+      fields; Fetch now and Select affected work; affected Games are exactly `stale` and `error` and
+      exclude `ok`, `unavailable`, pending `missing`, and settled `missing`; pending Games are shown
+      separately and never counted as affected; the displayed affected count matches the Select
+      affected selection; per-Game error text is absent.
 - [ ] `AC-U17` Every state in [§7.8](#78-states-and-copy) renders the documented copy and action,
       including first run, loading, empty Library, no search results, no Rule matches, empty/dynamic
       Steam Collection, Refresh running, ownership error, partial/failed run, save failure,
