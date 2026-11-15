@@ -15,6 +15,7 @@ import type { GamesRepository } from "../library/games.ts";
 import type { SteamCollectionsRepository } from "../library/collections.ts";
 import type { RulePreviewRepository } from "../library/rule-preview.ts";
 import type { RuleValuesRepository } from "../library/rule-values.ts";
+import type { SmartCollectionsRepository } from "../library/smart-collections.ts";
 import type { TagsRepository } from "../library/tags.ts";
 import { redactUrl } from "../logging/logger.ts";
 import type { RefreshService } from "../refresh/service.ts";
@@ -52,6 +53,7 @@ export interface CreateHttpAppOptions {
     collections: SteamCollectionsRepository;
     ruleValues: RuleValuesRepository;
     rulePreview: RulePreviewRepository;
+    smartCollections: SmartCollectionsRepository;
     tags: TagsRepository;
     refresh: RefreshService;
   };
@@ -132,6 +134,7 @@ export function createHttpApp(options: CreateHttpAppOptions): FastifyInstance {
       collections: options.library.collections,
       ruleValues: options.library.ruleValues,
       rulePreview: options.library.rulePreview,
+      smartCollections: options.library.smartCollections,
       tags: options.library.tags,
       refresh: options.library.refresh,
     });

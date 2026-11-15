@@ -8,6 +8,7 @@ import { createHttpApp } from "../../src/server/http/app.ts";
 import { SteamCollectionsRepository } from "../../src/server/library/collections.ts";
 import { GamesRepository } from "../../src/server/library/games.ts";
 import { RulePreviewRepository } from "../../src/server/library/rule-preview.ts";
+import { SmartCollectionsRepository } from "../../src/server/library/smart-collections.ts";
 import { evaluateRuleIds } from "../../src/server/library/rule-evaluator.ts";
 import { RuleValuesRepository } from "../../src/server/library/rule-values.ts";
 import { TagsRepository } from "../../src/server/library/tags.ts";
@@ -52,6 +53,7 @@ function harness(): Harness {
       ruleValues: new RuleValuesRepository(db.raw),
       tags: new TagsRepository(db.raw),
       rulePreview: new RulePreviewRepository(db.raw),
+      smartCollections: new SmartCollectionsRepository(db.raw),
       refresh,
     },
   });

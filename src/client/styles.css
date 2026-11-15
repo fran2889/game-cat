@@ -2064,6 +2064,18 @@ main {
   font-size: 11px;
 }
 
+.editor-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 11px;
+  border: 1px solid var(--red);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .prefix-callout {
   display: flex;
   flex-direction: column;

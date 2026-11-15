@@ -8,6 +8,7 @@ import { createHttpApp } from "../../src/server/http/app.ts";
 import { SteamCollectionsRepository } from "../../src/server/library/collections.ts";
 import { GamesRepository } from "../../src/server/library/games.ts";
 import { RulePreviewRepository } from "../../src/server/library/rule-preview.ts";
+import { SmartCollectionsRepository } from "../../src/server/library/smart-collections.ts";
 import { RuleValuesRepository } from "../../src/server/library/rule-values.ts";
 import { TagsRepository } from "../../src/server/library/tags.ts";
 import { RefreshService } from "../../src/server/refresh/service.ts";
@@ -96,6 +97,7 @@ function harness(steam = fixture()): Harness {
       collections,
       ruleValues: new RuleValuesRepository(db.raw),
       rulePreview: new RulePreviewRepository(db.raw),
+      smartCollections: new SmartCollectionsRepository(db.raw),
       tags,
       refresh,
     },
@@ -253,6 +255,7 @@ describe("POST /api/refresh (library)", () => {
         collections: new SteamCollectionsRepository(test.db.raw),
         ruleValues: new RuleValuesRepository(test.db.raw),
         rulePreview: new RulePreviewRepository(test.db.raw),
+        smartCollections: new SmartCollectionsRepository(test.db.raw),
         tags: new TagsRepository(test.db.raw),
         refresh,
       },
