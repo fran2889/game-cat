@@ -57,6 +57,14 @@ test("grid cards show the documented badges, ownership, tags, and cover fallback
   await expect(card.locator(".game-cover-fallback")).toHaveText("P2");
 });
 
+test("review tier and count appear on cards", async ({ page }) => {
+  await page.goto(app.url);
+  await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
+  const card = page.locator(".game-card");
+  await expect(card).toHaveCount(1);
+  await expect(card.locator(".game-review")).toHaveText("Overwhelmingly Positive · 1,000 reviews");
+});
+
 test("an unknown stored layout falls back to grid", async ({ page }) => {
   await page.goto(app.url);
   await page.evaluate(() => {
@@ -108,7 +116,9 @@ test("the table has the documented columns, sortable headers, and null cells", a
 
   await page.getByRole("searchbox", { name: "Search game names" }).fill("Portal");
   const portalRow = page.locator(".game-table tbody tr", { hasText: "Portal 2" });
-  await expect(portalRow.locator("td").nth(5)).toHaveText("98%");
+  await expect(portalRow.locator("td").nth(5)).toHaveText(
+    "98% · Overwhelmingly Positive · 1,000 reviews",
+  );
   await expect(portalRow.locator("td").nth(6)).toHaveText("2011");
 
   await page.getByRole("combobox", { name: "Sort by" }).selectOption("metacritic");

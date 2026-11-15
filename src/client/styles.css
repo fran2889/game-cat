@@ -1486,6 +1486,13 @@ main {
   white-space: nowrap;
 }
 
+.game-review {
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tag-status {
   display: inline-block;
   margin-top: 2px;

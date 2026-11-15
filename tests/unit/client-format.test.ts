@@ -6,6 +6,8 @@ import {
   formatPlaytime,
   initialsFor,
   ownershipLabel,
+  reviewCardLabel,
+  reviewSummaryLabel,
   reviewTone,
 } from "../../src/client/format.ts";
 
@@ -45,5 +47,18 @@ describe("domain labels", () => {
     expect(reviewTone(80)).toBe("good");
     expect(reviewTone(55)).toBe("mixed");
     expect(reviewTone(20)).toBe("bad");
+  });
+
+  it("labels reviews and distinguishes a known zero from an unknown count", () => {
+    expect(reviewSummaryLabel(98, "Overwhelmingly Positive", 1000)).toBe(
+      "98% · Overwhelmingly Positive · 1,000 reviews",
+    );
+    expect(reviewSummaryLabel(null, null, 0)).toBe("No user reviews");
+    expect(reviewSummaryLabel(null, null, null)).toBe("Reviews unavailable");
+    expect(reviewCardLabel("Overwhelmingly Positive", 1000)).toBe(
+      "Overwhelmingly Positive · 1,000 reviews",
+    );
+    expect(reviewCardLabel(null, 0)).toBe("No user reviews");
+    expect(reviewCardLabel(null, null)).toBe("Reviews unavailable");
   });
 });
