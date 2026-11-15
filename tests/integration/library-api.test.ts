@@ -245,8 +245,17 @@ describe("POST /api/refresh (library)", () => {
     const withAppIds = await post(test.app, "/api/refresh", { scope: "library", appIds: [1] });
     expect(withAppIds.statusCode).toBe(422);
 
-    const ownership = await post(test.app, "/api/refresh", { scope: "ownership" });
-    expect(ownership.statusCode).toBe(422);
+    const unconfiguredOwnership = await post(test.app, "/api/refresh", { scope: "ownership" });
+    expect(unconfiguredOwnership.statusCode).toBe(409);
+    expect((unconfiguredOwnership.json() as { error: { code: string } }).error.code).toBe(
+      "OWNERSHIP_NOT_CONFIGURED",
+    );
+
+    const metadata = await post(test.app, "/api/refresh", { scope: "metadata", mode: "fetch" });
+    expect(metadata.statusCode).toBe(422);
+
+    const all = await post(test.app, "/api/refresh", { scope: "all", mode: "fetch" });
+    expect(all.statusCode).toBe(422);
 
     const missing = await post(test.app, "/api/refresh", {});
     expect(missing.statusCode).toBe(422);

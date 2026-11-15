@@ -2,11 +2,13 @@ import type BetterSqlite3 from "better-sqlite3";
 import { APP_VERSION, DB_SCHEMA_VERSION } from "../shared/app.ts";
 import {
   SOURCE_ORDER,
+  type ErrorDetail,
+  type OwnershipState,
   type SourceHealth,
   type Status,
   type SourceStatus,
 } from "../shared/types.ts";
-import { GamesRepository } from "./library/games.ts";
+import { GamesRepository, type OwnershipCounts } from "./library/games.ts";
 import { readActiveRefresh, readLastRefresh } from "./refresh/service.ts";
 import type { SteamDiscovery } from "./steam/discovery.ts";
 
@@ -55,6 +57,81 @@ function sourceHealth(db: BetterSqlite3.Database, ownershipConfigured: boolean):
   });
 }
 
+const OWNERSHIP_STATES: readonly OwnershipState[] = [
+  "unknown",
+  "ok",
+  "partial",
+  "empty",
+  "not_configured",
+  "invalid_key",
+  "rate_limited",
+  "error",
+];
+
+interface OwnershipStateRow {
+  status: SourceStatus;
+  last_success_at: number | null;
+  last_attempt_at: number | null;
+}
+
+interface OwnershipRunErrorRow {
+  error_code: string | null;
+  error_message: string | null;
+}
+
+function ownershipState(status: SourceStatus | undefined): OwnershipState {
+  return status !== undefined && (OWNERSHIP_STATES as readonly string[]).includes(status)
+    ? (status as OwnershipState)
+    : "unknown";
+}
+
+/** The last ownership failure, or `null` when the latest run succeeded. */
+function ownershipError(db: BetterSqlite3.Database): ErrorDetail | null {
+  const row = db
+    .prepare(
+      `SELECT error_code, error_message FROM refresh_runs
+       WHERE scope = 'ownership'
+       ORDER BY id DESC LIMIT 1`,
+    )
+    .get() as OwnershipRunErrorRow | undefined;
+  if (row === undefined || row.error_code === null) {
+    return null;
+  }
+  return {
+    code: row.error_code,
+    message: row.error_message ?? "The ownership Refresh failed.",
+  };
+}
+
+function ownershipStatus(
+  db: BetterSqlite3.Database,
+  configured: boolean,
+): {
+  state: OwnershipState;
+  counts: OwnershipCounts;
+  lastSuccessAt: string | null;
+  lastAttemptAt: string | null;
+  error: ErrorDetail | null;
+} {
+  const row = db
+    .prepare("SELECT status, last_success_at, last_attempt_at FROM source_state WHERE name = ?")
+    .get("steam_web_api") as OwnershipStateRow | undefined;
+  const state =
+    row === undefined || row.status === "unknown"
+      ? configured
+        ? "unknown"
+        : "not_configured"
+      : ownershipState(row.status);
+  const counts = new GamesRepository(db).ownershipCounts();
+  return {
+    state,
+    counts,
+    lastSuccessAt: toIso(row?.last_success_at ?? null),
+    lastAttemptAt: toIso(row?.last_attempt_at ?? null),
+    error: ownershipError(db),
+  };
+}
+
 /**
  * The Status document. With a database it reports real Library counts, the last
  * local scan, source health, and Refresh-run state; without one it reports the
@@ -87,6 +164,7 @@ export function buildStatus(input: BuildStatusInput): Status {
       ownership: {
         state: ownershipConfigured ? "unknown" : "not_configured",
         gameCount: 0,
+        counts: { owned: 0, localOnly: 0, unknown: 0 },
         lastSuccessAt: null,
         lastAttemptAt: null,
         error: null,
@@ -112,6 +190,7 @@ export function buildStatus(input: BuildStatusInput): Status {
   const games = new GamesRepository(input.db);
   const counts = games.counts();
   const scan = games.scanState();
+  const ownership = ownershipStatus(input.db, ownershipConfigured);
 
   return {
     app: {
@@ -124,11 +203,8 @@ export function buildStatus(input: BuildStatusInput): Status {
       account: input.discovery.account,
     },
     ownership: {
-      state: ownershipConfigured ? "unknown" : "not_configured",
-      gameCount: 0,
-      lastSuccessAt: null,
-      lastAttemptAt: null,
-      error: null,
+      ...ownership,
+      gameCount: ownership.counts.owned,
     },
     library: {
       gameCount: counts.gameCount,

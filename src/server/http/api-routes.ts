@@ -80,7 +80,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
   });
 
   app.post("/api/refresh", async (request, reply) => {
-    const run = options.refresh.start(request.body);
+    const run = await options.refresh.start(request.body);
     reply.header("location", `/api/refresh/${run.id}`);
     return reply.code(202).send({ data: run });
   });

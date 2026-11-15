@@ -175,6 +175,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       db: database.raw,
       steamRoot: discovery.root ?? resolved.steamRoot,
       steamId64: discovery.account?.steamId64 ?? resolved.steamId64,
+      steamApiKey: resolved.steamApiKey,
       onWarn: (message, details) => logger.warn({ ...details, warning: message }, "scan warning"),
     });
 

@@ -17,6 +17,7 @@ const status: Status = {
   ownership: {
     state: "not_configured",
     gameCount: 0,
+    counts: { owned: 0, localOnly: 0, unknown: 0 },
     lastSuccessAt: null,
     lastAttemptAt: null,
     error: null,
