@@ -1,12 +1,18 @@
 import type { FastifyInstance } from "fastify";
 import type { Status } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
+import {
+  parseSteamCollectionGamesQuery,
+  parseSteamCollectionsQuery,
+  type SteamCollectionsRepository,
+} from "../library/collections.ts";
 import { GamesRepository, parseGamesQuery } from "../library/games.ts";
 import type { RefreshService } from "../refresh/service.ts";
 
 export interface ApiRoutesOptions {
   status: Status | (() => Status);
   games: GamesRepository;
+  collections: SteamCollectionsRepository;
   refresh: RefreshService;
 }
 
@@ -67,6 +73,29 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
       throw notFound(String(id));
     }
     return { data: game };
+  });
+
+  app.get("/api/steam-collections", async (request) =>
+    options.collections.list(parseSteamCollectionsQuery(queryValues(request.query))),
+  );
+
+  app.get("/api/steam-collections/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    const collection = options.collections.get(id);
+    if (collection === null) {
+      throw notFound(id);
+    }
+    return { data: collection };
+  });
+
+  app.get("/api/steam-collections/:id/games", async (request) => {
+    const { id } = request.params as { id: string };
+    const query = parseSteamCollectionGamesQuery(queryValues(request.query));
+    const games = options.collections.games(id, query);
+    if (games === null) {
+      throw notFound(id);
+    }
+    return games;
   });
 
   app.get("/api/refresh/:id", async (request) => {

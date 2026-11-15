@@ -111,6 +111,29 @@ export interface GameDetail extends GameSummary {
   sizeOnDiskBytes: number | null;
 }
 
+export type SteamCollectionKind = "favorite" | "hidden" | "user" | "tag" | "system" | "other";
+
+/** Read-only Steam Collection metadata; never contains a filterSpec. */
+export interface SteamCollectionSummary {
+  id: string;
+  name: string;
+  kind: SteamCollectionKind;
+  isDynamic: boolean;
+  /** Static membership count; `null` for a dynamic Collection. */
+  gameCount: number | null;
+}
+
+export interface SteamCollectionsResponse {
+  data: SteamCollectionSummary[];
+  pagination: Pagination;
+}
+
+export interface SteamCollectionGamesResponse {
+  data: GameSummary[];
+  pagination: Pagination;
+  meta: { dataAsOf: string | null; dynamic: boolean };
+}
+
 export interface Pagination {
   page: number;
   pageSize: number;

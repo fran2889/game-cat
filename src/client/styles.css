@@ -289,6 +289,21 @@ kbd {
   font-size: 12px;
 }
 
+.side-note {
+  padding: 0 8px 6px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.side-lock {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  opacity: 0.75;
+}
+
 .sidebar-foot {
   margin-top: auto;
   padding: 12px;
@@ -788,6 +803,20 @@ main {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.collection-header h2 {
+  margin: 2px 0 6px;
+  font-size: 24px;
+}
+
+.collection-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .library-summary {

@@ -12,6 +12,7 @@ import type { Logger } from "pino";
 import { ERROR_CODES, type ErrorDetail, type Status } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
 import type { GamesRepository } from "../library/games.ts";
+import type { SteamCollectionsRepository } from "../library/collections.ts";
 import { redactUrl } from "../logging/logger.ts";
 import type { RefreshService } from "../refresh/service.ts";
 import { registerApiRoutes } from "./api-routes.ts";
@@ -45,6 +46,7 @@ export interface CreateHttpAppOptions {
   /** When present, the Game list/detail and Refresh endpoints are registered. */
   library?: {
     games: GamesRepository;
+    collections: SteamCollectionsRepository;
     refresh: RefreshService;
   };
 }
@@ -119,6 +121,7 @@ export function createHttpApp(options: CreateHttpAppOptions): FastifyInstance {
     registerApiRoutes(app, {
       status: options.status,
       games: options.library.games,
+      collections: options.library.collections,
       refresh: options.library.refresh,
     });
   } else {
