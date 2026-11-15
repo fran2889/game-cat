@@ -227,12 +227,8 @@ interface ParsedStorefront {
   raw: string;
 }
 
-/**
- * Recognize a returned App ID as a positive integer or numeric string. A missing
- * or differently-typed value is not an identity claim; the response is keyed by
- * the requested App ID, so it is accepted (spec §6.6).
- */
-function returnedAppId(value: unknown): number | null {
+/** Recognize an App ID as a positive integer or numeric string. */
+function recognizedAppId(value: unknown): number | null {
   const number =
     typeof value === "number"
       ? value
@@ -242,28 +238,39 @@ function returnedAppId(value: unknown): number | null {
   return number !== null && Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
-type ParsedStorefrontResult =
-  { kind: "ok"; parsed: ParsedStorefront } | { kind: "mismatch"; returnedAppId: number };
-
-function parseStorefrontData(data: Record<string, unknown>, appId: number): ParsedStorefrontResult {
-  const returned = returnedAppId(data.steam_appid);
-  if (returned !== null && returned !== appId) {
-    return { kind: "mismatch", returnedAppId: returned };
+/**
+ * A `success: true` payload keyed by a different App ID is not the requested
+ * App's data. The outer key is the identity, so this is the only explicit
+ * mismatch case; a canonical mapping keeps the requested outer key (spec §6.6).
+ */
+function explicitMismatchKey(payload: unknown, appId: number): number | null {
+  if (!isRecord(payload)) {
+    return null;
   }
+  const keys = Object.keys(payload);
+  if (keys.length !== 1) {
+    return null;
+  }
+  const returned = recognizedAppId(keys[0]);
+  if (returned === null || returned === appId) {
+    return null;
+  }
+  const entry = payload[keys[0]!];
+  return isRecord(entry) && entry.success === true ? returned : null;
+}
+
+function parseStorefrontData(data: Record<string, unknown>): ParsedStorefront {
   return {
-    kind: "ok",
-    parsed: {
-      type: typeof data.type === "string" ? data.type : null,
-      name: typeof data.name === "string" && data.name.trim() !== "" ? data.name.trim() : null,
-      developers: stringArray(data.developers),
-      publishers: stringArray(data.publishers),
-      genres: genreNames(data.genres),
-      categories: categoryNames(data.categories),
-      platforms: platformsObject(data.platforms),
-      metacriticScore: metacriticScore(data.metacritic),
-      releaseDateRaw: releaseDateRaw(data.release_date),
-      raw: JSON.stringify(data),
-    },
+    type: typeof data.type === "string" ? data.type : null,
+    name: typeof data.name === "string" && data.name.trim() !== "" ? data.name.trim() : null,
+    developers: stringArray(data.developers),
+    publishers: stringArray(data.publishers),
+    genres: genreNames(data.genres),
+    categories: categoryNames(data.categories),
+    platforms: platformsObject(data.platforms),
+    metacriticScore: metacriticScore(data.metacritic),
+    releaseDateRaw: releaseDateRaw(data.release_date),
+    raw: JSON.stringify(data),
   };
 }
 
@@ -439,6 +446,13 @@ export class StorefrontSource implements MetadataSource {
 
     const entry = isRecord(payload) ? payload[String(appId)] : undefined;
     if (!isRecord(entry) || entry.success !== true) {
+      const returned = explicitMismatchKey(payload, appId);
+      if (returned !== null) {
+        // A safe diagnostic: both identities, never the raw payload.
+        const message = `The storefront returned data for App ID ${returned}, not App ID ${appId}.`;
+        recordFailure(db, appId, now, message);
+        return { kind: "error", message };
+      }
       recordUnavailable(db, appId, now);
       return { kind: "unavailable" };
     }
@@ -449,15 +463,11 @@ export class StorefrontSource implements MetadataSource {
       return { kind: "unavailable" };
     }
 
-    const parsed = parseStorefrontData(data, appId);
-    if (parsed.kind === "mismatch") {
-      // A safe diagnostic: both identities, never the raw payload.
-      const message = `The storefront returned App ID ${parsed.returnedAppId} for App ID ${appId}.`;
-      recordFailure(db, appId, now, message);
-      return { kind: "error", message };
-    }
-
-    persistSuccess(db, appId, now, parsed.parsed);
+    // Steam canonicalizes some library aliases (live examples: 100 -> 80 and
+    // 870 -> 550) while keeping the requested App ID as the outer key. Store
+    // the response against the requested App ID; the canonical ID remains in
+    // `raw_store_json` and is documented in spec §6.6.
+    persistSuccess(db, appId, now, parseStorefrontData(data));
     return { kind: "ok" };
   }
 }

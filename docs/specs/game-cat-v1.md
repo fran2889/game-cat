@@ -2372,14 +2372,16 @@ votes descending, then name ascending. A SteamSpy name may replace `placeholder`
 - `success: false` means delisted, region-blocked, or not a store product. The response cannot
   distinguish them, so the UI says "not available on the store", never "delisted".
 - The response is an object keyed by the requested App ID, and that outer key is the identity. A
-  `data.steam_appid` that is absent, null, or not a positive integer or numeric string does not
-  contradict it, so the response is accepted as the requested App's data. A numeric `steam_appid` or
-  a numeric string equal to the requested App ID is accepted too.
-- Only a recognizable `steam_appid` that differs from the requested App ID is a mismatch. It stores
+  `success: true` response keyed by the requested App ID is stored for that App, including when
+  `data.steam_appid` is absent, null, differently typed, or a different canonical App ID.
+- Steam canonicalizes some library aliases while keeping the requested outer key. Live examples are
+  `100` → `80` (Counter-Strike: Condition Zero) and `870` → `550` (Left 4 Dead 2). Store the response
+  against the requested `app_id`; the canonical ID remains in `raw_store_json` and is not a per-Game
+  error. Add any further observed mappings here.
+- A numeric `steam_appid` or a numeric string equal to the requested App ID is accepted as well.
+- Only a `success: true` response whose sole key is a different App ID is a mismatch. It stores
   nothing, keeps last-known-good Metadata, and records a short diagnostic naming both App IDs; the
-  raw payload is never copied into the error. Live probes have not produced a canonical-ID mapping.
-  If Steam starts returning one, store it against the requested `app_id` and document the mapping
-  here rather than turning it into a per-Game error.
+  raw payload is never copied into the error.
 - Store `type`, developer and publisher arrays, Genre and Storefront Category names, platforms,
   Metacritic score, and the raw localized `release_date.date`. Parse a release year defensively; keep
   the raw string. Never sort on the raw release string.
