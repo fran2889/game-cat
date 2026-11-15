@@ -147,14 +147,20 @@ function classifyBody(body: unknown): OwnershipFetchResult {
   }
 
   const declared = nonNegativeInteger(record.game_count);
-  const gameCount = declared ?? games.length;
-  if (gameCount === 0 || games.length === 0) {
+  if (games.length === 0 || declared === 0) {
     return { kind: "empty", gameCount: 0, games: [] };
   }
-  if (games.length < gameCount) {
-    return { kind: "partial", gameCount, games };
+
+  // Only `game_count > 0` with an exactly matching roster is conclusive. A
+  // missing `game_count` and a longer-than-declared roster are both
+  // inconclusive: upsert what Steam returned, but never reconcile absent rows.
+  if (declared === null) {
+    return { kind: "partial", gameCount: games.length, games };
   }
-  return { kind: "complete", gameCount, games };
+  if (games.length !== declared) {
+    return { kind: "partial", gameCount: declared, games };
+  }
+  return { kind: "complete", gameCount: declared, games };
 }
 
 export function createSteamOwnershipSource(

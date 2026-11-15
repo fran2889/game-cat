@@ -109,8 +109,11 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
   });
 
   app.post("/api/refresh", async (request, reply) => {
-    const run = await options.refresh.start(request.body);
-    reply.header("location", `/api/refresh/${run.id}`);
-    return reply.code(202).send({ data: run });
+    const result = await options.refresh.start(request.body);
+    reply.header("location", `/api/refresh/${result.run.id}`);
+    const body = result.deduplicated
+      ? { data: result.run, meta: { deduplicated: true } }
+      : { data: result.run };
+    return reply.code(202).send(body);
   });
 }
