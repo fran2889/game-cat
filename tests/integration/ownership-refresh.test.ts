@@ -7,6 +7,7 @@ import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.
 import { createHttpApp } from "../../src/server/http/app.ts";
 import { SteamCollectionsRepository } from "../../src/server/library/collections.ts";
 import { GamesRepository } from "../../src/server/library/games.ts";
+import { RuleValuesRepository } from "../../src/server/library/rule-values.ts";
 import { TagsRepository } from "../../src/server/library/tags.ts";
 import { RefreshService } from "../../src/server/refresh/service.ts";
 import { buildStatus } from "../../src/server/status.ts";
@@ -110,6 +111,7 @@ function harness(
     library: {
       games: new GamesRepository(db.raw),
       collections: new SteamCollectionsRepository(db.raw),
+      ruleValues: new RuleValuesRepository(db.raw),
       tags: new TagsRepository(db.raw),
       refresh,
     },
