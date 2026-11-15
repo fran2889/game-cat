@@ -84,8 +84,8 @@ describe("programmatic startup", () => {
     expect(existsSync(join(dataDir, "logs"))).toBe(true);
     expect(existsSync(join(dataDir, "game-cat.lock"))).toBe(true);
     expect(existsSync(join(dataDir, "logs", "game-cat.log"))).toBe(true);
-    // #22 owns the database and migration runner; the shell must not create it.
-    expect(existsSync(join(dataDir, "game-cat.sqlite"))).toBe(false);
+    // #22 owns the database and migration runner.
+    expect(existsSync(join(dataDir, "game-cat.sqlite"))).toBe(true);
 
     if (process.platform !== "win32") {
       expect(statSync(dataDir).mode & 0o777).toBe(0o700);
@@ -248,7 +248,7 @@ describe("startup logging", () => {
     expect(ready?.dataDir).toBe(dataDir);
     expect(ready?.url).toContain("http://127.0.0.1:");
     expect(ready?.nodeVersion).toBe(process.versions.node);
-    expect(ready?.schemaVersion).toBe(0);
+    expect(ready?.schemaVersion).toBe(1);
     expect(ready?.logFile).toBe(join(dataDir, "logs", "game-cat.log"));
     expect(output).not.toContain("SUPER_SECRET_STEAM_KEY");
   });
