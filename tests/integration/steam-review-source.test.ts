@@ -134,7 +134,7 @@ describe("SteamReviewSource request contract", () => {
     );
     expect(REVIEWS_USER_AGENT).toBe(`${APP_NAME}/${APP_VERSION} (local Steam library app)`);
     expect(reviews.name).toBe("steam_reviews");
-    expect(reviews.hostKey).toBe("web_api");
+    expect(reviews.hostKey).toBe("steam_web_api");
   });
 });
 
@@ -190,6 +190,25 @@ describe("SteamReviewSource successful summaries", () => {
     expect(JSON.parse(raw)).toEqual({
       response: { query_summary: body.response.query_summary },
     });
+    expect(raw).not.toContain("synthetic-author");
+    expect(raw).not.toContain("synthetic review text");
+    expect(raw).not.toContain("synthetic-cursor");
+  });
+
+  it("does not store reviews or author identifiers when the summary is missing", async () => {
+    const test = harness();
+    const body = {
+      response: {
+        reviews: [{ author: { steamid: "synthetic-author" }, review: "synthetic review text" }],
+        cursor: "synthetic-cursor",
+      },
+    };
+    const reviews = source(async () => jsonResponse(body));
+
+    expect(await reviews.fetch(test.context)).toEqual({ kind: "unavailable" });
+
+    const raw = reviewRow(test.db)?.raw_reviews_json ?? "";
+    expect(JSON.parse(raw)).toEqual({ response: {} });
     expect(raw).not.toContain("synthetic-author");
     expect(raw).not.toContain("synthetic review text");
     expect(raw).not.toContain("synthetic-cursor");
@@ -493,6 +512,30 @@ describe("SteamReviewSource transport failures", () => {
     const outcome = await reviews.fetch(test.context);
 
     expect(outcome).toMatchObject({ kind: "blocked" });
+    expect(reviewRow(test.db)).toMatchObject({
+      review_positive: 4900,
+      review_total: 5000,
+      review_status: "stale",
+      review_fetched_at: NOW - 60,
+    });
+  });
+
+  it("treats a same-origin 302 as blocked without following it", async () => {
+    const test = harness();
+    seedOk(test);
+    let calls = 0;
+    const reviews = source(async () => {
+      calls += 1;
+      return new Response(JSON.stringify(SUMMARY), {
+        status: 302,
+        headers: { "content-type": "application/json", location: REVIEWS_ENDPOINT },
+      });
+    });
+
+    const outcome = await reviews.fetch(test.context);
+
+    expect(outcome).toMatchObject({ kind: "blocked" });
+    expect(calls).toBe(1);
     expect(reviewRow(test.db)).toMatchObject({
       review_positive: 4900,
       review_total: 5000,

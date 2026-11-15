@@ -590,7 +590,7 @@ describe("Metadata pacing", () => {
   });
 
   it("paces reviews on their own 1.5-second Web API interval", async () => {
-    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "web_api");
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "steam_web_api");
     const test = harness({ sources: [reviews] });
     for (const appId of [1, 2, 3]) {
       seedGame(test.db, appId);
@@ -605,7 +605,7 @@ describe("Metadata pacing", () => {
 
   it("does not delay the first request on separate store and Web API hosts", async () => {
     const storefront = new FakeSource("storefront", () => ({ kind: "ok" }), "store");
-    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "web_api");
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "steam_web_api");
     const test = harness({ sources: [storefront, reviews] });
     seedGame(test.db, 1);
 
@@ -833,7 +833,7 @@ describe("Metadata progress and failure", () => {
       }),
       "store",
     );
-    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "web_api");
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "steam_web_api");
     const test = harness({ sources: [storefront, reviews] });
     for (const appId of [1, 2, 3]) {
       seedGame(test.db, appId);
@@ -859,7 +859,7 @@ describe("Metadata progress and failure", () => {
       () => ({ kind: "blocked", message: "Challenge detected." }),
       "store",
     );
-    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "web_api");
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "steam_web_api");
     const test = harness({ sources: [storefront, reviews] });
     for (const appId of [1, 2]) {
       seedGame(test.db, appId);
@@ -983,7 +983,7 @@ describe("Metadata progress and failure", () => {
         events.push("reviews:end");
         return { kind: "ok" };
       },
-      "web_api",
+      "steam_web_api",
     );
     const test = harness({ sources: [storefront, reviews] });
     seedGame(test.db, 1);

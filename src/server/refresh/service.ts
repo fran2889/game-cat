@@ -165,7 +165,7 @@ const PROGRESS_INTERVAL = 25;
 const PACING_MS: Record<string, number> = {
   steamspy: 1_000,
   store: 1_500,
-  web_api: 1_500,
+  steam_web_api: 1_500,
 };
 
 const SOURCE_ROW_QUERIES: Record<MetadataSourceName, string> = {

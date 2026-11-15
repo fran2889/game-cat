@@ -51,8 +51,8 @@ export interface MetadataSource {
   readonly name: MetadataSourceName;
   /**
    * Sources with the same host key never run concurrently and share a pause
-   * (`storefront` and `steam_reviews` use the store host). Omit for a source
-   * with its own host, such as SteamSpy.
+   * (`storefront` uses `store`; `steam_reviews` uses `steam_web_api`). Omit for
+   * a source with its own host, such as SteamSpy.
    */
   readonly hostKey?: string;
   /** Fetch one Game. Upstream failures are returned, never thrown. */

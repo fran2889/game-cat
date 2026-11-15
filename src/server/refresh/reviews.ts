@@ -8,7 +8,7 @@ import type { MetadataSource, MetadataSourceContext, MetadataSourceOutcome } fro
  *
  * One keyless `IUserReviewsService/GetAppReviews` request per Game. The adapter
  * owns only its `steam_review_summaries` row; the Refresh engine owns retry,
- * pacing, and `source_state`. Reviews use the `web_api` host key.
+ * pacing, and `source_state`. Reviews use the `steam_web_api` host key.
  */
 
 export const REVIEWS_HOST = "api.steampowered.com";
@@ -51,13 +51,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Keep only the aggregate summary. The first-page review exists solely to make
  * Steam return the score fields, so its text and author identifiers are not
- * persisted (spec §3.4, §6.7).
+ * persisted (spec §3.4, §6.7). An envelope without a summary is stored as an
+ * empty response, never as the upstream body.
  */
 function reviewPayload(body: unknown): string {
-  if (isRecord(body) && isRecord(body.response) && isRecord(body.response.query_summary)) {
-    return JSON.stringify({ response: { query_summary: body.response.query_summary } });
-  }
-  return JSON.stringify(body);
+  const response = isRecord(body) && isRecord(body.response) ? body.response : null;
+  const summary =
+    response !== null && isRecord(response.query_summary) ? response.query_summary : null;
+  return JSON.stringify({ response: summary === null ? {} : { query_summary: summary } });
 }
 
 function nonNegativeInteger(value: unknown): number | null {
@@ -254,7 +255,7 @@ function recordEmpty(
 
 export class SteamReviewSource implements MetadataSource {
   readonly name = "steam_reviews" as const;
-  readonly hostKey = "web_api";
+  readonly hostKey = "steam_web_api";
 
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
