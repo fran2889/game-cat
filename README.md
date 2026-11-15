@@ -22,7 +22,11 @@ npm test           # unit and HTTP integration tests
 npm run check      # formatting, Markdown, links, and typecheck
 npm run build      # server and static client in dist/
 npm start          # production-shaped single process
+npm run test:perf  # fixed 20,000-Game / 1,300-Game performance budgets
 ```
+
+`test:perf` builds first, measures p50/p95, and exits non-zero on a missed budget. See
+[docs/perf.md](docs/perf.md) for the fixture seeds, recorded results, and the reference runner.
 
 Use a separate data directory while developing:
 
