@@ -5,7 +5,6 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const ROOT = resolve(import.meta.dirname, "..", "..");
-const TSX = join(ROOT, "node_modules", "tsx", "dist", "cli.mjs");
 const CLI = join(ROOT, "src", "server", "cli.ts");
 
 const children: Array<ReturnType<typeof spawn>> = [];
@@ -31,7 +30,7 @@ function cleanEnv(): NodeJS.ProcessEnv {
 
 function runCli(args: string[]): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolveRun) => {
-    const child = spawn(process.execPath, [TSX, CLI, ...args], {
+    const child = spawn(process.execPath, ["--import", "tsx", CLI, ...args], {
       env: cleanEnv(),
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -88,7 +87,18 @@ describe("CLI", () => {
     const dataDir = mkdtempSync(join(tmpdir(), "game-cat-cli-"));
     const child = spawn(
       process.execPath,
-      [TSX, CLI, "--data-dir", dataDir, "--port", "0", "--no-open", "--log-level", "error"],
+      [
+        "--import",
+        "tsx",
+        CLI,
+        "--data-dir",
+        dataDir,
+        "--port",
+        "0",
+        "--no-open",
+        "--log-level",
+        "error",
+      ],
       { env: cleanEnv(), stdio: ["ignore", "pipe", "pipe"] },
     );
     children.push(child);
@@ -129,4 +139,58 @@ describe("CLI", () => {
     expect(code).toBe(0);
     expect(existsSync(join(dataDir, "game-cat.lock"))).toBe(false);
   });
+
+  it.each(["SIGINT", "SIGHUP"] as const)(
+    "AC-P4 %s also exits 0 and releases the lock",
+    async (signal) => {
+      const dataDir = mkdtempSync(join(tmpdir(), "game-cat-cli-signal-"));
+      const child = spawn(
+        process.execPath,
+        [
+          "--import",
+          "tsx",
+          CLI,
+          "--data-dir",
+          dataDir,
+          "--port",
+          "0",
+          "--no-open",
+          "--log-level",
+          "error",
+        ],
+        { env: cleanEnv(), stdio: ["ignore", "pipe", "pipe"] },
+      );
+      children.push(child);
+
+      let stdout = "";
+      let stderr = "";
+      child.stderr?.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      await new Promise<void>((resolveUrl, rejectUrl) => {
+        const timer = setTimeout(() => {
+          rejectUrl(new Error(`CLI did not print a URL. stderr: ${stderr}`));
+        }, 20_000);
+        child.stdout?.on("data", (chunk: Buffer) => {
+          stdout += chunk.toString();
+          if (/http:\/\/127\.0\.0\.1:\d+\//.test(stdout)) {
+            clearTimeout(timer);
+            resolveUrl();
+          }
+        });
+        child.on("exit", (code) => {
+          clearTimeout(timer);
+          rejectUrl(new Error(`CLI exited early with ${code}. stderr: ${stderr}`));
+        });
+      });
+
+      const exited = new Promise<number | null>((resolveExit) => {
+        child.on("exit", (code) => resolveExit(code));
+      });
+      child.kill(signal);
+      const code = await exited;
+      expect(code).toBe(0);
+      expect(existsSync(join(dataDir, "game-cat.lock"))).toBe(false);
+    },
+  );
 });

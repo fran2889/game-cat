@@ -12,8 +12,10 @@ export interface LoggerOptions {
   filePath?: string | null;
   /** Write to stderr (human-readable on a TTY, JSON otherwise). Default true. */
   stderr?: boolean;
-  /** Additional injectable sink for the v4 wrapper or tests. */
+  /** Additional, always-JSON sink for the v4 wrapper or tests. */
   stream?: Writable;
+  /** Test seam for the stderr destination. Defaults to fd 2. */
+  stderrStream?: Writable;
   /** Force human-readable stderr output. Defaults to process.stderr.isTTY. */
   tty?: boolean;
   maxFileSizeBytes?: number;
@@ -90,26 +92,27 @@ export function createLogger(options: LoggerOptions): AppLogger {
   // stream the startup level would pin that level for the process lifetime.
   const streamLevel = "trace";
 
-  if (tty) {
-    const destination = options.stream ?? (useStderr ? 2 : null);
-    if (destination !== null) {
+  if (useStderr) {
+    if (tty) {
       streams.push({
         level: streamLevel,
         stream: pinoPretty({
-          destination,
+          destination: options.stderrStream ?? 2,
           colorize: false,
           translateTime: "SYS:standard",
           ignore: "pid,hostname",
         }),
       });
-    }
-  } else {
-    if (useStderr) {
+    } else if (options.stderrStream !== undefined) {
+      streams.push({ level: streamLevel, stream: options.stderrStream });
+    } else {
       streams.push({ level: streamLevel, stream: pino.destination({ dest: 2, sync: true }) });
     }
-    if (options.stream !== undefined) {
-      streams.push({ level: streamLevel, stream: options.stream });
-    }
+  }
+  // The injectable sink is always JSON lines, even when stderr is a TTY, so a
+  // wrapper can parse it without stripping pino-pretty formatting.
+  if (options.stream !== undefined) {
+    streams.push({ level: streamLevel, stream: options.stream });
   }
 
   if (filePath !== null) {

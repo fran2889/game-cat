@@ -6,11 +6,21 @@ TypeScript end to end: a Fastify server and a React/Vite client in one Node proc
   v1 specification. It was merged via [#8](https://github.com/fran2889/game-cat/issues/8) and retired
   the earlier data model and API, rule grammar, and run contract drafts.
 - Layout: `src/server` (config, startup, HTTP), `src/client` (React shell and views),
-  `src/shared` (wire types), `tests` (Vitest), `scripts` (dev/build).
-- Commands: `npm run dev`, `npm test`, `npm run check`, `npm run build`, `npm start`.
-  Use `GAME_CAT_DATA_DIR` to keep development data out of the OS data directory.
+  `src/shared` (wire types), `tests` (Vitest and Playwright), `scripts` (dev/build/package checks).
+- Commands: `npm run dev`, `npm test`, `npm run check`, `npm run build`, `npm start`,
+  `npm run test:e2e`, `npm run test:package`. Use `GAME_CAT_DATA_DIR` to keep development data out of
+  the OS data directory.
+- Packaging: `bin`, `files`, and `prepare` are the supported Git-install path. `npm run test:package`
+  packs, installs the tarball into a temporary prefix, and starts the installed binary.
+- Lifecycle: `createServer()` is the library seam; `startServer()` adds SIGINT/SIGTERM/SIGHUP
+  handling. `close()` stops accepting, aborts upstream work, marks an active run `INTERRUPTED`,
+  closes SQLite, releases the lock, and only then resolves. Logs are JSONL in the data directory and
+  human-readable on a TTY; the key and `AccountName` are never logged.
+- Secret storage goes through `SecretStore`; v1 uses `config.json`, and a wrapper can inject another
+  store without changing Refresh or the API.
+- Checks: `npm ci && npm run check && npm test`; CI also builds on Node 24 and 26, runs E2E on Node
+  24 with Chromium, and runs the package smoke test.
 - ADRs: [docs/adr/](docs/adr/).
 - Vocabulary: [GLOSSARY.md](GLOSSARY.md) is canonical.
 - Research notes: `git show research/<slug>:docs/research/<slug>.md`; stable summaries in issues #2, #5, and #14.
 - Tracker: GitHub issues. #1 is the map, #8 the merged v1 contract.
-- Checks: `npm ci && npm run check && npm test`.
