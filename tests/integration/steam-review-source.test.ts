@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.ts";
 import { GamesRepository } from "../../src/server/library/games.ts";
 import {
+  REVIEWS_ENDPOINT,
   REVIEWS_USER_AGENT,
   SteamReviewSource,
   type SteamReviewSourceOptions,
@@ -80,21 +81,27 @@ function source(fetchImpl: FakeFetch, options: SteamReviewSourceOptions = {}): S
   return new SteamReviewSource({ ...options, fetchImpl: fetchImpl as typeof fetch });
 }
 
-const SUMMARY = {
-  success: 1,
-  query_summary: {
-    num_reviews: 0,
-    review_score: 9,
-    review_score_desc: "Overwhelmingly Positive",
-    total_positive: 4900,
-    total_negative: 100,
-    total_reviews: 5000,
-  },
-  reviews: [],
-};
+function summaryBody(summary: Record<string, unknown>): unknown {
+  return { response: { query_summary: summary } };
+}
+
+function requestedAppId(input: RequestInfo | URL): number {
+  const url = new URL(String(input));
+  const inputJson = url.searchParams.get("input_json");
+  return Number(JSON.parse(inputJson ?? "null").appid);
+}
+
+const SUMMARY = summaryBody({
+  num_reviews: 1,
+  review_score: 9,
+  review_score_desc: "Overwhelmingly Positive",
+  total_positive: 4900,
+  total_negative: 100,
+  total_reviews: 5000,
+});
 
 describe("SteamReviewSource request contract", () => {
-  it("requests the documented appreviews URL once with a descriptive User-Agent", async () => {
+  it("requests IUserReviewsService once with the documented summary query", async () => {
     const test = harness();
     const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
     const reviews = source(async (input, init) => {
@@ -106,9 +113,20 @@ describe("SteamReviewSource request contract", () => {
 
     expect(outcome).toEqual({ kind: "ok" });
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe(
-      "https://store.steampowered.com/appreviews/620?json=1&language=all&purchase_type=all&num_per_page=0&l=english",
-    );
+    const url = new URL(calls[0]!.url);
+    expect(`${url.origin}${url.pathname}`).toBe(REVIEWS_ENDPOINT);
+    expect(url.searchParams.get("format")).toBe("json");
+    expect(JSON.parse(url.searchParams.get("input_json") ?? "null")).toEqual({
+      appid: 620,
+      languages: ["all"],
+      purchase_type: 1,
+      review_type: 0,
+      filter: 1,
+      num_per_page: 1,
+      filter_offtopic_activity: false,
+      display_language: "english",
+    });
+    expect(url.searchParams.has("key")).toBe(false);
     expect(calls[0]?.init?.method).toBe("GET");
     expect(calls[0]?.init?.redirect).toBe("manual");
     expect((calls[0]?.init?.headers as Record<string, string>)["user-agent"]).toBe(
@@ -116,7 +134,7 @@ describe("SteamReviewSource request contract", () => {
     );
     expect(REVIEWS_USER_AGENT).toBe(`${APP_NAME}/${APP_VERSION} (local Steam library app)`);
     expect(reviews.name).toBe("steam_reviews");
-    expect(reviews.hostKey).toBe("store");
+    expect(reviews.hostKey).toBe("steam_web_api");
   });
 });
 
@@ -148,6 +166,54 @@ describe("SteamReviewSource successful summaries", () => {
     });
   });
 
+  it("stores only the query summary in the raw payload", async () => {
+    const test = harness();
+    const body = {
+      response: {
+        query_summary: {
+          review_score: 9,
+          review_score_desc: "Overwhelmingly Positive",
+          total_positive: 4900,
+          total_negative: 100,
+          total_reviews: 5000,
+        },
+        reviews: [{ author: { steamid: "synthetic-author" }, review: "synthetic review text" }],
+        cursor: "synthetic-cursor",
+        total_matching: 5000,
+      },
+    };
+    const reviews = source(async () => jsonResponse(body));
+
+    expect(await reviews.fetch(test.context)).toEqual({ kind: "ok" });
+
+    const raw = reviewRow(test.db)?.raw_reviews_json ?? "";
+    expect(JSON.parse(raw)).toEqual({
+      response: { query_summary: body.response.query_summary },
+    });
+    expect(raw).not.toContain("synthetic-author");
+    expect(raw).not.toContain("synthetic review text");
+    expect(raw).not.toContain("synthetic-cursor");
+  });
+
+  it("does not store reviews or author identifiers when the summary is missing", async () => {
+    const test = harness();
+    const body = {
+      response: {
+        reviews: [{ author: { steamid: "synthetic-author" }, review: "synthetic review text" }],
+        cursor: "synthetic-cursor",
+      },
+    };
+    const reviews = source(async () => jsonResponse(body));
+
+    expect(await reviews.fetch(test.context)).toEqual({ kind: "unavailable" });
+
+    const raw = reviewRow(test.db)?.raw_reviews_json ?? "";
+    expect(JSON.parse(raw)).toEqual({ response: {} });
+    expect(raw).not.toContain("synthetic-author");
+    expect(raw).not.toContain("synthetic review text");
+    expect(raw).not.toContain("synthetic-cursor");
+  });
+
   it("rounds the computed score half away from zero", async () => {
     const test = harness(1);
     test.db.raw
@@ -162,45 +228,33 @@ describe("SteamReviewSource successful summaries", () => {
     const responses = new Map<number, unknown>([
       [
         1,
-        {
-          success: 1,
-          query_summary: {
-            total_positive: 1,
-            total_negative: 7,
-            total_reviews: 8,
-            review_score_desc: "Mixed",
-          },
-        },
+        summaryBody({
+          total_positive: 1,
+          total_negative: 7,
+          total_reviews: 8,
+          review_score_desc: "Mixed",
+        }),
       ],
       [
         8,
-        {
-          success: 1,
-          query_summary: {
-            total_positive: 3,
-            total_negative: 5,
-            total_reviews: 8,
-            review_score_desc: "Mixed",
-          },
-        },
+        summaryBody({
+          total_positive: 3,
+          total_negative: 5,
+          total_reviews: 8,
+          review_score_desc: "Mixed",
+        }),
       ],
       [
         9,
-        {
-          success: 1,
-          query_summary: {
-            total_positive: 0,
-            total_negative: 10,
-            total_reviews: 10,
-            review_score_desc: "Very Negative",
-          },
-        },
+        summaryBody({
+          total_positive: 0,
+          total_negative: 10,
+          total_reviews: 10,
+          review_score_desc: "Very Negative",
+        }),
       ],
     ]);
-    const reviews = source(async (input) => {
-      const appId = Number(new URL(String(input)).pathname.split("/").at(-1));
-      return jsonResponse(responses.get(appId));
-    });
+    const reviews = source(async (input) => jsonResponse(responses.get(requestedAppId(input))));
 
     await reviews.fetch(test.context);
     await reviews.fetch({
@@ -221,18 +275,14 @@ describe("SteamReviewSource successful summaries", () => {
 
   it("stores a known zero with no tier and computes no score", async () => {
     const test = harness();
-    const body = {
-      success: 1,
-      query_summary: {
-        num_reviews: 0,
-        review_score: 0,
-        review_score_desc: "No user reviews",
-        total_positive: 0,
-        total_negative: 0,
-        total_reviews: 0,
-      },
-      reviews: [],
-    };
+    const body = summaryBody({
+      num_reviews: 1,
+      review_score: 0,
+      review_score_desc: "No user reviews",
+      total_positive: 0,
+      total_negative: 0,
+      total_reviews: 0,
+    });
     const reviews = source(async () => jsonResponse(body));
 
     expect(await reviews.fetch(test.context)).toEqual({ kind: "unavailable" });
@@ -267,10 +317,10 @@ describe("SteamReviewSource empty responses", () => {
       .run(APP_ID, fetchedAt, fetchedAt);
   }
 
-  it("keeps last-known-good values as stale when success is 0", async () => {
+  it("keeps last-known-good values as stale when the response has no summary", async () => {
     const test = harness();
     seedOk(test);
-    const reviews = source(async () => jsonResponse({ success: 0, reviews: [] }));
+    const reviews = source(async () => jsonResponse({ response: {} }));
 
     expect(await reviews.fetch(test.context)).toEqual({ kind: "unavailable" });
     expect(reviewRow(test.db)).toMatchObject({
@@ -282,15 +332,12 @@ describe("SteamReviewSource empty responses", () => {
       review_fetched_at: NOW - 60,
     });
     expect(reviewRow(test.db)?.review_error).toMatch(/no usable review summary/i);
-    expect(JSON.parse(reviewRow(test.db)?.raw_reviews_json ?? "null")).toEqual({
-      success: 0,
-      reviews: [],
-    });
+    expect(JSON.parse(reviewRow(test.db)?.raw_reviews_json ?? "null")).toEqual({ response: {} });
   });
 
-  it("clears values as unavailable when success is 0 and nothing is cached", async () => {
+  it("clears values as unavailable when the response has no summary and nothing is cached", async () => {
     const test = harness();
-    const reviews = source(async () => jsonResponse({ success: 0 }));
+    const reviews = source(async () => jsonResponse({ response: {} }));
 
     expect(await reviews.fetch(test.context)).toEqual({ kind: "unavailable" });
     expect(reviewRow(test.db)).toMatchObject({
@@ -309,9 +356,9 @@ describe("SteamReviewSource empty responses", () => {
     });
   });
 
-  it("treats a missing query_summary the same as success 0", async () => {
+  it("treats a missing response envelope as unavailable", async () => {
     const test = harness();
-    const reviews = source(async () => jsonResponse({ success: 1 }));
+    const reviews = source(async () => jsonResponse({}));
 
     expect(await reviews.fetch(test.context)).toEqual({ kind: "unavailable" });
     expect(reviewRow(test.db)).toMatchObject({
@@ -324,15 +371,14 @@ describe("SteamReviewSource empty responses", () => {
   it("never stores a non-empty tier with zero reviews", async () => {
     const test = harness();
     const reviews = source(async () =>
-      jsonResponse({
-        success: 1,
-        query_summary: {
+      jsonResponse(
+        summaryBody({
           total_positive: 0,
           total_negative: 0,
           total_reviews: 0,
           review_score_desc: "No user reviews",
-        },
-      }),
+        }),
+      ),
     );
 
     await reviews.fetch(test.context);
@@ -353,15 +399,12 @@ describe("SteamReviewSource malformed responses", () => {
   }
 
   function inconsistent(): unknown {
-    return {
-      success: 1,
-      query_summary: {
-        total_positive: 5,
-        total_negative: 3,
-        total_reviews: 9,
-        review_score_desc: "Mixed",
-      },
-    };
+    return summaryBody({
+      total_positive: 5,
+      total_negative: 3,
+      total_reviews: 9,
+      review_score_desc: "Mixed",
+    });
   }
 
   it("keeps last-known-good values as stale for inconsistent counts", async () => {
@@ -397,6 +440,14 @@ describe("SteamReviewSource malformed responses", () => {
       review_status: "error",
       review_error: "The Steam reviews response had inconsistent counts.",
     });
+  });
+
+  it("treats a non-object response envelope as malformed", async () => {
+    const test = harness();
+    const reviews = source(async () => jsonResponse({ response: "nope" }));
+
+    expect(await reviews.fetch(test.context)).toMatchObject({ kind: "error" });
+    expect(reviewRow(test.db)?.review_status).toBe("error");
   });
 
   it("keeps last-known-good values for malformed JSON", async () => {
@@ -461,6 +512,30 @@ describe("SteamReviewSource transport failures", () => {
     const outcome = await reviews.fetch(test.context);
 
     expect(outcome).toMatchObject({ kind: "blocked" });
+    expect(reviewRow(test.db)).toMatchObject({
+      review_positive: 4900,
+      review_total: 5000,
+      review_status: "stale",
+      review_fetched_at: NOW - 60,
+    });
+  });
+
+  it("treats a same-origin 302 as blocked without following it", async () => {
+    const test = harness();
+    seedOk(test);
+    let calls = 0;
+    const reviews = source(async () => {
+      calls += 1;
+      return new Response(JSON.stringify(SUMMARY), {
+        status: 302,
+        headers: { "content-type": "application/json", location: REVIEWS_ENDPOINT },
+      });
+    });
+
+    const outcome = await reviews.fetch(test.context);
+
+    expect(outcome).toMatchObject({ kind: "blocked" });
+    expect(calls).toBe(1);
     expect(reviewRow(test.db)).toMatchObject({
       review_positive: 4900,
       review_total: 5000,
@@ -595,15 +670,14 @@ describe("SteamReviewSource state transitions", () => {
     });
 
     response = () =>
-      jsonResponse({
-        success: 1,
-        query_summary: {
+      jsonResponse(
+        summaryBody({
           total_positive: 4990,
           total_negative: 10,
           total_reviews: 5000,
           review_score_desc: "Overwhelmingly Positive",
-        },
-      });
+        }),
+      );
     const recovered = { ...test.context, now: NOW + 120 };
     expect(await reviews.fetch(recovered)).toEqual({ kind: "ok" });
     expect(reviewRow(test.db)).toMatchObject({
@@ -616,22 +690,19 @@ describe("SteamReviewSource state transitions", () => {
 
   it("keeps a known zero as last-known-good when a later response fails", async () => {
     const test = harness();
-    const zero = {
-      success: 1,
-      query_summary: {
-        total_positive: 0,
-        total_negative: 0,
-        total_reviews: 0,
-        review_score_desc: "No user reviews",
-      },
-    };
+    const zero = summaryBody({
+      total_positive: 0,
+      total_negative: 0,
+      total_reviews: 0,
+      review_score_desc: "No user reviews",
+    });
     let response = () => jsonResponse(zero);
     const reviews = source(async () => response());
 
     await reviews.fetch(test.context);
     expect(reviewRow(test.db)).toMatchObject({ review_total: 0, review_status: "unavailable" });
 
-    response = () => jsonResponse({ success: 1, query_summary: { total_positive: 1 } });
+    response = () => jsonResponse(summaryBody({ total_positive: 1 }));
     await reviews.fetch({ ...test.context, now: NOW + 60 });
 
     expect(reviewRow(test.db)).toMatchObject({

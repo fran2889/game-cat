@@ -6,27 +6,59 @@ import type { MetadataSource, MetadataSourceContext, MetadataSourceOutcome } fro
 /**
  * Steam review summary adapter (spec §2.3, §6.1, §6.7).
  *
- * One keyless `appreviews` request per Game. The adapter owns only its
- * `steam_review_summaries` row; the Refresh engine owns retry, pacing, and
- * `source_state`. It shares the `store` host key with the storefront adapter.
+ * One keyless `IUserReviewsService/GetAppReviews` request per Game. The adapter
+ * owns only its `steam_review_summaries` row; the Refresh engine owns retry,
+ * pacing, and `source_state`. Reviews use the `steam_web_api` host key.
  */
 
-export const REVIEWS_HOST = "store.steampowered.com";
+export const REVIEWS_HOST = "api.steampowered.com";
+export const REVIEWS_ENDPOINT = `https://${REVIEWS_HOST}/IUserReviewsService/GetAppReviews/v1/`;
 export const REVIEWS_USER_AGENT = `${APP_NAME}/${APP_VERSION} (local Steam library app)`;
 
 const DEFAULT_TIMEOUT_MS = 15_000;
+
+/**
+ * The documented summary-only request. `filter: 1` (Recent) avoids the Helpful
+ * filter's day-range widening; `review_type: 0` (All) is required for the score
+ * fields; `num_per_page: 1` is the smallest first page that returns them.
+ */
+const REVIEW_QUERY = {
+  languages: ["all"],
+  purchase_type: 1,
+  review_type: 0,
+  filter: 1,
+  num_per_page: 1,
+  filter_offtopic_activity: false,
+  display_language: "english",
+};
 
 export interface SteamReviewSourceOptions {
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
 }
 
-function reviewsUrl(appId: number): string {
-  return `https://${REVIEWS_HOST}/appreviews/${appId}?json=1&language=all&purchase_type=all&num_per_page=0&l=english`;
+function reviewsUrl(appId: number): URL {
+  const url = new URL(REVIEWS_ENDPOINT);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("input_json", JSON.stringify({ appid: appId, ...REVIEW_QUERY }));
+  return url;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Keep only the aggregate summary. The first-page review exists solely to make
+ * Steam return the score fields, so its text and author identifiers are not
+ * persisted (spec §3.4, §6.7). An envelope without a summary is stored as an
+ * empty response, never as the upstream body.
+ */
+function reviewPayload(body: unknown): string {
+  const response = isRecord(body) && isRecord(body.response) ? body.response : null;
+  const summary =
+    response !== null && isRecord(response.query_summary) ? response.query_summary : null;
+  return JSON.stringify({ response: summary === null ? {} : { query_summary: summary } });
 }
 
 function nonNegativeInteger(value: unknown): number | null {
@@ -51,11 +83,17 @@ export function parseReviewSummary(
   if (!isRecord(body)) {
     return { kind: "malformed", message: "The Steam reviews response was not an object." };
   }
-  if (body.success !== 1 || !isRecord(body.query_summary)) {
+  if (body.response === undefined) {
+    return { kind: "empty" };
+  }
+  if (!isRecord(body.response)) {
+    return { kind: "malformed", message: "The Steam reviews response was not an object." };
+  }
+  if (!isRecord(body.response.query_summary)) {
     return { kind: "empty" };
   }
 
-  const summary = body.query_summary;
+  const summary = body.response.query_summary;
   const positive = nonNegativeInteger(summary.total_positive);
   const negative = nonNegativeInteger(summary.total_negative);
   const total = nonNegativeInteger(summary.total_reviews);
@@ -217,7 +255,7 @@ function recordEmpty(
 
 export class SteamReviewSource implements MetadataSource {
   readonly name = "steam_reviews" as const;
-  readonly hostKey = "store";
+  readonly hostKey = "steam_web_api";
 
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
@@ -311,15 +349,15 @@ export class SteamReviewSource implements MetadataSource {
 
       const parsed = parseReviewSummary(body);
       if (parsed.kind === "ok") {
-        recordSuccess(db, game.appId, now, parsed.counts, JSON.stringify(body));
+        recordSuccess(db, game.appId, now, parsed.counts, reviewPayload(body));
         return { kind: "ok" };
       }
       if (parsed.kind === "zero") {
-        recordZero(db, game.appId, now, JSON.stringify(body));
+        recordZero(db, game.appId, now, reviewPayload(body));
         return { kind: "unavailable" };
       }
       if (parsed.kind === "empty") {
-        recordEmpty(db, game.appId, now, JSON.stringify(body));
+        recordEmpty(db, game.appId, now, reviewPayload(body));
         return { kind: "unavailable" };
       }
       recordFailure(db, game.appId, now, parsed.message);
