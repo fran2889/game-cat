@@ -1,0 +1,606 @@
+{
+  "name": "Perf 100 Rules",
+  "description": "Fixed 100-Rule fixture for the v1 performance budget (34 AND, 33 OR, 33 NOT). Missing Tags are intentional: they keep OR/NOT from short-circuiting so the evaluator performs the full per-Game work.",
+  "rules": [
+    {
+      "prefix": "AND",
+      "field": "playtime",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "playtime",
+      "operator": "lte",
+      "value": 100000000
+    },
+    {
+      "prefix": "AND",
+      "field": "playtime",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "playtime",
+      "operator": "lte",
+      "value": 100000000
+    },
+    {
+      "prefix": "AND",
+      "field": "releaseYear",
+      "operator": "gte",
+      "value": 1000
+    },
+    {
+      "prefix": "AND",
+      "field": "releaseYear",
+      "operator": "lte",
+      "value": 9999
+    },
+    {
+      "prefix": "AND",
+      "field": "releaseYear",
+      "operator": "gte",
+      "value": 1000
+    },
+    {
+      "prefix": "AND",
+      "field": "releaseYear",
+      "operator": "lte",
+      "value": 9999
+    },
+    {
+      "prefix": "AND",
+      "field": "metacriticScore",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "metacriticScore",
+      "operator": "lte",
+      "value": 100
+    },
+    {
+      "prefix": "AND",
+      "field": "metacriticScore",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "reviewScore",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "reviewScore",
+      "operator": "lte",
+      "value": 100
+    },
+    {
+      "prefix": "AND",
+      "field": "reviewScore",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "reviewCount",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "reviewCount",
+      "operator": "lte",
+      "value": 100000000
+    },
+    {
+      "prefix": "AND",
+      "field": "reviewCount",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "playtime",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "name",
+      "operator": "contains",
+      "value": "a"
+    },
+    {
+      "prefix": "AND",
+      "field": "name",
+      "operator": "contains",
+      "value": "e"
+    },
+    {
+      "prefix": "AND",
+      "field": "name",
+      "operator": "contains",
+      "value": "game"
+    },
+    {
+      "prefix": "AND",
+      "field": "name",
+      "operator": "contains",
+      "value": "perf"
+    },
+    {
+      "prefix": "AND",
+      "field": "playtime",
+      "operator": "lte",
+      "value": 100000000
+    },
+    {
+      "prefix": "AND",
+      "field": "releaseYear",
+      "operator": "gte",
+      "value": 1000
+    },
+    {
+      "prefix": "AND",
+      "field": "metacriticScore",
+      "operator": "lte",
+      "value": 100
+    },
+    {
+      "prefix": "AND",
+      "field": "reviewScore",
+      "operator": "lte",
+      "value": 100
+    },
+    {
+      "prefix": "AND",
+      "field": "reviewCount",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "playtime",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "releaseYear",
+      "operator": "lte",
+      "value": 9999
+    },
+    {
+      "prefix": "AND",
+      "field": "metacriticScore",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "reviewScore",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "AND",
+      "field": "reviewCount",
+      "operator": "lte",
+      "value": 100000000
+    },
+    {
+      "prefix": "AND",
+      "field": "name",
+      "operator": "contains",
+      "value": "e"
+    },
+    {
+      "prefix": "AND",
+      "field": "playtime",
+      "operator": "lte",
+      "value": 100000000
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 01"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 02"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 03"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 04"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 05"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 06"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 07"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 08"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 09"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 10"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 11"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 12"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 13"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 14"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 15"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 16"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 17"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 18"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 19"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 20"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 21"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 22"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 23"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 24"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 25"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 26"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 27"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 28"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 29"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 30"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 31"
+    },
+    {
+      "prefix": "OR",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Missing Tag 32"
+    },
+    {
+      "prefix": "OR",
+      "field": "playtime",
+      "operator": "gte",
+      "value": 0
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 01"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 02"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 03"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 04"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 05"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 06"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 07"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 08"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 09"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 10"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 11"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 12"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 13"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 14"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 15"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 16"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 17"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 18"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 19"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 20"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 21"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 22"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 23"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 24"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 25"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 26"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 27"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 28"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 29"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 30"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 31"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 32"
+    },
+    {
+      "prefix": "NOT",
+      "field": "tag",
+      "operator": "has",
+      "value": "Perf Never Matching Tag 33"
+    }
+  ]
+}

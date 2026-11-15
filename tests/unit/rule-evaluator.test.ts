@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Rule } from "../../src/shared/rules.ts";
 import {
+  compileRules,
   evaluateRuleIds,
   gameMatchesRules,
+  testRule,
   type RuleTarget,
 } from "../../src/server/library/rule-evaluator.ts";
 import { WORKED_CASES, WORKED_LIBRARY } from "../helpers/rule-fixture.ts";
@@ -55,6 +57,56 @@ describe("§5.8 worked cases", () => {
   it("produces ascending App IDs regardless of Rule order", () => {
     for (const worked of WORKED_CASES) {
       expect(matches([...worked.rules].reverse())).toEqual(worked.matches);
+    }
+  });
+});
+
+describe("compiled matcher equivalence", () => {
+  /** The literal §5.5.2 grouping over the single-Rule predicate. */
+  function reference(rules: readonly Rule[], target: RuleTarget): boolean {
+    for (const rule of rules) {
+      if (rule.prefix === "AND" && !testRule(rule, target)) {
+        return false;
+      }
+    }
+    if (rules.some((rule) => rule.prefix === "OR")) {
+      if (!rules.some((rule) => rule.prefix === "OR" && testRule(rule, target))) {
+        return false;
+      }
+    }
+    for (const rule of rules) {
+      if (rule.prefix === "NOT" && testRule(rule, target)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  it("agrees with the literal grouping for every worked case and Game", () => {
+    for (const worked of WORKED_CASES) {
+      const compiled = compileRules(worked.rules);
+      for (const target of WORKED_LIBRARY) {
+        expect(compiled.matches(target), `case ${worked.number} app ${target.appId}`).toBe(
+          reference(worked.rules, target),
+        );
+      }
+    }
+  });
+
+  it("agrees on mixed prefix arrays, text normalization, dates, and list fields", () => {
+    const cases: Rule[][] = [
+      [rule("AND", "tag", "has", "  CO-OP "), rule("OR", "genre", "has", "Action")],
+      [rule("NOT", "lastPlayed", "gte", "2024-01-01"), rule("AND", "name", "contains", "A")],
+      [rule("OR", "platform", "has", "LINUX"), rule("OR", "steamCollection", "has", "favorite")],
+      [rule("AND", "game", "in", [10, 620]), rule("NOT", "installed", "is", true)],
+      [rule("AND", "reviewScore", "gte", 0), rule("NOT", "reviewCount", "lt", 0)],
+      [rule("OR", "name", "is", "alpha"), rule("OR", "reviewTier", "is", "mixed")],
+    ];
+    for (const rules of cases) {
+      const compiled = compileRules(rules);
+      for (const target of WORKED_LIBRARY) {
+        expect(compiled.matches(target), JSON.stringify(rules)).toBe(reference(rules, target));
+      }
     }
   });
 });

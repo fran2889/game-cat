@@ -23,6 +23,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
+    "test:perf": "npm run build && tsx scripts/perf/run.ts",
+    "perf:fixtures": "tsx scripts/perf/print-fixtures.ts",
     "typecheck": "tsc -p tsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
