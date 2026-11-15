@@ -149,6 +149,9 @@ export interface FetchGamesParams {
   tagsStatus?: string;
   storeStatus?: string;
   reviewStatus?: string;
+  tagsFetched?: boolean;
+  storeFetched?: boolean;
+  reviewFetched?: boolean;
 }
 
 export interface RefreshRequestBody {
