@@ -38,7 +38,6 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
         className="card-open"
         to={{ pathname: `/games/${game.appId}`, search: location.search }}
         state={{ backgroundLocation: location }}
-        aria-label={`${game.name}, ${formatPlaytime(game.playtimeMinutes)}`}
       >
         <div className="game-cover-wrap">
           <GameCover appId={game.appId} name={game.name} />
