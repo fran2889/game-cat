@@ -111,6 +111,23 @@ function seedMetadata(
   }
 }
 
+/** Replace the Library with `count` Games that have no Metadata rows. */
+function seedGames(app: TestApp, count: number): void {
+  const db = app.server.database.raw;
+  db.prepare("DELETE FROM games").run();
+  const insert = db.prepare(
+    `INSERT INTO games (
+       app_id, name, name_key, name_source, ownership_status, installed,
+       playtime_minutes, source_mask, first_seen_at, last_seen_at
+     ) VALUES (?, ?, ?, 'local', 'owned', 0, 0, 1, 1, 1)`,
+  );
+  db.transaction(() => {
+    for (let appId = 1; appId <= count; appId += 1) {
+      insert.run(appId, `Game ${appId}`, `game ${appId}`);
+    }
+  })();
+}
+
 function latestRun(
   app: TestApp,
 ): { id: number; scope: string; mode: string | null; app_ids_json: string | null } | undefined {
@@ -308,6 +325,33 @@ test("a failed run shows the run error and Retry, and INTERRUPTED explains resum
   }
 });
 
+test("an interrupted Fetch shows only attempted failures as affected", async ({ page }) => {
+  const app = await startTestApp({ games: 5, metadataSources: fakeSources() });
+  try {
+    insertRun(app, {
+      scope: "metadata",
+      mode: "fetch",
+      status: "failed",
+      startedAt: NOW() - 60,
+      finishedAt: NOW() - 20,
+      errorCode: "INTERRUPTED",
+      errorMessage: "The Refresh run was interrupted. The next Fetch resumes pending work.",
+    });
+    seedMetadata(app, "steamspy", [
+      { appId: 620, status: "stale" },
+      { appId: 570, status: "error" },
+      { appId: 730, status: "missing", fetchedAt: null },
+    ]);
+
+    await page.goto(`${app.url}errors`);
+    const steamspy = page.locator('.error-row[data-source="steamspy"]');
+    await expect(steamspy).toContainText("2 affected Games · 3 pending");
+    await expect(steamspy.getByRole("button", { name: "Select affected" })).toBeEnabled();
+  } finally {
+    await app.close();
+  }
+});
+
 test("ownership failure shows counts and actions, and Retry sends ownership", async ({ page }) => {
   const app = await startTestApp({ games: 5, metadataSources: fakeSources() });
   try {
@@ -370,7 +414,8 @@ test("/errors lists five source rows in order with health, backoff, and safe err
       { appId: 570, status: "stale" },
       { appId: 730, status: "error" },
       { appId: 1004, status: "ok" },
-      { appId: 1005, status: "ok" },
+      // A settled miss is neither affected nor pending.
+      { appId: 1005, status: "missing", fetchedAt: 1 },
     ]);
     seedMetadata(app, "storefront", [
       { appId: 620, status: "error" },
@@ -410,7 +455,7 @@ test("/errors lists five source rows in order with health, backoff, and safe err
     await expect(steamspy).toContainText("Last attempt");
     await expect(steamspy).toContainText("Retry after");
     await expect(steamspy).toContainText("SteamSpy is rate limited.");
-    await expect(steamspy).toContainText("3 affected Games");
+    await expect(steamspy).toContainText("2 affected Games · 1 pending");
     await expect(steamspy.getByRole("button", { name: "Fetch now" })).toBeVisible();
     await expect(steamspy.getByRole("button", { name: "Select affected" })).toBeEnabled();
 
@@ -421,7 +466,7 @@ test("/errors lists five source rows in order with health, backoff, and safe err
       "The store returned malformed JSON.",
     );
     await expect(page.locator('.error-row[data-source="storefront"]')).toContainText(
-      "3 affected Games",
+      "2 affected Games · 1 pending",
     );
 
     // No per-Game error text or raw payload ever crosses this surface.
@@ -446,19 +491,72 @@ test("Select affected excludes ok/unavailable and Refresh selected sends metadat
 
     await page.goto(`${app.url}errors`);
     const steamspy = page.locator('.error-row[data-source="steamspy"]');
-    await expect(steamspy).toContainText("3 affected Games");
+    await expect(steamspy).toContainText("2 affected Games · 1 pending");
     await steamspy.getByRole("button", { name: "Select affected" }).click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.locator(".selection-count")).toHaveText("3 selected");
-    await expect(page.locator(".game-card.is-selected")).toHaveCount(3);
+    await expect(page.locator(".selection-count")).toHaveText("2 selected");
+    await expect(page.locator(".game-card.is-selected")).toHaveCount(2);
 
     const before = latestRun(app)?.id ?? 0;
     await page.getByRole("button", { name: "Refresh selected" }).click();
     await expect.poll(() => latestRun(app)?.id ?? 0, { timeout: 5_000 }).toBeGreaterThan(before);
     const run = latestRun(app);
     expect(run).toMatchObject({ scope: "metadata", mode: "full" });
-    expect(JSON.parse(run?.app_ids_json ?? "[]")).toEqual([570, 620, 730]);
+    expect(JSON.parse(run?.app_ids_json ?? "[]")).toEqual([570, 730]);
+  } finally {
+    await app.close();
+  }
+});
+
+test("a fresh Library shows pending Games as pending, never as affected", async ({ page }) => {
+  const app = await startTestApp({ games: 5, metadataSources: fakeSources() });
+  try {
+    await page.goto(`${app.url}errors`);
+    for (const source of ["steamspy", "storefront", "steam_reviews"]) {
+      const row = page.locator(`.error-row[data-source="${source}"]`);
+      await expect(row).toContainText("0 affected Games · 5 pending");
+      await expect(row.getByRole("button", { name: "Select affected" })).toBeDisabled();
+    }
+  } finally {
+    await app.close();
+  }
+});
+
+test("a fresh 1,300-Game Library shows 0 affected and 1,300 pending", async ({ page }) => {
+  const app = await startTestApp({ empty: true, metadataSources: fakeSources() });
+  try {
+    seedGames(app, 1_300);
+
+    await page.goto(`${app.url}errors`);
+    const steamspy = page.locator('.error-row[data-source="steamspy"]');
+    await expect(steamspy).toContainText("0 affected Games · 1,300 pending");
+    await expect(steamspy.getByRole("button", { name: "Select affected" })).toBeDisabled();
+  } finally {
+    await app.close();
+  }
+});
+
+test("Select affected pages all 201 affected Games into the selection", async ({ page }) => {
+  const app = await startTestApp({ empty: true, metadataSources: fakeSources() });
+  try {
+    seedGames(app, 201);
+    seedMetadata(
+      app,
+      "steamspy",
+      Array.from({ length: 201 }, (_, index) => ({
+        appId: index + 1,
+        status: "stale" as const,
+      })),
+    );
+
+    await page.goto(`${app.url}errors`);
+    const steamspy = page.locator('.error-row[data-source="steamspy"]');
+    await expect(steamspy).toContainText("201 affected Games · 0 pending");
+
+    await steamspy.getByRole("button", { name: "Select affected" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator(".selection-count")).toHaveText("201 selected");
   } finally {
     await app.close();
   }

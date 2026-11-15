@@ -958,6 +958,111 @@ describe("GET /api/tags", () => {
   });
 });
 
+describe("GET /api/games fetched filters", () => {
+  const FETCHED_SOURCES = [
+    {
+      table: "steamspy_appdetails",
+      statusColumn: "tags_status",
+      fetchedColumn: "tags_fetched_at",
+      statusParam: "tagsStatus",
+      fetchedParam: "tagsFetched",
+    },
+    {
+      table: "storefront_appdetails",
+      statusColumn: "store_status",
+      fetchedColumn: "store_fetched_at",
+      statusParam: "storeStatus",
+      fetchedParam: "storeFetched",
+    },
+    {
+      table: "steam_review_summaries",
+      statusColumn: "review_status",
+      fetchedColumn: "review_fetched_at",
+      statusParam: "reviewStatus",
+      fetchedParam: "reviewFetched",
+    },
+  ] as const;
+
+  function seedFetchedStatuses(): Harness {
+    const test = harness();
+    for (const appId of [1, 2, 3, 4, 5, 6]) {
+      seedGame(test.db, appId);
+    }
+    for (const source of FETCHED_SOURCES) {
+      const insert = test.db.raw.prepare(
+        `INSERT INTO ${source.table} (app_id, ${source.statusColumn}, ${source.fetchedColumn}, updated_at)
+         VALUES (?, ?, ?, 1)`,
+      );
+      insert.run(1, "ok", 10);
+      insert.run(2, "missing", 10);
+      insert.run(3, "missing", null);
+      insert.run(4, "stale", 10);
+      insert.run(6, "error", null);
+      // Game 5 has no row and reads as never-attempted missing.
+    }
+    return test;
+  }
+
+  it("separates never-attempted pending misses from settled misses for every source", async () => {
+    const test = seedFetchedStatuses();
+    for (const source of FETCHED_SOURCES) {
+      for (const [fetched, expected] of [
+        ["false", [3, 5]],
+        ["true", [2]],
+      ] as const) {
+        const label = `${source.fetchedParam}=${fetched}`;
+        const response = await get(
+          test.app,
+          `/api/games?${source.statusParam}=missing&${source.fetchedParam}=${fetched}&sort=appId`,
+        );
+        expect(response.statusCode, label).toBe(200);
+        expect(
+          (response.json() as { data: GameSummary[] }).data.map((game) => game.appId),
+          label,
+        ).toEqual(expected);
+      }
+    }
+  });
+
+  it("counts a fresh Library as pending, never as affected", async () => {
+    const test = harness();
+    for (let appId = 1; appId <= 1_300; appId += 1) {
+      seedGame(test.db, appId);
+    }
+    for (const source of FETCHED_SOURCES) {
+      for (const [query, expected] of [
+        [`${source.statusParam}=missing&${source.fetchedParam}=false`, 1_300],
+        [`${source.statusParam}=stale`, 0],
+        [`${source.statusParam}=error`, 0],
+      ] as const) {
+        const response = await get(test.app, `/api/games?${query}&pageSize=1`);
+        expect(response.statusCode, query).toBe(200);
+        expect(
+          (response.json() as { pagination: { totalItems: number } }).pagination.totalItems,
+          query,
+        ).toBe(expected);
+      }
+    }
+  });
+
+  it("validates fetched booleans", async () => {
+    const test = harness();
+    for (const [field, value] of [
+      ["tagsFetched", "yes"],
+      ["storeFetched", "1"],
+      ["reviewFetched", "TRUE"],
+    ] as const) {
+      const response = await get(test.app, `/api/games?${field}=${value}`);
+      expect(response.statusCode, field).toBe(422);
+      const body = response.json() as {
+        error: { code: string; details: { fieldErrors: Record<string, string> } };
+      };
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.details.fieldErrors).toHaveProperty(field);
+    }
+  });
+});
+
 describe("GET /api/games?tagsStatus", () => {
   function seedStatuses(): Harness {
     const test = harness();
