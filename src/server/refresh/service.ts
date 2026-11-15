@@ -6,6 +6,7 @@ import type {
   RefreshScope,
   RefreshStatus,
 } from "../../shared/types.ts";
+import { MAX_REFRESH_APP_IDS } from "../../shared/types.ts";
 import { readBoundSteamId64 } from "../db/database.ts";
 import { HttpError } from "../errors.ts";
 import {
@@ -27,6 +28,7 @@ import {
   type MetadataSourceName,
   type MetadataSourceOutcome,
 } from "./sources.ts";
+import { toIsoTimestamp as toIso } from "../timestamps.ts";
 
 /**
  * The general Refresh engine (spec §2.6, §4.3, §6.2-§6.4, §8.7).
@@ -84,6 +86,8 @@ export interface RefreshServiceOptions {
   /** Server-side only. Never logged, stored, or returned. */
   steamApiKey?: string | null;
   now?: () => number;
+  /** Monotonic milliseconds for request pacing. Tests pair it with `sleep`. */
+  nowMs?: () => number;
   scan?: typeof scanLocalLibrary;
   /** Injectable ownership adapter. Tests use a fake; production builds one from the key. */
   ownershipSource?: SteamOwnershipSource;
@@ -108,6 +112,12 @@ interface PhaseError {
   error: ErrorDetail | null;
   partial: boolean;
   fatal: boolean;
+}
+
+/** A shared-host pause: skipped passes inherit the reason that caused it. */
+interface HostPause {
+  until: number;
+  reason: "rate_limited" | "blocked";
 }
 
 interface LibraryPhaseResult extends PhaseError {
@@ -147,6 +157,15 @@ const MAX_ATTEMPTS = 5;
 const CIRCUIT_FAILURES = 5;
 const BLOCK_SECONDS = 15 * 60;
 const PROGRESS_INTERVAL = 25;
+/**
+ * Serial request pacing from §6.1: SteamSpy is about one request/second, and
+ * the storefront and reviews share 200 requests per 5 minutes (~1.5 seconds).
+ * The first request for a host is never delayed.
+ */
+const PACING_MS: Record<string, number> = {
+  steamspy: 1_000,
+  store: 1_500,
+};
 
 const SOURCE_ROW_QUERIES: Record<MetadataSourceName, string> = {
   steamspy:
@@ -159,10 +178,6 @@ const SOURCE_ROW_QUERIES: Record<MetadataSourceName, string> = {
 
 function unixSeconds(): number {
   return Math.floor(Date.now() / 1000);
-}
-
-function toIso(seconds: number | null): string | null {
-  return seconds === null ? null : new Date(seconds * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 function emptyCounters(): SourceCounters {
@@ -346,8 +361,8 @@ function validateAppIds(value: unknown): { appIds: number[] | null; error: strin
   if (value.length === 0) {
     return { appIds: null, error: "must contain at least one App ID" };
   }
-  if (value.length > 5_000) {
-    return { appIds: null, error: "must contain at most 5,000 App IDs" };
+  if (value.length > MAX_REFRESH_APP_IDS) {
+    return { appIds: null, error: `must contain at most ${MAX_REFRESH_APP_IDS} App IDs` };
   }
   const seen = new Set<number>();
   for (const entry of value) {
@@ -393,7 +408,7 @@ function parseRefreshRequest(body: unknown): RefreshRequest {
   let mode: RefreshMode | null = null;
 
   if (validScope === "library" || validScope === "ownership") {
-    if (modeProvided && rawMode !== null) {
+    if (modeProvided) {
       fieldErrors.mode = `${validScope} runs do not accept a mode`;
     }
   } else if (validScope === "all") {
@@ -415,7 +430,9 @@ function parseRefreshRequest(body: unknown): RefreshRequest {
   }
 
   const rawAppIds = record.appIds;
-  const appIdsProvided = rawAppIds !== undefined && rawAppIds !== null;
+  // An explicit `null` is not a valid selection for any scope; only an omitted
+  // key is "not provided".
+  const appIdsProvided = rawAppIds !== undefined;
   let appIds: number[] | null = null;
   if (validScope === "metadata" && mode === "full") {
     if (rawAppIds === undefined || rawAppIds === null) {
@@ -449,6 +466,7 @@ function parseRefreshRequest(body: unknown): RefreshRequest {
 export class RefreshService {
   private readonly db: BetterSqlite3.Database;
   private readonly now: () => number;
+  private readonly nowMs: () => number;
   private readonly jitter: () => number;
   private readonly sleep: (milliseconds: number) => Promise<void>;
   private readonly sources: MetadataSourceRegistry;
@@ -463,6 +481,7 @@ export class RefreshService {
   constructor(private readonly options: RefreshServiceOptions) {
     this.db = options.db;
     this.now = options.now ?? unixSeconds;
+    this.nowMs = options.nowMs ?? (() => performance.now());
     this.jitter = options.jitter ?? Math.random;
     this.sleep = options.sleep ?? ((milliseconds) => this.sleepUnlessStopped(milliseconds));
     this.sources =
@@ -616,6 +635,26 @@ export class RefreshService {
       const timer = setTimeout(finish, milliseconds);
       this.stopController.signal.addEventListener("abort", finish, { once: true });
     });
+  }
+
+  /**
+   * Serial per-host pacing (§6.1). The map holds the last request time in
+   * milliseconds; the first request for a host is not delayed. Tests inject a
+   * fake clock through `sleep` and `nowMs`, so no suite actually waits.
+   */
+  private async pace(pacingKey: string, lastRequestAt: Map<string, number>): Promise<void> {
+    const intervalMs = PACING_MS[pacingKey] ?? 0;
+    if (intervalMs <= 0) {
+      return;
+    }
+    const last = lastRequestAt.get(pacingKey);
+    if (last === undefined) {
+      return;
+    }
+    const waitMs = Math.ceil(last + intervalMs - this.nowMs());
+    if (waitMs > 0) {
+      await this.sleep(waitMs);
+    }
   }
 
   private steamIdForRun(scope: RefreshScope): string | null {
@@ -1026,12 +1065,15 @@ export class RefreshService {
 
   private async executeAll(row: RefreshRow, config: RunConfig): Promise<void> {
     const library = this.performLibraryPhase(config);
+    const libraryWarnings = { ...library.result.stats.warnings };
+    const allStats = (stats: InternalMetadataStats): string =>
+      JSON.stringify({ ...stats, warnings: libraryWarnings });
     if (library.fatal) {
       this.finishRun(row.id, {
         status: "failed",
         total: null,
         done: 0,
-        stats: JSON.stringify(emptyInternalStats()),
+        stats: allStats(emptyInternalStats()),
         error: library.error,
       });
       return;
@@ -1052,7 +1094,7 @@ export class RefreshService {
         status: "failed",
         total: null,
         done: 0,
-        stats: JSON.stringify(emptyInternalStats()),
+        stats: allStats(emptyInternalStats()),
         error: ownership.error,
       });
       return;
@@ -1062,7 +1104,7 @@ export class RefreshService {
         status: "failed",
         total: null,
         done: 0,
-        stats: JSON.stringify(emptyInternalStats()),
+        stats: allStats(emptyInternalStats()),
         error: ownership.error,
       });
       return;
@@ -1081,7 +1123,7 @@ export class RefreshService {
         status: "failed",
         total: metadata.total,
         done: metadata.done,
-        stats: JSON.stringify(metadata.stats),
+        stats: allStats(metadata.stats),
         error: metadata.error,
       });
       return;
@@ -1113,7 +1155,7 @@ export class RefreshService {
       status: partial ? "partial" : "succeeded",
       total: metadata.total,
       done: metadata.done,
-      stats: JSON.stringify(metadata.stats),
+      stats: allStats(metadata.stats),
       error,
     });
   }
@@ -1327,7 +1369,9 @@ export class RefreshService {
       }
     }
 
-    const hostPause = new Map<string, number>();
+    const hostPause = new Map<string, HostPause>();
+    /** Last upstream request time in milliseconds, per host key, for pacing. */
+    const lastRequestAt = new Map<string, number>();
     let lastPersistedDone = plan.done;
     const persistIfNeeded = (): void => {
       if (plan.done - lastPersistedDone >= PROGRESS_INTERVAL) {
@@ -1341,7 +1385,7 @@ export class RefreshService {
         if (this.stopping) {
           return;
         }
-        await this.executeSourcePass(source, plan, hostPause, persistIfNeeded);
+        await this.executeSourcePass(source, plan, hostPause, lastRequestAt, persistIfNeeded);
       }
     };
 
@@ -1374,7 +1418,8 @@ export class RefreshService {
   private async executeSourcePass(
     source: MetadataSource,
     plan: SelectionPlan,
-    hostPause: Map<string, number>,
+    hostPause: Map<string, HostPause>,
+    lastRequestAt: Map<string, number>,
     persistIfNeeded: () => void,
   ): Promise<void> {
     const items = plan.items.get(source.name) ?? [];
@@ -1382,20 +1427,23 @@ export class RefreshService {
       return;
     }
     const hostKey = source.hostKey ?? `source:${source.name}`;
+    const pacingKey = source.hostKey ?? source.name;
     const now = this.now();
-    const pausedUntil = hostPause.get(hostKey) ?? null;
-    if (pausedUntil !== null && pausedUntil > now) {
+    const pause = hostPause.get(hostKey) ?? null;
+    if (pause !== null && pause.until > now) {
       plan.stats.sources[source.name].skipped += items.length;
       plan.partial = true;
       for (const item of items) {
         this.resolveGame(plan, item.appId);
       }
       plan.items.set(source.name, []);
+      // A skipped pass inherits the pause reason from §6.8: a block stays
+      // `blocked`, a 429 stays `rate_limited`.
       this.updateMetadataSourceState(source.name, {
-        status: "rate_limited",
+        status: pause.reason,
         lastAttemptAt: null,
         lastSuccessAt: null,
-        retryAfterAt: pausedUntil,
+        retryAfterAt: pause.until,
         lastError: "The shared store host is paused until its retry time.",
       });
       persistIfNeeded();
@@ -1418,6 +1466,14 @@ export class RefreshService {
 
       while (true) {
         attempt += 1;
+        if (this.stopping) {
+          return;
+        }
+        await this.pace(pacingKey, lastRequestAt);
+        if (this.stopping) {
+          return;
+        }
+        lastRequestAt.set(pacingKey, this.nowMs());
         let outcome: MetadataSourceOutcome;
         try {
           outcome = await source.fetch({
@@ -1448,8 +1504,11 @@ export class RefreshService {
         if (outcome.kind === "rate_limited") {
           const at = this.now();
           const until = outcome.retryAfterAt ?? at + this.backoffSeconds(attempt);
-          const previous = hostPause.get(hostKey) ?? 0;
-          hostPause.set(hostKey, Math.max(previous, until));
+          const previous = hostPause.get(hostKey);
+          hostPause.set(hostKey, {
+            until: Math.max(previous?.until ?? 0, until),
+            reason: "rate_limited",
+          });
           this.updateMetadataSourceState(source.name, {
             status: "rate_limited",
             lastAttemptAt: at,
@@ -1466,8 +1525,11 @@ export class RefreshService {
         if (outcome.kind === "blocked") {
           const at = this.now();
           const until = at + BLOCK_SECONDS;
-          const previous = hostPause.get(hostKey) ?? 0;
-          hostPause.set(hostKey, Math.max(previous, until));
+          const previous = hostPause.get(hostKey);
+          hostPause.set(hostKey, {
+            until: Math.max(previous?.until ?? 0, until),
+            reason: "blocked",
+          });
           this.updateMetadataSourceState(source.name, {
             status: "blocked",
             lastAttemptAt: at,

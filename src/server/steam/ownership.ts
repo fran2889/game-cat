@@ -1,4 +1,5 @@
 import { APP_NAME, APP_VERSION } from "../../shared/app.ts";
+import { parseRetryAfter } from "./retry-after.ts";
 
 /**
  * Steam Web API ownership adapter (spec §6.10).
@@ -74,19 +75,6 @@ function ownershipUrl(apiKey: string, steamId64: string): URL {
   url.searchParams.set("language", "english");
   url.searchParams.set("format", "json");
   return url;
-}
-
-/** Parse Retry-After as delta-seconds or an HTTP date; anything else is unknown. */
-export function parseRetryAfter(value: string | null, now: number): number | null {
-  if (value === null) {
-    return null;
-  }
-  const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) {
-    return now + Number.parseInt(trimmed, 10);
-  }
-  const parsed = Date.parse(trimmed);
-  return Number.isNaN(parsed) ? null : Math.floor(parsed / 1000);
 }
 
 function nonNegativeInteger(value: unknown): number | null {

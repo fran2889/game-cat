@@ -14,7 +14,7 @@ const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 const status: Status = {
   app: { version: APP_VERSION, dbSchemaVersion: 0 },
-  steam: { state: "not_found", root: null, account: null },
+  steam: { state: "not_found", root: null, ambiguous: false, account: null },
   ownership: {
     state: "not_configured",
     gameCount: 0,

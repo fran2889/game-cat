@@ -68,6 +68,7 @@ export function OnboardingView() {
     null;
   const steamMissing = status?.steam.state === "not_found";
   const noAccount = status?.steam.state === "no_account";
+  const ambiguousAccount = status?.steam.ambiguous === true;
   const invalidKey = status?.ownership.state === "invalid_key";
   const emptyRoster = status?.ownership.state === "empty" && status.library.gameCount > 0;
 
@@ -170,6 +171,21 @@ export function OnboardingView() {
         </div>
       </header>
 
+      {ambiguousAccount && (
+        <div className="banner banner-warning" role="status" data-testid="ambiguous-account">
+          <div>
+            <strong>Several Steam Accounts were found.</strong>
+            <p>
+              game-cat selected the most recently used Account. Confirm the right one below before
+              scanning; the picker stays available here and in Settings.
+            </p>
+          </div>
+          <a className="button" href="#steam-account">
+            Choose Account
+          </a>
+        </div>
+      )}
+
       {invalidKey && (
         <div className="banner banner-error" role="alert">
           <div>
@@ -269,7 +285,7 @@ export function OnboardingView() {
           </div>
         </li>
 
-        <li className="setup-step">
+        <li className="setup-step" id="steam-account">
           <span className="step-number" aria-hidden="true">
             2
           </span>

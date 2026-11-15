@@ -86,6 +86,50 @@ test("Scan saves the key with PATCH and then starts all + Fetch", async ({ page 
   }
 });
 
+test("an ambiguous multi-Account selection warns and offers the picker without AccountName", async ({
+  page,
+}) => {
+  const app = await startTestApp({ games: 5, noKey: true, ambiguousAccount: true });
+  try {
+    await page.goto(app.url);
+    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(page.getByTestId("ambiguous-account")).toBeVisible();
+    await expect(
+      page.getByTestId("ambiguous-account").getByText("Several Steam Accounts were found."),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("ambiguous-account").getByRole("link", { name: "Choose Account" }),
+    ).toHaveAttribute("href", "#steam-account");
+    await expect(page.getByRole("radio")).toHaveCount(2);
+    await expect(page.getByRole("radio", { name: /First Player/ })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /Second Player/ })).toBeVisible();
+
+    const body = await page.locator("body").innerText();
+    expect(body).not.toContain("test-account");
+    expect(body).not.toContain("fixture-account");
+    expect(body).not.toContain("AccountName");
+  } finally {
+    await app.close();
+  }
+});
+
+test("a configured Library warns about ambiguous Accounts and links to the picker", async ({
+  page,
+}) => {
+  const app = await startTestApp({ games: 5, ambiguousAccount: true });
+  try {
+    await page.goto(app.url);
+    await expect(page.getByTestId("ambiguous-account-warning")).toBeVisible();
+    await page.getByRole("link", { name: "Choose Account" }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole("combobox", { name: "Steam Account" })).toBeVisible();
+    await expect(page.getByRole("option", { name: /First Player/ })).toHaveCount(1);
+    await expect(page.getByRole("option", { name: /Second Player/ })).toHaveCount(1);
+  } finally {
+    await app.close();
+  }
+});
+
 test("missing Steam and no Account render documented onboarding guidance", async ({ page }) => {
   const missing = await startTestApp({ games: 5, noKey: true, steamMissing: true });
   try {

@@ -11,6 +11,7 @@ import {
 import { GamesRepository, type OwnershipCounts } from "./library/games.ts";
 import { readActiveRefresh, readLastRefresh } from "./refresh/service.ts";
 import type { SteamDiscovery } from "./steam/discovery.ts";
+import { toIsoTimestamp as toIso } from "./timestamps.ts";
 
 export interface BuildStatusInput {
   discovery: SteamDiscovery;
@@ -20,10 +21,6 @@ export interface BuildStatusInput {
   version?: string;
   /** When provided, Library counts, scan state, and source health come from SQLite. */
   db?: BetterSqlite3.Database;
-}
-
-function toIso(seconds: number | null): string | null {
-  return seconds === null ? null : new Date(seconds * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 interface SourceRow {
@@ -72,12 +69,16 @@ interface OwnershipStateRow {
   status: SourceStatus;
   last_success_at: number | null;
   last_attempt_at: number | null;
+  last_error: string | null;
 }
 
-interface OwnershipRunErrorRow {
-  error_code: string | null;
-  error_message: string | null;
-}
+/** Map a persisted ownership source failure to the documented ErrorDetail code. */
+const OWNERSHIP_ERROR_CODES: Partial<Record<SourceStatus, string>> = {
+  invalid_key: "INVALID_KEY",
+  rate_limited: "RATE_LIMITED",
+  error: "OWNERSHIP_REQUEST_FAILED",
+  partial: "OWNERSHIP_PARTIAL",
+};
 
 function ownershipState(status: SourceStatus | undefined): OwnershipState {
   return status !== undefined && (OWNERSHIP_STATES as readonly string[]).includes(status)
@@ -85,21 +86,21 @@ function ownershipState(status: SourceStatus | undefined): OwnershipState {
     : "unknown";
 }
 
-/** The last ownership failure, or `null` when the latest run succeeded. */
+/**
+ * The last ownership failure from either an `ownership` run or the ownership
+ * phase of an `all` run. Both phases write `source_state.steam_web_api`, so the
+ * latest safe message and status are the source of truth.
+ */
 function ownershipError(db: BetterSqlite3.Database): ErrorDetail | null {
   const row = db
-    .prepare(
-      `SELECT error_code, error_message FROM refresh_runs
-       WHERE scope = 'ownership'
-       ORDER BY id DESC LIMIT 1`,
-    )
-    .get() as OwnershipRunErrorRow | undefined;
-  if (row === undefined || row.error_code === null) {
+    .prepare("SELECT status, last_error FROM source_state WHERE name = 'steam_web_api'")
+    .get() as { status: SourceStatus; last_error: string | null } | undefined;
+  if (row === undefined || row.last_error === null) {
     return null;
   }
   return {
-    code: row.error_code,
-    message: row.error_message ?? "The ownership Refresh failed.",
+    code: OWNERSHIP_ERROR_CODES[row.status] ?? "OWNERSHIP_REQUEST_FAILED",
+    message: row.last_error,
   };
 }
 
@@ -114,7 +115,9 @@ function ownershipStatus(
   error: ErrorDetail | null;
 } {
   const row = db
-    .prepare("SELECT status, last_success_at, last_attempt_at FROM source_state WHERE name = ?")
+    .prepare(
+      "SELECT status, last_success_at, last_attempt_at, last_error FROM source_state WHERE name = ?",
+    )
     .get("steam_web_api") as OwnershipStateRow | undefined;
   const state =
     row === undefined || row.status === "unknown"
@@ -216,6 +219,7 @@ export function buildStatus(input: BuildStatusInput): Status {
       steam: {
         state: input.discovery.state,
         root: input.discovery.root,
+        ambiguous: input.discovery.ambiguous,
         account: input.discovery.account,
       },
       ownership: {
@@ -257,6 +261,7 @@ export function buildStatus(input: BuildStatusInput): Status {
     steam: {
       state: input.discovery.state,
       root: input.discovery.root,
+      ambiguous: input.discovery.ambiguous,
       account: input.discovery.account,
     },
     ownership: {

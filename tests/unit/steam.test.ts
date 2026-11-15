@@ -80,6 +80,7 @@ describe("Steam discovery", () => {
       accountId: "39734272",
       personaName: "Fran",
     });
+    expect(result.ambiguous).toBe(false);
   });
 
   it("AC-A21 never exposes AccountName through discovery", () => {
@@ -110,6 +111,7 @@ describe("Steam discovery", () => {
     });
     expect(result.state).toBe("ready");
     expect(result.account?.steamId64).toBe("76561198000000002");
+    expect(result.ambiguous).toBe(false);
   });
 
   it("falls back to the newest Timestamp when MostRecent is ambiguous", () => {
@@ -125,6 +127,7 @@ describe("Steam discovery", () => {
       homedir: "/home/tester",
     });
     expect(result.account?.steamId64).toBe("76561198000000002");
+    expect(result.ambiguous).toBe(true);
   });
 
   it("AC-C17 reports no_account when the pinned account is absent", () => {

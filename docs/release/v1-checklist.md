@@ -31,13 +31,13 @@ All commands were run from the worktree root after `npm ci`.
 | ----------------------- | ------ | ----------------------------------------------------------------------------- |
 | `npm ci`                | PASS   | 397 packages; 0 production advisories                                         |
 | `npm run check`         | PASS   | Prettier, Markdownlint, link validation, typecheck, both audits               |
-| `npm test`              | PASS   | 43 files, 588 tests                                                           |
+| `npm test`              | PASS   | 44 files, 613 tests (unit, integration, and contract)                         |
 | `npm run build`         | PASS   | `dist/client`, `dist/server`, `dist/migrations`                               |
-| `npm run test:e2e`      | PASS   | 79 Playwright tests with headless Chromium                                    |
+| `npm run test:e2e`      | PASS   | 81 Playwright tests with headless Chromium                                    |
 | `npm run test:package`  | PASS   | Pack, temporary-prefix global install, `--help`, `--version`, status, SIGTERM |
 | `npm run test:perf`     | PASS   | All nine budgets; results below                                               |
-| `npm run audit:tests`   | PASS   | 63 test files; no focused or skipped test                                     |
-| `npm run audit:secrets` | PASS   | 193 text files; no key, `AccountName`, or raw user path                       |
+| `npm run audit:tests`   | PASS   | 64 test files; no focused or skipped test                                     |
+| `npm run audit:secrets` | PASS   | 197 text files; no key, `AccountName`, or raw user path                       |
 
 `npm audit --omit=dev` reports 0 vulnerabilities. `npm ci` reports 13 dev-only advisories (4 low,
 9 moderate); they are recorded here and are not a runtime dependency.
@@ -62,14 +62,14 @@ The LCP check also asserts the 1,300-Game pagination invariant: exactly 60 cards
 
 ### Acceptance-quality matrix
 
-| Criterion | Result here    | Note                                                                                       |
-| --------- | -------------- | ------------------------------------------------------------------------------------------ |
-| `AC-Q1`   | PASS           | `npm ci && npm run check`                                                                  |
-| `AC-Q2`   | PASS           | Unit, integration, contract, and E2E suites pass; the new guard rejects focus/skip markers |
-| `AC-Q3`   | NOT SIGNED OFF | Budgets pass on this host, but it is not the 4 vCPU / 8 GB / Node 24 reference runner      |
-| `AC-Q4`   | PARTIAL        | Linux item-by-item results below; real-Steam and macOS/Windows items are not verified      |
-| `AC-Q5`   | PASS           | Tracked and new non-ignored text files; `.git` history was not scanned                     |
-| `AC-Q6`   | PASS           | `npm run build` from the worktree                                                          |
+| Criterion | Result here    | Note                                                                                                                                     |
+| --------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `AC-Q1`   | PASS           | `npm ci && npm run check`                                                                                                                |
+| `AC-Q2`   | PASS           | Unit, integration, contract (Ajv JSON Schema over handlers and §4.2 examples), and E2E suites pass; the guard rejects focus/skip markers |
+| `AC-Q3`   | NOT SIGNED OFF | Budgets pass on this host, but it is not the 4 vCPU / 8 GB / Node 24 reference runner                                                    |
+| `AC-Q4`   | PARTIAL        | Linux item-by-item results below; real-Steam and macOS/Windows items are not verified                                                    |
+| `AC-Q5`   | PASS           | Tracked and new non-ignored text files; `.git` history was not scanned                                                                   |
+| `AC-Q6`   | PASS           | `npm run build` from the worktree                                                                                                        |
 
 ## Linux checklist
 
@@ -158,7 +158,7 @@ Web API key, an `AccountName` value outside the synthetic allowlist, or a raw
 `npm run audit:tests` scans the test tree for `.only`, `.skip`, `.fixme`, `.todo`, `xit`, `xdescribe`,
 and the focused aliases.
 
-- Result: 193 text files, no key, `AccountName`, or raw user path; 63 test files, no focused or skipped
+- Result: 197 text files, no key, `AccountName`, or raw user path; 64 test files, no focused or skipped
   test.
 - The live run's generated JSONL log was also checked: no `AccountName`, no account name value, and no
   key. The integration suites assert the same for a known key (`tests/integration/config-api.test.ts`,

@@ -213,8 +213,8 @@ describe("POST /api/rules/preview worked cases", () => {
 
     db.raw
       .prepare(
-        `INSERT INTO refresh_runs (scope, mode, status, started_at, finished_at, done)
-         VALUES ('library', NULL, 'succeeded', 1_700_000_000, 1_700_000_100, 7)`,
+        `UPDATE source_state SET status = 'ok', last_success_at = 1_700_000_100
+         WHERE name = 'steam_local'`,
       )
       .run();
     const filled = await preview(app, { rules: [] });
@@ -255,6 +255,14 @@ describe("POST /api/rules/preview validation", () => {
     const { app } = harness();
     const rule = { prefix: "AND", field: "tag", operator: "has", value: "Co-op" };
     const response = await preview(app, { rules: Array.from({ length: 101 }, () => rule) });
+    expect(response.statusCode).toBe(422);
+    const body = response.json() as { error: { details: { fieldErrors: Record<string, string> } } };
+    expect(body.error.details.fieldErrors).toHaveProperty("rules");
+  });
+
+  it("rejects an explicit null Rules value as the wrong JSON type", async () => {
+    const { app } = harness();
+    const response = await preview(app, { rules: null });
     expect(response.statusCode).toBe(422);
     const body = response.json() as { error: { details: { fieldErrors: Record<string, string> } } };
     expect(body.error.details.fieldErrors).toHaveProperty("rules");

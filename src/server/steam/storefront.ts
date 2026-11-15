@@ -6,7 +6,7 @@ import type {
   MetadataSourceContext,
   MetadataSourceOutcome,
 } from "../refresh/sources.ts";
-import { parseRetryAfter } from "./ownership.ts";
+import { parseRetryAfter } from "./retry-after.ts";
 
 /**
  * The canonical Steam storefront adapter (spec §2.3, §2.7, §6.1, §6.6).
