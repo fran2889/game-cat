@@ -1,6 +1,12 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { normalizeNameKey } from "../../shared/names.ts";
-import type { GameDetail, GamePlatforms, GameSummary, Pagination } from "../../shared/types.ts";
+import type {
+  GameDetail,
+  GamePlatforms,
+  GameSummary,
+  GameTag,
+  Pagination,
+} from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
 
 export const GAME_SORTS = [
@@ -229,7 +235,7 @@ function parsePlatforms(raw: string | null): GamePlatforms | null {
   }
 }
 
-export function toGameSummary(row: GamesRow): GameSummary {
+export function toGameSummary(row: GamesRow, tags: GameTag[] = []): GameSummary {
   return {
     appId: row.app_id,
     name: row.name,
@@ -244,8 +250,8 @@ export function toGameSummary(row: GamesRow): GameSummary {
     reviewCount: row.review_total,
     type: row.type,
     platforms: parsePlatforms(row.platforms_json),
-    // Tags belong to the Metadata slice; the Library intentionally shows [].
-    tags: [],
+    // GameSummary carries at most three Tags (§4.2); GameDetail carries all.
+    tags: tags.slice(0, 3),
     metadata: {
       tagsStatus: row.tags_status,
       storeStatus: row.store_status,
@@ -254,13 +260,42 @@ export function toGameSummary(row: GamesRow): GameSummary {
   };
 }
 
+/** Load Tags for a page of Games in one query, ordered by votes then name. */
+export function readTagsForGames(
+  db: BetterSqlite3.Database,
+  appIds: number[],
+): Map<number, GameTag[]> {
+  const tags = new Map<number, GameTag[]>();
+  if (appIds.length === 0) {
+    return tags;
+  }
+  const placeholders = appIds.map(() => "?").join(", ");
+  const rows = db
+    .prepare(
+      `SELECT gt.app_id AS app_id, t.name AS name, gt.votes AS votes
+       FROM game_tags gt
+       JOIN tags t ON t.id = gt.tag_id
+       WHERE gt.app_id IN (${placeholders})
+       ORDER BY gt.app_id ASC, gt.votes DESC, t.name ASC, t.id ASC`,
+    )
+    .all(...appIds) as Array<{ app_id: number; name: string; votes: number }>;
+  for (const row of rows) {
+    const list = tags.get(row.app_id) ?? [];
+    list.push({ name: row.name, votes: row.votes });
+    tags.set(row.app_id, list);
+  }
+  return tags;
+}
+
 function toDetail(
   row: GamesRow,
   steamCollections: Array<{ id: string; name: string; kind: string }>,
+  tags: GameTag[],
 ): GameDetail {
-  const summary = toGameSummary(row);
+  const summary = toGameSummary(row, tags);
   return {
     ...summary,
+    tags,
     releaseDateRaw: row.release_date_raw,
     developers: parseJsonArray(row.developers_json),
     publishers: parseJsonArray(row.publishers_json),
@@ -364,9 +399,13 @@ export class GamesRepository {
     const rows = this.db
       .prepare(`SELECT * FROM v_games ${whereSql} ${orderSql} LIMIT ? OFFSET ?`)
       .all(...parameters, query.pageSize, offset) as GamesRow[];
+    const tags = readTagsForGames(
+      this.db,
+      rows.map((row) => row.app_id),
+    );
 
     return {
-      data: rows.map(toGameSummary),
+      data: rows.map((row) => toGameSummary(row, tags.get(row.app_id) ?? [])),
       pagination: {
         page: query.page,
         pageSize: query.pageSize,
@@ -380,7 +419,14 @@ export class GamesRepository {
   get(appId: number): GameDetail | null {
     const row = this.db.prepare("SELECT * FROM v_games WHERE app_id = ?").get(appId) as
       GamesRow | undefined;
-    return row === undefined ? null : toDetail(row, this.collectionsFor(appId));
+    if (row === undefined) {
+      return null;
+    }
+    return toDetail(
+      row,
+      this.collectionsFor(appId),
+      readTagsForGames(this.db, [appId]).get(appId) ?? [],
+    );
   }
 
   /** Static Steam Collections containing the Game, for GameDetail. */

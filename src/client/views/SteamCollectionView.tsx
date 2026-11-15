@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { SteamCollectionGamesResponse, SteamCollectionSummary } from "../../shared/types.ts";
 import { ApiError, fetchSteamCollection, fetchSteamCollectionGames } from "../api.ts";
-import { GameCard } from "../components/GameCard.tsx";
+import { useBrowse } from "../browse-context.tsx";
+import { GameResults } from "../components/GameResults.tsx";
+import { Pagination } from "../components/Pagination.tsx";
+import { ResultsHeader } from "../components/ResultsHeader.tsx";
+import { SelectionBar } from "../components/SelectionBar.tsx";
+import { formatTimestamp } from "../format.ts";
 
 const PAGE_SIZE = 60;
 
@@ -41,6 +46,8 @@ function kindLabel(kind: SteamCollectionSummary["kind"]): string {
 
 export function SteamCollectionView() {
   const { id = "" } = useParams();
+  const { sort, order, layout, selectedCount, isSelected, selectShown, clearSelection } =
+    useBrowse();
   const [summary, setSummary] = useState<SteamCollectionSummary | null>(null);
   const [members, setMembers] = useState<SteamCollectionGamesResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,12 +86,16 @@ export function SteamCollectionView() {
     return () => controller.abort();
   }, [id]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [sort, order, layout]);
+
   const loadMembers = useCallback(
     (signal?: AbortSignal) => {
       if (id === "") {
         return;
       }
-      void fetchSteamCollectionGames(id, { page, pageSize: PAGE_SIZE }, signal)
+      void fetchSteamCollectionGames(id, { page, pageSize: PAGE_SIZE, sort, order }, signal)
         .then((next) => {
           setMembers(next);
           setError(null);
@@ -100,7 +111,7 @@ export function SteamCollectionView() {
           }
         });
     },
-    [id, page],
+    [id, order, page, sort],
   );
 
   useEffect(() => {
@@ -181,7 +192,9 @@ export function SteamCollectionView() {
 
   const totalItems = members?.pagination.totalItems ?? summary.gameCount ?? 0;
   const totalPages = members?.pagination.totalPages ?? 0;
+  const dataAsOf = members?.meta.dataAsOf ?? null;
   const rows = members?.data ?? [];
+  const allShownSelected = rows.length > 0 && rows.every((game) => isSelected(game.appId));
 
   if (members === null) {
     return (
@@ -195,46 +208,42 @@ export function SteamCollectionView() {
   return (
     <section className="library" aria-labelledby="collection-heading">
       {header}
-      <div className="library-summary">
-        <p>
-          {totalItems} {totalItems === 1 ? "game" : "games"}
-        </p>
-      </div>
 
       {totalItems === 0 ? (
-        <section className="empty-library" aria-labelledby="empty-collection-heading">
-          <h2 id="empty-collection-heading">This Steam Collection is empty</h2>
-          <p>Steam returned no static members for this Collection.</p>
-        </section>
+        <>
+          {selectedCount > 0 && <SelectionBar />}
+          <section className="empty-library" aria-labelledby="empty-collection-heading">
+            <h2 id="empty-collection-heading">This Steam Collection is empty</h2>
+            <p>Steam returned no static members for this Collection.</p>
+          </section>
+        </>
       ) : (
         <>
-          <div className="game-grid">
-            {rows.map((game) => (
-              <GameCard key={game.appId} game={game} />
-            ))}
-          </div>
+          <SelectionBar />
+          <ResultsHeader
+            totalItems={totalItems}
+            shownItems={rows.length}
+            filtered={false}
+            allShownSelected={allShownSelected}
+            hasGames={rows.length > 0}
+            selectionCount={selectedCount}
+            onSelectShown={() => selectShown(rows.map((game) => game.appId))}
+            onClearSelection={clearSelection}
+          />
+          <GameResults games={rows} />
           {totalPages > 0 && (
-            <nav className="pagination" aria-label="Pagination">
-              <button
-                type="button"
-                className="button"
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-                disabled={page <= 1}
-              >
-                Previous
-              </button>
-              <span aria-live="polite">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                type="button"
-                className="button"
-                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                disabled={page >= totalPages}
-              >
-                Next
-              </button>
-            </nav>
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              totalItems={totalItems}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
+          )}
+          {dataAsOf !== null && (
+            <footer className="results-footer">
+              Data as of <time dateTime={dataAsOf}>{formatTimestamp(dataAsOf)}</time>
+            </footer>
           )}
         </>
       )}

@@ -417,6 +417,46 @@ describe("GET /api/games/{appId}", () => {
     const invalid = await get(test.app, "/api/games/not-a-number");
     expect(invalid.statusCode).toBe(404);
   });
+
+  it("exposes Tags with votes in summaries and the full list in detail", async () => {
+    const test = harness();
+    seedGame(test.db, 620, { name: "Portal 2" });
+    test.db.raw
+      .prepare("INSERT INTO tags (id, name, name_key) VALUES (1, 'Puzzle', 'puzzle')")
+      .run();
+    test.db.raw.prepare("INSERT INTO tags (id, name, name_key) VALUES (2, 'Co-op', 'co-op')").run();
+    test.db.raw
+      .prepare("INSERT INTO tags (id, name, name_key) VALUES (3, 'Action', 'action')")
+      .run();
+    test.db.raw.prepare("INSERT INTO tags (id, name, name_key) VALUES (4, 'Funny', 'funny')").run();
+    test.db.raw
+      .prepare("INSERT INTO game_tags (app_id, tag_id, votes) VALUES (620, 1, 31415)")
+      .run();
+    test.db.raw
+      .prepare("INSERT INTO game_tags (app_id, tag_id, votes) VALUES (620, 2, 21000)")
+      .run();
+    test.db.raw
+      .prepare("INSERT INTO game_tags (app_id, tag_id, votes) VALUES (620, 3, 9000)")
+      .run();
+    test.db.raw
+      .prepare("INSERT INTO game_tags (app_id, tag_id, votes) VALUES (620, 4, 9000)")
+      .run();
+
+    const list = (await get(test.app, "/api/games")).json() as { data: GameSummary[] };
+    expect(list.data[0]?.tags).toEqual([
+      { name: "Puzzle", votes: 31415 },
+      { name: "Co-op", votes: 21000 },
+      { name: "Action", votes: 9000 },
+    ]);
+
+    const detail = ((await get(test.app, "/api/games/620")).json() as { data: GameDetail }).data;
+    expect(detail.tags).toEqual([
+      { name: "Puzzle", votes: 31415 },
+      { name: "Co-op", votes: 21000 },
+      { name: "Action", votes: 9000 },
+      { name: "Funny", votes: 9000 },
+    ]);
+  });
 });
 
 describe("Steam Collection API", () => {

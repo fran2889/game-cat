@@ -1,4 +1,7 @@
 import type {
+  GameDetailResponse,
+  GameOrder,
+  GameSort,
   GamesResponse,
   RefreshRun,
   Status,
@@ -51,8 +54,8 @@ export interface FetchGamesParams {
   page?: number;
   pageSize?: number;
   search?: string;
-  sort?: "name" | "playtime" | "lastPlayed" | "releaseYear" | "metacritic" | "appId";
-  order?: "asc" | "desc";
+  sort?: GameSort;
+  order?: GameOrder;
   installed?: boolean;
 }
 
@@ -80,6 +83,36 @@ export async function fetchGames(
     throw new ApiError((error as Error).message, null);
   }
   return readJson<GamesResponse>(response);
+}
+
+export async function fetchGameDetail(
+  appId: number,
+  signal?: AbortSignal,
+): Promise<GameDetailResponse["data"]> {
+  let response: Response;
+  try {
+    response = await fetch(`/api/games/${appId}`, {
+      headers: { accept: "application/json" },
+      signal,
+    });
+  } catch (error) {
+    if ((error as Error).name === "AbortError") {
+      throw error;
+    }
+    throw new ApiError((error as Error).message, null);
+  }
+  const body = await readJson<GameDetailResponse>(response);
+  return body.data;
+}
+
+export async function startMetadataRefresh(appIds: number[]): Promise<RefreshRun> {
+  const response = await fetch("/api/refresh", {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify({ scope: "metadata", mode: "full", appIds }),
+  });
+  const body = await readJson<{ data: RefreshRun }>(response);
+  return body.data;
 }
 
 export async function startLibraryScan(): Promise<RefreshRun> {
@@ -127,8 +160,8 @@ export async function fetchSteamCollection(
 }
 
 export interface FetchSteamCollectionGamesParams extends FetchSteamCollectionsParams {
-  sort?: "name" | "playtime" | "lastPlayed" | "releaseYear" | "metacritic" | "appId";
-  order?: "asc" | "desc";
+  sort?: GameSort;
+  order?: GameOrder;
 }
 
 export async function fetchSteamCollectionGames(
