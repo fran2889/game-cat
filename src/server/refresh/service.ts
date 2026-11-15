@@ -1388,6 +1388,8 @@ export class RefreshService {
     let consecutiveFailures = 0;
     let successes = 0;
     let failures = 0;
+    let nonRetryableFailures = 0;
+    let lastFailureMessage: string | null = null;
     let paused = false;
 
     for (let index = 0; index < items.length; index += 1) {
@@ -1466,6 +1468,10 @@ export class RefreshService {
         if (outcome.retryable === false) {
           plan.stats.sources[source.name].failed += 1;
           failures += 1;
+          nonRetryableFailures += 1;
+          lastFailureMessage = outcome.message;
+          // A failed Game always makes the run partial, even when it is the
+          // only Game and no retry follows (§6.4).
           plan.partial = true;
           this.resolveGame(plan, item.appId);
           persistIfNeeded();
@@ -1487,6 +1493,8 @@ export class RefreshService {
           });
           plan.stats.sources[source.name].failed += 1;
           failures += 1;
+          lastFailureMessage = outcome.message;
+          plan.partial = true;
           this.resolveGame(plan, item.appId);
           paused = true;
           this.skipFrom(plan, source.name, items, index + 1);
@@ -1497,6 +1505,10 @@ export class RefreshService {
         if (attempt >= MAX_ATTEMPTS) {
           plan.stats.sources[source.name].failed += 1;
           failures += 1;
+          lastFailureMessage = outcome.message;
+          // A failed Game always makes the run partial, even when no successful
+          // Game hides the failure (§6.4 regression).
+          plan.partial = true;
           this.resolveGame(plan, item.appId);
           persistIfNeeded();
           break;
@@ -1511,12 +1523,24 @@ export class RefreshService {
     }
     if (!paused) {
       const finishedAt = this.now();
+      // A non-retryable (source-wide) failure is recorded as `error`; if other
+      // Games already succeeded the source is `partial`. Retry-exhausted
+      // per-Game failures leave the source row `ok` when some Games succeeded,
+      // because a per-Game failure does not by itself change source state.
+      const status: "ok" | "partial" | "error" =
+        nonRetryableFailures > 0
+          ? successes > 0
+            ? "partial"
+            : "error"
+          : failures > 0 && successes === 0
+            ? "error"
+            : "ok";
       this.updateMetadataSourceState(source.name, {
-        status: successes > 0 || failures === 0 ? "ok" : "error",
+        status,
         lastAttemptAt: finishedAt,
         lastSuccessAt: successes > 0 ? finishedAt : null,
         retryAfterAt: null,
-        lastError: failures > 0 ? "Some Games could not be fetched." : null,
+        lastError: failures > 0 ? (lastFailureMessage ?? "Some Games could not be fetched.") : null,
       });
     }
     persistIfNeeded();

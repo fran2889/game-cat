@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import type { Status } from "../../shared/types.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { GAME_SORT_OPTIONS } from "../browse.ts";
+import { useRefresh } from "../refresh-context.tsx";
 
 export interface TopBarProps {
   status: Status | null;
@@ -61,6 +62,7 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
   } = useBrowse();
   const [draft, setDraft] = useState(search);
   const searchRef = useRef<HTMLInputElement>(null);
+  const { isRunning, startFetch } = useRefresh();
 
   useEffect(() => {
     setDraft(search);
@@ -209,7 +211,17 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
           </button>
         </div>
 
-        <Link to="/smart/new" className="primary">
+        <button
+          type="button"
+          className="primary"
+          onClick={() => void startFetch()}
+          disabled={isRunning}
+          title={isRunning ? "A Refresh is already running." : undefined}
+        >
+          Fetch
+        </button>
+
+        <Link to="/smart/new" className="button">
           + New collection
         </Link>
 

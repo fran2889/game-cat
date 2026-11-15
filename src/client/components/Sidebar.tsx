@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import type { Status, SteamCollectionSummary } from "../../shared/types.ts";
 import { fetchSteamCollections } from "../api.ts";
-import { useToast } from "./ToastProvider.tsx";
+import { formatCount, formatRelativeTime } from "../format.ts";
+import { useRefresh } from "../refresh-context.tsx";
+import { dataAsOf, refreshCardTitle } from "../refresh.ts";
 
 export interface SidebarProps {
   status: Status | null;
@@ -15,8 +17,8 @@ const navClass = ({ isActive }: { isActive: boolean }): string =>
   `side-item${isActive ? " is-active" : ""}`;
 
 export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) {
-  const { showToast } = useToast();
   const location = useLocation();
+  const { activeRun, isRunning, startFetch } = useRefresh();
   const account = status?.steam.account ?? null;
   const gameCount = status?.library.gameCount ?? 0;
   const installedCount = status?.library.installedCount ?? 0;
@@ -35,21 +37,9 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
     return () => controller.abort();
   }, [lastScanAt, status]);
 
-  const refreshLine = (() => {
-    if (status === null) {
-      return "Waiting for the server.";
-    }
-    if (status.steam.state === "not_found") {
-      return "Steam was not found. The Library stays browsable.";
-    }
-    if (status.steam.state === "no_account") {
-      return "No Steam Account selected yet.";
-    }
-    if (status.library.lastScanStatus === "never") {
-      return "No Refresh has run yet.";
-    }
-    return `Last scan: ${status.library.lastScanStatus}.`;
-  })();
+  const cardTitle = refreshCardTitle(status, activeRun);
+  const refreshedAt = status === null ? null : dataAsOf(status);
+  const unhealthy = cardTitle === "Not connected" || cardTitle === "Ownership incomplete";
 
   return (
     <aside
@@ -144,23 +134,31 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
       </section>
 
       <div className="sidebar-foot">
-        <section className="status-card" aria-label="Refresh status">
+        <section className="status-card" aria-label="Refresh status" aria-live="polite">
           <div className="status-line">
             <span
-              className={`status-dot ${
-                status === null || status.steam.state === "not_found" ? "status-warn" : "status-ok"
-              }`}
+              className={`status-dot ${unhealthy ? "status-warn" : "status-ok"}`}
               aria-hidden="true"
             />
-            <strong>Refresh</strong>
+            <strong>{cardTitle}</strong>
           </div>
-          <p className="status-meta">{refreshLine}</p>
+          {status === null ? (
+            <p className="status-meta">Waiting for the server.</p>
+          ) : (
+            <>
+              <p className="status-meta">
+                {formatCount(gameCount)} games · {formatCount(installedCount)} installed
+              </p>
+              <p className="status-meta">Data as of {formatRelativeTime(refreshedAt)}</p>
+            </>
+          )}
           <button
             type="button"
             className="button status-button"
-            onClick={() => showToast("Refresh runs arrive in a later build. Nothing was changed.")}
+            onClick={() => void startFetch()}
+            disabled={isRunning || status === null}
           >
-            Refresh
+            Fetch
           </button>
           <NavLink to="/errors" className="status-link" onClick={onClose}>
             View refresh errors

@@ -7,6 +7,7 @@ import { viewKindForPath } from "./browse.ts";
 import { AppShell } from "./components/AppShell.tsx";
 import { GameDetailDialog, type DetailBackground } from "./components/GameDetailDialog.tsx";
 import { ToastProvider } from "./components/ToastProvider.tsx";
+import { ErrorsView } from "./views/ErrorsView.tsx";
 import { LibraryView } from "./views/LibraryView.tsx";
 import { NotFoundView } from "./views/NotFoundView.tsx";
 import { OnboardingView } from "./views/OnboardingView.tsx";
@@ -84,6 +85,11 @@ export function App() {
     setConfig(next);
   }, []);
 
+  const applyStatus = useCallback((next: Status) => {
+    setStatus(next);
+    setError(null);
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
     void fetchStatus(controller.signal)
@@ -131,6 +137,7 @@ export function App() {
                 reloadStatus={reloadStatus}
                 reloadConfig={reloadConfig}
                 applyConfig={applyConfig}
+                applyStatus={applyStatus}
               />
             }
           >
@@ -139,7 +146,7 @@ export function App() {
             <Route path="smart/new" element={<SmartNewView />} />
             <Route path="smart/:id" element={<PlaceholderSmartView />} />
             <Route path="steam/:id" element={<SteamCollectionView />} />
-            <Route path="errors" element={<PlaceholderErrorsView />} />
+            <Route path="errors" element={<ErrorsView />} />
             <Route path="onboarding" element={<OnboardingView />} />
             <Route path="settings" element={<SettingsView />} />
             <Route path="*" element={<NotFoundView />} />
@@ -159,16 +166,6 @@ function PlaceholderSmartView() {
       kicker="Smart collections"
       title="Smart Collection"
       description="Saved Smart Collections and their live match counts arrive with the Rule evaluator."
-    />
-  );
-}
-
-function PlaceholderErrorsView() {
-  return (
-    <PlaceholderView
-      kicker="Refresh"
-      title="Refresh errors"
-      description="Source health will be listed here once Refresh runs exist. The status endpoint already reports the five source rows."
     />
   );
 }

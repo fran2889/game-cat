@@ -4,6 +4,7 @@ import {
   formatBytes,
   formatDate,
   formatPlaytime,
+  formatRelativeTime,
   initialsFor,
   ownershipLabel,
   reviewCardLabel,
@@ -34,6 +35,18 @@ describe("cover presentation", () => {
     expect(formatBytes(13_200_000_000)).toBe("13.2 GB");
     expect(formatDate(null)).toBe("—");
     expect(formatDate("2024-04-04T03:06:40Z")).toBe("4 Apr 2024");
+  });
+});
+
+describe("relative freshness", () => {
+  const now = Date.parse("2026-11-15T12:00:00Z");
+
+  it("formats the status card's dataAsOf time coarsely", () => {
+    expect(formatRelativeTime(null, now)).toBe("no data yet");
+    expect(formatRelativeTime("2026-11-15T11:59:30Z", now)).toBe("just now");
+    expect(formatRelativeTime("2026-11-15T11:45:00Z", now)).toBe("15 min ago");
+    expect(formatRelativeTime("2026-11-15T09:00:00Z", now)).toBe("3 h ago");
+    expect(formatRelativeTime("2026-11-12T12:00:00Z", now)).toBe("3 d ago");
   });
 });
 

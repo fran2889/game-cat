@@ -2494,3 +2494,255 @@ main {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Refresh progress and the /errors view */
+
+.refresh-banner {
+  align-items: flex-start;
+}
+
+.refresh-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.refresh-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.refresh-phase,
+.refresh-error-code {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.refresh-progress-text {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.refresh-note {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-4);
+  overflow: hidden;
+}
+
+.progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 240ms ease;
+}
+
+.progress-indeterminate > span {
+  width: 35%;
+  animation: progress-sweep 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.refresh-sources {
+  margin-top: 2px;
+}
+
+.refresh-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.refresh-chip strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.refresh-chip-skipped {
+  color: var(--text-faint);
+}
+
+.refresh-chip-failed {
+  color: var(--red);
+}
+
+.errors-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 980px;
+}
+
+.errors-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.errors-head h2 {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.errors-head p {
+  color: var(--text-muted);
+  font-size: 12px;
+  max-width: 60ch;
+}
+
+.errors-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.error-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(190px, 1.2fr) minmax(180px, 1.4fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.error-row.tone-ok {
+  border-left-color: var(--green);
+}
+
+.error-row.tone-warning {
+  border-left-color: var(--accent);
+}
+
+.error-row.tone-error {
+  border-left-color: var(--red);
+}
+
+.error-source {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.status-pill {
+  align-self: flex-start;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.status-pill.tone-ok {
+  border-color: #2f5a42;
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.status-pill.tone-warning {
+  border-color: #5e471d;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.status-pill.tone-error {
+  border-color: #622f35;
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.error-times {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+}
+
+.error-times > div {
+  display: flex;
+  gap: 5px;
+}
+
+.error-times dt {
+  color: var(--text-faint);
+  min-width: 72px;
+}
+
+.error-times dd {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.error-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.error-message {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.affected-count {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 860px) {
+  .error-row {
+    grid-template-columns: 1fr;
+  }
+
+  .error-actions {
+    justify-content: flex-start;
+  }
+}

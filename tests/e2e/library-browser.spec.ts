@@ -236,7 +236,9 @@ test("selection is scoped per view and New from selection hands off a prefilled 
   await page.getByRole("link", { name: "All games" }).click();
   await expect(page.locator(".selection-count")).toHaveText("2 selected");
 
+  let refreshBody: unknown = null;
   await page.route("**/api/refresh", async (route) => {
+    refreshBody = route.request().postDataJSON();
     await route.fulfill({
       status: 422,
       contentType: "application/json",
@@ -246,9 +248,9 @@ test("selection is scoped per view and New from selection hands off a prefilled 
     });
   });
   await page.getByRole("button", { name: "Refresh selected" }).click();
-  await expect(
-    page.getByText("Metadata Refresh is not available in this build yet."),
-  ).toBeVisible();
+  await expect(page.getByText("The metadata scope is unavailable.")).toBeVisible();
+  expect(refreshBody).toMatchObject({ scope: "metadata", mode: "full" });
+  expect((refreshBody as { appIds: number[] }).appIds).toHaveLength(2);
 
   await page.getByRole("button", { name: "+ New from selection" }).click();
   await expect(page).toHaveURL(/\/smart\/new$/);
