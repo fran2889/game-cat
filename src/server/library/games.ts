@@ -142,7 +142,7 @@ export function parseGamesQuery(raw: RawQuery, pageSizeMax = 200): GamesQuery {
   };
 }
 
-interface GamesRow {
+export interface GamesRow {
   app_id: number;
   name: string;
   name_key: string;
@@ -229,7 +229,7 @@ function parsePlatforms(raw: string | null): GamePlatforms | null {
   }
 }
 
-function toSummary(row: GamesRow): GameSummary {
+export function toGameSummary(row: GamesRow): GameSummary {
   return {
     appId: row.app_id,
     name: row.name,
@@ -254,8 +254,11 @@ function toSummary(row: GamesRow): GameSummary {
   };
 }
 
-function toDetail(row: GamesRow): GameDetail {
-  const summary = toSummary(row);
+function toDetail(
+  row: GamesRow,
+  steamCollections: Array<{ id: string; name: string; kind: string }>,
+): GameDetail {
+  const summary = toGameSummary(row);
   return {
     ...summary,
     releaseDateRaw: row.release_date_raw,
@@ -263,7 +266,7 @@ function toDetail(row: GamesRow): GameDetail {
     publishers: parseJsonArray(row.publishers_json),
     genres: parseJsonArray(row.genres_json),
     categories: parseJsonArray(row.categories_json),
-    steamCollections: [],
+    steamCollections,
     sizeOnDiskBytes: row.size_on_disk_bytes,
     metadata: {
       ...summary.metadata,
@@ -294,6 +297,30 @@ export interface GameListResult {
   data: GameSummary[];
   pagination: Pagination;
   meta: { dataAsOf: string | null };
+}
+
+/** Shared sorting SQL for every endpoint that pages Games. */
+export function gameOrderSql(sort: GameSort, order: GameOrder): string {
+  const column = SORT_COLUMNS[sort];
+  const direction = order === "desc" ? "DESC" : "ASC";
+  return sort === "appId"
+    ? `ORDER BY app_id ${direction}`
+    : `ORDER BY (${column} IS NULL) ASC, ${column} ${direction}, app_id ASC`;
+}
+
+export function readDataAsOf(db: BetterSqlite3.Database): string | null {
+  const row = db
+    .prepare(
+      `SELECT MAX(value) AS at FROM (
+         SELECT MAX(finished_at) AS value FROM refresh_runs
+           WHERE status = 'succeeded' AND scope IN ('library', 'ownership')
+         UNION ALL
+         SELECT MAX(last_success_at) FROM source_state
+           WHERE name IN ('steamspy', 'storefront', 'steam_reviews')
+       )`,
+    )
+    .get() as { at: number | null };
+  return toIso(row.at);
 }
 
 export class GamesRepository {
@@ -331,12 +358,7 @@ export class GamesRepository {
       }
     ).count;
 
-    const column = SORT_COLUMNS[query.sort];
-    const direction = query.order === "desc" ? "DESC" : "ASC";
-    const orderSql =
-      query.sort === "appId"
-        ? `ORDER BY app_id ${direction}`
-        : `ORDER BY (${column} IS NULL) ASC, ${column} ${direction}, app_id ASC`;
+    const orderSql = gameOrderSql(query.sort, query.order);
 
     const offset = (query.page - 1) * query.pageSize;
     const rows = this.db
@@ -344,7 +366,7 @@ export class GamesRepository {
       .all(...parameters, query.pageSize, offset) as GamesRow[];
 
     return {
-      data: rows.map(toSummary),
+      data: rows.map(toGameSummary),
       pagination: {
         page: query.page,
         pageSize: query.pageSize,
@@ -358,7 +380,20 @@ export class GamesRepository {
   get(appId: number): GameDetail | null {
     const row = this.db.prepare("SELECT * FROM v_games WHERE app_id = ?").get(appId) as
       GamesRow | undefined;
-    return row === undefined ? null : toDetail(row);
+    return row === undefined ? null : toDetail(row, this.collectionsFor(appId));
+  }
+
+  /** Static Steam Collections containing the Game, for GameDetail. */
+  collectionsFor(appId: number): Array<{ id: string; name: string; kind: string }> {
+    return this.db
+      .prepare(
+        `SELECT c.id, c.name, c.kind
+         FROM steam_collections c
+         JOIN steam_collection_games scg ON scg.steam_collection_id = c.id
+         WHERE scg.app_id = ? AND c.is_dynamic = 0
+         ORDER BY c.name ASC, c.id ASC`,
+      )
+      .all(appId) as Array<{ id: string; name: string; kind: string }>;
   }
 
   counts(): LibraryCounts {
@@ -409,17 +444,6 @@ export class GamesRepository {
   }
 
   dataAsOf(): string | null {
-    const row = this.db
-      .prepare(
-        `SELECT MAX(value) AS at FROM (
-           SELECT MAX(finished_at) AS value FROM refresh_runs
-             WHERE status = 'succeeded' AND scope IN ('library', 'ownership')
-           UNION ALL
-           SELECT MAX(last_success_at) FROM source_state
-             WHERE name IN ('steamspy', 'storefront', 'steam_reviews')
-         )`,
-      )
-      .get() as { at: number | null };
-    return toIso(row.at);
+    return readDataAsOf(this.db);
   }
 }

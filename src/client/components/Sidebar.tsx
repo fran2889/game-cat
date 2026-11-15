@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import type { Status } from "../../shared/types.ts";
+import type { Status, SteamCollectionSummary } from "../../shared/types.ts";
+import { fetchSteamCollections } from "../api.ts";
 import { useToast } from "./ToastProvider.tsx";
 
 export interface SidebarProps {
@@ -18,6 +20,20 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
   const account = status?.steam.account ?? null;
   const gameCount = status?.library.gameCount ?? 0;
   const installedCount = status?.library.installedCount ?? 0;
+  const [steamCollections, setSteamCollections] = useState<SteamCollectionSummary[]>([]);
+  const lastScanAt = status?.library.lastScanAt ?? null;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchSteamCollections({ pageSize: 200 }, controller.signal)
+      .then((response) => setSteamCollections(response.data))
+      .catch((error: unknown) => {
+        if ((error as Error).name !== "AbortError") {
+          setSteamCollections([]);
+        }
+      });
+    return () => controller.abort();
+  }, [lastScanAt, status]);
 
   const refreshLine = (() => {
     if (status === null) {
@@ -101,7 +117,30 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
         <div className="side-heading">
           <h2 id="steam-heading">Steam collections</h2>
         </div>
-        <p className="side-empty">Steam Collections appear after the first scan.</p>
+        <p className="side-note">Read-only mirror · never written back</p>
+        {steamCollections.length === 0 ? (
+          <p className="side-empty">No Steam Collections mirrored yet. They appear after a scan.</p>
+        ) : (
+          <div className="side-list">
+            {steamCollections.map((collection) => (
+              <NavLink
+                key={collection.id}
+                to={`/steam/${encodeURIComponent(collection.id)}`}
+                className={navClass}
+                onClick={onClose}
+                title={collection.isDynamic ? `${collection.name} (dynamic)` : collection.name}
+              >
+                <span className="side-lock" aria-label="Read-only">
+                  🔒
+                </span>
+                <span className="label">{collection.name}</span>
+                <span className="count">
+                  {collection.isDynamic ? "dyn" : (collection.gameCount ?? 0)}
+                </span>
+              </NavLink>
+            ))}
+          </div>
+        )}
       </section>
 
       <div className="sidebar-foot">

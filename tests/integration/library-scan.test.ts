@@ -260,7 +260,7 @@ describe("scan reconciliation", () => {
     });
   });
 
-  it("deletes a non-owned row only when every local bit is gone", () => {
+  it("deletes a non-owned row when every local bit is gone on a successful scan", () => {
     const steam = fixture();
     steam.writeLocalConfig({});
     const db = database();
@@ -275,8 +275,9 @@ describe("scan reconciliation", () => {
 
     scan(steam, db);
 
-    expect(games(db).map((row) => row.app_id)).toEqual([731]);
-    expect(games(db)[0]?.source_mask).toBe(8);
+    // No cloud-storage Collections exist, so the stale bit 8 is cleared and the
+    // unknown row has no remaining evidence.
+    expect(games(db)).toEqual([]);
   });
 
   it("preserves unseen evidence on a partial scan and deletes nothing", () => {

@@ -7,6 +7,7 @@ import { ToastProvider } from "./components/ToastProvider.tsx";
 import { LibraryView } from "./views/LibraryView.tsx";
 import { NotFoundView } from "./views/NotFoundView.tsx";
 import { PlaceholderView } from "./views/PlaceholderView.tsx";
+import { SteamCollectionView } from "./views/SteamCollectionView.tsx";
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -69,16 +70,7 @@ export function App() {
               />
             }
           />
-          <Route
-            path="steam/:id"
-            element={
-              <PlaceholderView
-                kicker="Steam collections"
-                title="Steam Collection"
-                description="Steam Collections are read-only in v1. The mirrored list arrives with the local scan."
-              />
-            }
-          />
+          <Route path="steam/:id" element={<SteamCollectionView />} />
           <Route
             path="errors"
             element={

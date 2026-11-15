@@ -1,5 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { normalizeNameKey } from "../../shared/names.ts";
+import type { SteamCollectionRecord } from "../steam/collections.ts";
 import type { LocalLibrarySnapshot, LocalManifest, LocalPlaytimeEntry } from "../steam/local.ts";
 import { readSteamLocalLibrary } from "../steam/local.ts";
 import { readBoundSteamId64 } from "../db/database.ts";
@@ -211,7 +212,8 @@ export function scanLocalLibrary(options: LibraryScanOptions): LibraryScanResult
     });
   }
 
-  const complete = snapshot.manifestsComplete && snapshot.localConfigComplete;
+  const complete =
+    snapshot.manifestsComplete && snapshot.localConfigComplete && snapshot.collectionsComplete;
 
   const persist = options.db.transaction(() => {
     bindAccount(options.db, options.steamId64!, now);
@@ -250,10 +252,28 @@ function persistSnapshot(
         );
   const manifestComplete = snapshot.manifestsComplete;
   const localComplete = snapshot.localConfigEntries !== null;
+  const collections = snapshot.collections ?? [];
+  const collectionsComplete = snapshot.collectionsComplete && snapshot.collections !== null;
+
+  const memberships = new Map<string, number[]>();
+  const memberAppIds = new Set<number>();
+  if (collectionsComplete) {
+    for (const collection of collections) {
+      if (collection.isDynamic) {
+        continue;
+      }
+      const added = [...new Set(collection.added)];
+      memberships.set(collection.id, added);
+      for (const appId of added) {
+        memberAppIds.add(appId);
+      }
+    }
+  }
 
   const seen = new Set<number>([
     ...manifests.keys(),
     ...(localEntries === null ? [] : localEntries.keys()),
+    ...memberAppIds,
   ]);
 
   const upsert = db.prepare(`
@@ -329,14 +349,21 @@ function persistSnapshot(
     } else if (localComplete) {
       sourceMask &= ~SOURCE_LOCALCONFIG;
     }
+    if (collectionsComplete) {
+      sourceMask = memberAppIds.has(appId)
+        ? sourceMask | SOURCE_STEAM_COLLECTION
+        : sourceMask & ~SOURCE_STEAM_COLLECTION;
+    }
 
-    const localEvidence = (sourceMask & LOCAL_EVIDENCE_MASK) !== 0;
+    // Collection membership is a discovery source, not ownership evidence. It
+    // never promotes a Game on its own; appmanifest/localconfig evidence does.
+    const directLocalEvidence = (sourceMask & (SOURCE_MANIFEST | SOURCE_LOCALCONFIG)) !== 0;
     const ownershipStatus: GameRow["ownership_status"] =
       row === undefined
-        ? localEvidence
+        ? directLocalEvidence
           ? "local_only"
           : "unknown"
-        : row.ownership_status === "unknown" && localEvidence
+        : row.ownership_status === "unknown" && directLocalEvidence
           ? "local_only"
           : row.ownership_status;
 
@@ -429,7 +456,7 @@ function persistSnapshot(
     if (seen.has(row.app_id)) {
       continue;
     }
-    if (!manifestComplete && !localComplete) {
+    if (!manifestComplete && !localComplete && !collectionsComplete) {
       continue;
     }
 
@@ -461,11 +488,17 @@ function persistSnapshot(
       localRecent = null;
       localconfigLastPlayedAt = null;
     }
+    if (collectionsComplete) {
+      // Every static member is in `seen`, so an unseen Game is not a member.
+      sourceMask &= ~SOURCE_STEAM_COLLECTION;
+    }
 
-    // Deletion requires a fully successful scan; a partial scan never deletes.
+    // Deletion requires every local evidence source to be read completely; a
+    // partial scan never deletes.
     if (
       manifestComplete &&
       localComplete &&
+      collectionsComplete &&
       (sourceMask & LOCAL_EVIDENCE_MASK) === 0 &&
       row.ownership_status !== "owned"
     ) {
@@ -492,7 +525,66 @@ function persistSnapshot(
     });
   }
 
+  if (collectionsComplete) {
+    persistCollections(db, collections, memberships, seenAt);
+  }
+
   return { upserted, deleted };
+}
+
+function persistCollections(
+  db: BetterSqlite3.Database,
+  collections: SteamCollectionRecord[],
+  memberships: Map<string, number[]>,
+  importedAt: number,
+): void {
+  const ids = collections.map((collection) => collection.id);
+  if (ids.length === 0) {
+    db.prepare("DELETE FROM steam_collections").run();
+  } else {
+    const placeholders = ids.map(() => "?").join(", ");
+    db.prepare(`DELETE FROM steam_collections WHERE id NOT IN (${placeholders})`).run(...ids);
+  }
+
+  const upsert = db.prepare(`
+    INSERT INTO steam_collections (
+      id, name, kind, is_dynamic, filter_spec_json, raw_value_json, imported_at
+    ) VALUES (
+      @id, @name, @kind, @isDynamic, @filterSpecJson, @rawValueJson, @importedAt
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      kind = excluded.kind,
+      is_dynamic = excluded.is_dynamic,
+      filter_spec_json = excluded.filter_spec_json,
+      raw_value_json = excluded.raw_value_json,
+      imported_at = excluded.imported_at
+  `);
+  const clearMembers = db.prepare(
+    "DELETE FROM steam_collection_games WHERE steam_collection_id = ?",
+  );
+  const insertMember = db.prepare(
+    "INSERT OR IGNORE INTO steam_collection_games (steam_collection_id, app_id) VALUES (?, ?)",
+  );
+
+  for (const collection of collections) {
+    upsert.run({
+      id: collection.id,
+      name: collection.name,
+      kind: collection.kind,
+      isDynamic: collection.isDynamic ? 1 : 0,
+      filterSpecJson: collection.filterSpecJson,
+      rawValueJson: collection.rawValueJson,
+      importedAt,
+    });
+    clearMembers.run(collection.id);
+    if (collection.isDynamic) {
+      continue;
+    }
+    for (const appId of memberships.get(collection.id) ?? []) {
+      insertMember.run(collection.id, appId);
+    }
+  }
 }
 
 function nameFor(

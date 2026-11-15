@@ -1,5 +1,7 @@
-import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { readdirSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
+import { readSteamCollections, type SteamCollectionRecord } from "./collections.ts";
+import { readStable } from "./read-stable.ts";
 import { getVdfNumber, getVdfObject, getVdfString, parseVdf, type VdfObject } from "./vdf.ts";
 
 /**
@@ -52,10 +54,13 @@ export interface LocalLibrarySnapshot {
   manifests: LocalManifest[];
   /** `null` means the file was not read completely. */
   localConfigEntries: LocalPlaytimeEntry[] | null;
+  /** `null` when the cloud-storage base or overlay could not be read. */
+  collections: SteamCollectionRecord[] | null;
   accountId: string | null;
   accountDir: string | null;
   manifestsComplete: boolean;
   localConfigComplete: boolean;
+  collectionsComplete: boolean;
   negativePlaytimeCount: number;
   warnings: LocalScanWarning[];
 }
@@ -94,38 +99,6 @@ function resolveReal(path: string): string | null {
 
 function warn(warnings: LocalScanWarning[], code: string, message: string, path?: string): void {
   warnings.push(path === undefined ? { code, message } : { code, message, path });
-}
-
-/** Read a whole file, retrying if Steam rewrites it while we read (§8). */
-function readStable(path: string, warnings: LocalScanWarning[], attempts = 3): string | null {
-  let last: string | null = null;
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      const before = statSync(path);
-      last = readFileSync(path, "utf8");
-      const after = statSync(path);
-      if (before.mtimeMs === after.mtimeMs && before.size === after.size) {
-        return last;
-      }
-    } catch (error) {
-      warn(
-        warnings,
-        "file_unreadable",
-        `Could not read ${path}: ${(error as Error).message}`,
-        path,
-      );
-      return null;
-    }
-  }
-  if (last !== null) {
-    warn(
-      warnings,
-      "file_changed_during_read",
-      `${path} changed while it was being read; using the last snapshot.`,
-      path,
-    );
-  }
-  return last;
 }
 
 function parseVdfSafe(
@@ -507,10 +480,12 @@ export function readSteamLocalLibrary(options: ReadSteamLocalOptions): LocalLibr
       libraries: [],
       manifests: [],
       localConfigEntries: null,
+      collections: null,
       accountId: null,
       accountDir: null,
       manifestsComplete: false,
       localConfigComplete: false,
+      collectionsComplete: false,
       negativePlaytimeCount: 0,
       warnings,
     };
@@ -519,6 +494,7 @@ export function readSteamLocalLibrary(options: ReadSteamLocalOptions): LocalLibr
   const discovery = discoverLibraries(root, warnings);
   const manifestRead = readManifests(discovery.libraries, warnings);
   const local = readLocalConfigEvidence(root, options.steamId64, warnings);
+  const collections = readSteamCollections({ accountDir: local.accountDir, warnings });
 
   return {
     root,
@@ -530,10 +506,12 @@ export function readSteamLocalLibrary(options: ReadSteamLocalOptions): LocalLibr
     })),
     manifests: manifestRead.manifests,
     localConfigEntries: local.entries,
+    collections: collections.collections,
     accountId: local.accountId,
     accountDir: local.accountDir,
     manifestsComplete: discovery.complete && manifestRead.complete,
     localConfigComplete: local.complete,
+    collectionsComplete: collections.complete,
     negativePlaytimeCount: local.negativePlaytimeCount,
     warnings,
   };
