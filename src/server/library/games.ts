@@ -130,7 +130,6 @@ export function parseGamesQuery(raw: RawQuery, pageSizeMax = 200): GamesQuery {
 
   const page = parseInteger(raw.page, 1, "page", 1, Number.MAX_SAFE_INTEGER, fieldErrors);
   const pageSize = parseInteger(raw.pageSize, 60, "pageSize", 1, pageSizeMax, fieldErrors);
-
   const tagsStatus = statusFilter(raw.tagsStatus, "tags", "tagsStatus");
   const storeStatus = statusFilter(raw.storeStatus, "store", "storeStatus");
   const reviewStatus = statusFilter(raw.reviewStatus, "review", "reviewStatus");

@@ -7,6 +7,7 @@ import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.
 import { createHttpApp } from "../../src/server/http/app.ts";
 import { SteamCollectionsRepository } from "../../src/server/library/collections.ts";
 import { GamesRepository } from "../../src/server/library/games.ts";
+import { RuleValuesRepository } from "../../src/server/library/rule-values.ts";
 import { TagsRepository } from "../../src/server/library/tags.ts";
 import { RefreshService } from "../../src/server/refresh/service.ts";
 import { buildStatus } from "../../src/server/status.ts";
@@ -89,7 +90,13 @@ function harness(steam = fixture()): Harness {
         schemaVersion: db.schemaVersion,
         db: db.raw,
       }),
-    library: { games, collections, tags, refresh },
+    library: {
+      games,
+      collections,
+      ruleValues: new RuleValuesRepository(db.raw),
+      tags,
+      refresh,
+    },
   });
   apps.push(app);
   refreshes.set(app, refresh);
@@ -242,6 +249,7 @@ describe("POST /api/refresh (library)", () => {
       library: {
         games: new GamesRepository(test.db.raw),
         collections: new SteamCollectionsRepository(test.db.raw),
+        ruleValues: new RuleValuesRepository(test.db.raw),
         tags: new TagsRepository(test.db.raw),
         refresh,
       },
@@ -796,6 +804,55 @@ describe("GET /api/status with a Library", () => {
     const status = (await get(test.app, "/api/status")).json() as { data: Status };
     expect(status.data.library.lastScanStatus).toBe("partial");
     expect(status.data.sources[0]?.status).toBe("partial");
+  });
+});
+
+describe("GET /api/games?storeStatus=", () => {
+  it("accepts exactly the documented values and returns only matching Games", async () => {
+    const test = harness();
+    const statuses = ["ok", "unavailable", "missing", "stale", "error"] as const;
+    const appIds = [620, 621, 622, 623, 624];
+    for (const [index, appId] of appIds.entries()) {
+      seedGame(test.db, appId);
+      test.db.raw
+        .prepare(
+          `INSERT INTO storefront_appdetails (app_id, store_status, updated_at)
+           VALUES (?, ?, 1)`,
+        )
+        .run(appId, statuses[index]!);
+    }
+    // A Game with no storefront row reads as `missing`.
+    seedGame(test.db, 625);
+
+    for (const status of statuses) {
+      const response = await get(test.app, `/api/games?storeStatus=${status}`);
+      expect(response.statusCode, status).toBe(200);
+      const body = response.json() as { data: GameSummary[]; pagination: { totalItems: number } };
+      const expected = status === "missing" ? [622, 625] : [appIds[statuses.indexOf(status)]!];
+      expect(
+        body.data.map((game) => game.appId),
+        status,
+      ).toEqual(expected);
+      expect(body.pagination.totalItems).toBe(expected.length);
+      for (const game of body.data) {
+        expect(game.metadata.storeStatus).toBe(status);
+      }
+    }
+
+    for (const invalid of ["unknown", "partial", "blocked", "OK", ""]) {
+      const response = await get(test.app, `/api/games?storeStatus=${invalid}`);
+      if (invalid === "") {
+        expect(response.statusCode).toBe(200);
+        continue;
+      }
+      expect(response.statusCode, invalid).toBe(422);
+      expect(response.json()).toMatchObject({
+        error: {
+          code: "VALIDATION_ERROR",
+          details: { fieldErrors: { storeStatus: expect.any(String) } },
+        },
+      });
+    }
   });
 });
 
