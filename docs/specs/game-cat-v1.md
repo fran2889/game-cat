@@ -1514,8 +1514,8 @@ validator is used for preview and persistence. An empty Rules array matches ever
 
 Query: `page` (default 1), `pageSize` (default 60, max 200), `sort` (`name` or `updatedAt`), `order`.
 Defaults are `name` and `asc`; `name` sorts on `name_key`. Returns
-`{ data: SmartCollectionListItem[], pagination }`. Each item includes `ruleCount` and the evaluated
-`matchCount`; the sidebar uses `matchCount` for its live counts.
+`{ data: SmartCollectionListItem[], pagination, meta: { dataAsOf } }`. Each item includes `ruleCount`
+and the evaluated `matchCount`; the sidebar uses `matchCount` for its live counts.
 
 #### `POST /api/smart-collections`
 

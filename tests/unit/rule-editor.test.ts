@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  addSelectionToGameRule,
   changeRuleField,
   emptyRule,
   formatMinutesAsHours,
   gameRuleIds,
+  mergedGameRuleIds,
   parseHoursToMinutes,
   platformsInRules,
   prefixCounts,
@@ -63,6 +65,16 @@ describe("collection name validation", () => {
     expect(validateCollectionName("   ")).toContain("name");
     expect(validateCollectionName("a".repeat(81))).toContain("80");
     expect(validateCollectionName("bad\u0000name")).toContain("control");
+  });
+
+  it("counts Unicode code points rather than UTF-16 units", () => {
+    expect(validateCollectionName("😀".repeat(80))).toBeNull();
+    expect(validateCollectionName("😀".repeat(81))).toContain("80");
+  });
+
+  it("counts NFC-normalized code points like the API", () => {
+    expect(validateCollectionName("e\u0301".repeat(80))).toBeNull();
+    expect(validateCollectionName("e\u0301".repeat(81))).toContain("80");
   });
 });
 
@@ -130,5 +142,57 @@ describe("game Rule values", () => {
     expect(gameRuleIds({ prefix: "AND", field: "tag", operator: "has", value: "Co-op" })).toEqual(
       [],
     );
+  });
+
+  it("adds one ascending AND game Rule when none exists", () => {
+    const rules: Rule[] = [{ prefix: "AND", field: "tag", operator: "has", value: "Co-op" }];
+    expect(addSelectionToGameRule(rules, [620, 10, 620])).toEqual([
+      ...rules,
+      { prefix: "AND", field: "game", operator: "in", value: [10, 620] },
+    ]);
+  });
+
+  it("appends to the existing game Rule without creating a second one", () => {
+    const rules: Rule[] = [
+      {
+        prefix: "OR",
+        field: "game",
+        operator: "in",
+        value: [620],
+      },
+      { prefix: "AND", field: "tag", operator: "has", value: "Co-op" },
+    ];
+    const next = addSelectionToGameRule(rules, [10, 620]);
+    expect(next).toEqual([
+      { prefix: "OR", field: "game", operator: "in", value: [10, 620] },
+      rules[1],
+    ]);
+    expect(next?.filter((rule) => rule.field === "game")).toHaveLength(1);
+    expect(mergedGameRuleIds(rules, [10, 620])).toEqual([10, 620]);
+  });
+
+  it("returns null and reports the merged size when the game Rule would exceed 1,000", () => {
+    const rules: Rule[] = [
+      {
+        prefix: "AND",
+        field: "game",
+        operator: "in",
+        value: Array.from({ length: 999 }, (_, index) => index + 1),
+      },
+    ];
+    expect(mergedGameRuleIds(rules, [1_001, 1_002])).toHaveLength(1_001);
+    expect(addSelectionToGameRule(rules, [1_001, 1_002])).toBeNull();
+    expect(
+      addSelectionToGameRule(
+        [],
+        Array.from({ length: 1_000 }, (_, i) => i + 1),
+      ),
+    ).toHaveLength(1);
+    expect(
+      addSelectionToGameRule(
+        [],
+        Array.from({ length: 1_001 }, (_, i) => i + 1),
+      ),
+    ).toBeNull();
   });
 });
