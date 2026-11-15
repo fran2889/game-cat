@@ -295,6 +295,16 @@ export interface ConfigResponse {
   meta?: Record<string, unknown>;
 }
 
+export interface ConfigPatchResponse {
+  data: Config;
+  meta: { restartRequired: boolean };
+}
+
+export interface SteamAccountsResponse {
+  data: SteamAccount[];
+  pagination: Pagination;
+}
+
 export const ERROR_CODES = {
   malformedJson: "MALFORMED_JSON",
   hostNotAllowed: "HOST_NOT_ALLOWED",

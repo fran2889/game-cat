@@ -181,6 +181,10 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
           </div>
         </section>
 
+        <NavLink to="/settings" className="status-link" onClick={onClose}>
+          Settings
+        </NavLink>
+
         {location.pathname === "/onboarding" && (
           <button type="button" className="button" onClick={onRetryStatus}>
             Recheck status

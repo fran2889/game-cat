@@ -36,6 +36,9 @@ export function breadcrumbFor(pathname: string): { kicker: string; title: string
   if (pathname === "/onboarding") {
     return { kicker: "Setup", title: "First run" };
   }
+  if (pathname === "/settings") {
+    return { kicker: "Configuration", title: "Settings" };
+  }
   return { kicker: "game-cat", title: "Not found" };
 }
 
