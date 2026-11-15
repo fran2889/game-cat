@@ -118,107 +118,205 @@ function compareNumbers(actual: number, value: unknown, operator: Rule["operator
   }
 }
 
-/** Test one Rule against one Game; `false` for every missing value. */
-export function testRule(rule: Rule, game: RuleTarget): boolean {
+type RulePredicate = (game: RuleTarget) => boolean;
+
+/**
+ * Per-evaluation normalized views of a Game's list fields. Arrays are stable
+ * per Game, so compiling the normalized set once per Game and per evaluation
+ * avoids normalizing every Tag for every Rule.
+ */
+interface ListCaches {
+  normalized: WeakMap<readonly string[], ReadonlySet<string>>;
+  raw: WeakMap<readonly string[], ReadonlySet<string>>;
+}
+
+function normalizedSet(elements: readonly string[], caches: ListCaches): ReadonlySet<string> {
+  const cached = caches.normalized.get(elements);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const set = new Set<string>();
+  for (const element of elements) {
+    set.add(normalizeRuleText(element));
+  }
+  caches.normalized.set(elements, set);
+  return set;
+}
+
+function rawSet(elements: readonly string[], caches: ListCaches): ReadonlySet<string> {
+  const cached = caches.raw.get(elements);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const set = new Set(elements);
+  caches.raw.set(elements, set);
+  return set;
+}
+
+/**
+ * Compile one Rule into a predicate. All Rule-value normalization, date
+ * parsing, and App ID list construction happen here, once per evaluation,
+ * instead of once per Game. The behavior is exactly `testRule` (§5.5.2).
+ */
+function compileRule(rule: Rule, caches: ListCaches): RulePredicate {
   const definition = ruleFieldDefinition(rule.field);
   if (definition === undefined) {
-    return false;
+    return () => false;
   }
 
   if (rule.field === "game") {
-    return Array.isArray(rule.value) && rule.value.includes(game.appId);
+    if (!Array.isArray(rule.value)) {
+      return () => false;
+    }
+    const appIds = new Set(rule.value);
+    return (game) => appIds.has(game.appId);
   }
 
   if (isListField(definition)) {
     if (rule.operator !== "has" || typeof rule.value !== "string") {
-      return false;
+      return () => false;
     }
-    const elements = readList(rule.field, game);
-    if (elements.length === 0) {
-      return false;
+    const field = rule.field;
+    const value = rule.value;
+    if (field === "steamCollection") {
+      return (game) => {
+        const elements = readList(field, game);
+        return elements.length > 0 && rawSet(elements, caches).has(value);
+      };
     }
-    if (rule.field === "steamCollection") {
-      return elements.includes(rule.value);
-    }
-    const expected = normalizeRuleText(rule.value);
-    return elements.some((element) => normalizeRuleText(element) === expected);
+    const expected = normalizeRuleText(value);
+    return (game) => {
+      const elements = readList(field, game);
+      return elements.length > 0 && normalizedSet(elements, caches).has(expected);
+    };
   }
 
-  const actual = readSingle(rule.field, game);
-  if (actual === null) {
-    return false;
-  }
+  const field = rule.field;
+  const actualOf = (game: RuleTarget): SingleValue => readSingle(field, game);
 
   switch (rule.operator) {
-    case "is":
-      if (typeof actual === "boolean") {
-        return actual === rule.value;
+    case "is": {
+      const value = rule.value;
+      if (typeof value === "boolean") {
+        return (game) => actualOf(game) === value;
       }
-      return (
-        typeof actual === "string" &&
-        typeof rule.value === "string" &&
-        normalizeRuleText(actual) === normalizeRuleText(rule.value)
-      );
-    case "contains":
-      return (
-        typeof actual === "string" &&
-        typeof rule.value === "string" &&
-        normalizeRuleText(actual).includes(normalizeRuleText(rule.value))
-      );
+      if (typeof value !== "string") {
+        return () => false;
+      }
+      const expected = normalizeRuleText(value);
+      return (game) => {
+        const actual = actualOf(game);
+        return typeof actual === "string" && normalizeRuleText(actual) === expected;
+      };
+    }
+    case "contains": {
+      if (typeof rule.value !== "string") {
+        return () => false;
+      }
+      const expected = normalizeRuleText(rule.value);
+      return (game) => {
+        const actual = actualOf(game);
+        return typeof actual === "string" && normalizeRuleText(actual).includes(expected);
+      };
+    }
     case "lt":
     case "lte":
     case "gt":
-    case "gte":
-      if (typeof actual !== "number") {
-        return false;
-      }
-      if (definition.valueKind === "date") {
-        return (
-          typeof rule.value === "string" &&
-          compareNumbers(actual, dateOrdinal(rule.value), rule.operator)
-        );
-      }
-      return compareNumbers(actual, rule.value, rule.operator);
+    case "gte": {
+      const operator = rule.operator;
+      const value =
+        definition.valueKind === "date"
+          ? typeof rule.value === "string"
+            ? dateOrdinal(rule.value)
+            : Number.NaN
+          : typeof rule.value === "number"
+            ? rule.value
+            : Number.NaN;
+      return (game) => {
+        const actual = actualOf(game);
+        return typeof actual === "number" && compareNumbers(actual, value, operator);
+      };
+    }
     default:
-      return false;
+      return () => false;
   }
+}
+
+export interface CompiledRules {
+  matches(game: RuleTarget): boolean;
+}
+
+/**
+ * Compile a whole Rules array once. The global grouping is unchanged: every
+ * AND, at least one OR, and no NOT (§5.5.2).
+ */
+export function compileRules(rules: readonly Rule[]): CompiledRules {
+  const caches: ListCaches = { normalized: new WeakMap(), raw: new WeakMap() };
+  const andRules: RulePredicate[] = [];
+  const orRules: RulePredicate[] = [];
+  const notRules: RulePredicate[] = [];
+  for (const rule of rules) {
+    const predicate = compileRule(rule, caches);
+    if (rule.prefix === "AND") {
+      andRules.push(predicate);
+    } else if (rule.prefix === "OR") {
+      orRules.push(predicate);
+    } else if (rule.prefix === "NOT") {
+      notRules.push(predicate);
+    }
+  }
+
+  return {
+    matches(game) {
+      for (const predicate of andRules) {
+        if (!predicate(game)) {
+          return false;
+        }
+      }
+      if (orRules.length > 0) {
+        let matched = false;
+        for (const predicate of orRules) {
+          if (predicate(game)) {
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          return false;
+        }
+      }
+      for (const predicate of notRules) {
+        if (predicate(game)) {
+          return false;
+        }
+      }
+      return true;
+    },
+  };
+}
+
+/**
+ * Test one Rule's condition against one Game, ignoring its Prefix; `false` for
+ * every missing value. `gameMatchesRules` applies the Prefix grouping.
+ */
+export function testRule(rule: Rule, game: RuleTarget): boolean {
+  const caches: ListCaches = { normalized: new WeakMap(), raw: new WeakMap() };
+  return compileRule(rule, caches)(game);
 }
 
 /** The documented global grouping: every AND, at least one OR, no NOT. */
 export function gameMatchesRules(rules: readonly Rule[], game: RuleTarget): boolean {
-  for (const rule of rules) {
-    if (rule.prefix === "AND" && !testRule(rule, game)) {
-      return false;
-    }
-  }
-
-  let hasOr = false;
-  let orMatched = false;
-  for (const rule of rules) {
-    if (rule.prefix === "OR") {
-      hasOr = true;
-      if (!orMatched && testRule(rule, game)) {
-        orMatched = true;
-      }
-    }
-  }
-  if (hasOr && !orMatched) {
-    return false;
-  }
-
-  for (const rule of rules) {
-    if (rule.prefix === "NOT" && testRule(rule, game)) {
-      return false;
-    }
-  }
-
-  return true;
+  return compileRules(rules).matches(game);
 }
 
 /** Match a whole Library and return ascending App IDs. */
 export function evaluateRuleIds(rules: readonly Rule[], games: readonly RuleTarget[]): number[] {
-  return games
-    .filter((game) => gameMatchesRules(rules, game))
-    .map((game) => game.appId)
-    .sort((left, right) => left - right);
+  const compiled = compileRules(rules);
+  const matched: number[] = [];
+  for (const game of games) {
+    if (compiled.matches(game)) {
+      matched.push(game.appId);
+    }
+  }
+  return matched.sort((left, right) => left - right);
 }

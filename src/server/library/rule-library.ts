@@ -2,7 +2,7 @@ import type BetterSqlite3 from "better-sqlite3";
 import type { GameSummary, GameOrder, GameSort, Pagination } from "../../shared/types.ts";
 import type { Rule } from "../../shared/rules.ts";
 import { readTagsForGames, toGameSummary, type GameListResult, type GamesRow } from "./games.ts";
-import { gameMatchesRules, type RuleTarget } from "./rule-evaluator.ts";
+import { compileRules, type RuleTarget } from "./rule-evaluator.ts";
 
 /**
  * The shared Library projection used by `POST /api/rules/preview`,
@@ -48,6 +48,72 @@ interface CollectionMembership {
   steam_collection_id: string;
 }
 
+/**
+ * The evaluator's Game projection. JSON-backed list Fields are parsed on first
+ * access and cached, so a Rules array that never reads Genres does not pay for
+ * 20,000 Genre parses. The observable values are unchanged.
+ */
+class LibraryRuleTarget implements RuleTarget {
+  readonly appId: number;
+  readonly name: string;
+  readonly playtimeMinutes: number;
+  readonly installed: boolean | null;
+  readonly ownershipStatus: "owned" | "local_only" | "unknown";
+  readonly lastPlayedAt: number | null;
+  readonly releaseYear: number | null;
+  readonly metacriticScore: number | null;
+  readonly reviewScore: number | null;
+  readonly reviewTier: string | null;
+  readonly reviewCount: number | null;
+  readonly storefrontType: string | null;
+  readonly tags: readonly string[];
+  readonly steamCollections: readonly string[];
+  private readonly row: GamesRow;
+  private platformsCache: string[] | null = null;
+  private genresCache: string[] | null = null;
+  private categoriesCache: string[] | null = null;
+  private developersCache: string[] | null = null;
+  private publishersCache: string[] | null = null;
+
+  constructor(row: GamesRow, tags: readonly string[], steamCollections: readonly string[]) {
+    this.row = row;
+    this.appId = row.app_id;
+    this.name = row.name;
+    this.playtimeMinutes = row.playtime_minutes;
+    this.installed = row.installed === null ? null : row.installed === 1;
+    this.ownershipStatus = row.ownership_status;
+    this.lastPlayedAt = row.last_played_at;
+    this.releaseYear = row.release_year;
+    this.metacriticScore = row.metacritic_score;
+    this.reviewScore = row.review_score;
+    this.reviewTier = row.review_tier;
+    this.reviewCount = row.review_total;
+    this.storefrontType = row.type;
+    this.tags = tags;
+    this.steamCollections = steamCollections;
+  }
+
+  get platforms(): readonly string[] {
+    return (this.platformsCache ??= readPlatforms(this.row.platforms_json));
+  }
+
+  get genres(): readonly string[] {
+    return (this.genresCache ??= readJsonArray(this.row.genres_json));
+  }
+
+  get categories(): readonly string[] {
+    return (this.categoriesCache ??= readJsonArray(this.row.categories_json));
+  }
+
+  get developers(): readonly string[] {
+    return (this.developersCache ??= readJsonArray(this.row.developers_json));
+  }
+
+  get publishers(): readonly string[] {
+    return (this.publishersCache ??= readJsonArray(this.row.publishers_json));
+  }
+}
+
 export interface RuleLibrary {
   rows: GamesRow[];
   targets: Map<number, RuleTarget>;
@@ -78,45 +144,35 @@ export function readLibrary(db: BetterSqlite3.Database): RuleLibrary {
 
   const targets = new Map<number, RuleTarget>();
   for (const row of rows) {
-    targets.set(row.app_id, {
-      appId: row.app_id,
-      name: row.name,
-      playtimeMinutes: row.playtime_minutes,
-      installed: row.installed === null ? null : row.installed === 1,
-      ownershipStatus: row.ownership_status,
-      lastPlayedAt: row.last_played_at,
-      releaseYear: row.release_year,
-      metacriticScore: row.metacritic_score,
-      reviewScore: row.review_score,
-      reviewTier: row.review_tier,
-      reviewCount: row.review_total,
-      storefrontType: row.type,
-      platforms: readPlatforms(row.platforms_json),
-      genres: readJsonArray(row.genres_json),
-      categories: readJsonArray(row.categories_json),
-      developers: readJsonArray(row.developers_json),
-      publishers: readJsonArray(row.publishers_json),
-      tags: (tags.get(row.app_id) ?? []).map((tag) => tag.name),
-      steamCollections: collections.get(row.app_id) ?? [],
-    });
+    const tagNames = tags.get(row.app_id);
+    targets.set(
+      row.app_id,
+      new LibraryRuleTarget(
+        row,
+        tagNames === undefined ? [] : tagNames.map((tag) => tag.name),
+        collections.get(row.app_id) ?? [],
+      ),
+    );
   }
   return { rows, targets };
 }
 
 /** Match one Library projection; returns rows in `v_games` order. */
 export function evaluateLibrary(library: RuleLibrary, rules: readonly Rule[]): GamesRow[] {
+  const compiled = compileRules(rules);
   return library.rows.filter((row) => {
     const target = library.targets.get(row.app_id);
-    return target !== undefined && gameMatchesRules(rules, target);
+    return target !== undefined && compiled.matches(target);
   });
 }
 
 /** Count one Library projection without materializing the matching rows. */
 export function countLibraryMatches(library: RuleLibrary, rules: readonly Rule[]): number {
+  const compiled = compileRules(rules);
   let count = 0;
   for (const row of library.rows) {
     const target = library.targets.get(row.app_id);
-    if (target !== undefined && gameMatchesRules(rules, target)) {
+    if (target !== undefined && compiled.matches(target)) {
       count += 1;
     }
   }
