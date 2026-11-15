@@ -160,7 +160,7 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
                 onClick={onClose}
                 title={collection.isDynamic ? `${collection.name} (dynamic)` : collection.name}
               >
-                <span className="side-lock" aria-label="Read-only">
+                <span className="side-lock" role="img" aria-label="Read-only">
                   🔒
                 </span>
                 <span className="label">{collection.name}</span>

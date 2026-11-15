@@ -41,7 +41,7 @@ export function GameTable({ games }: GameTableProps) {
     const active = sort === field;
     const ariaSort = active ? (order === "asc" ? "ascending" : "descending") : "none";
     return (
-      <th aria-sort={ariaSort} key={field}>
+      <th scope="col" aria-sort={ariaSort} key={field}>
         <button
           type="button"
           className="th-sort"
@@ -73,7 +73,7 @@ export function GameTable({ games }: GameTableProps) {
       <table className="game-table">
         <thead>
           <tr>
-            <th className="col-check">
+            <th scope="col" className="col-check">
               <input
                 ref={selectAllRef}
                 type="checkbox"
@@ -83,12 +83,12 @@ export function GameTable({ games }: GameTableProps) {
               />
             </th>
             {sortableHeader("Game", "name")}
-            <th>Installed</th>
+            <th scope="col">Installed</th>
             {sortableHeader("Playtime", "playtime")}
             {sortableHeader("Last played", "lastPlayed")}
-            <th>Review</th>
+            <th scope="col">Review</th>
             {sortableHeader("Released", "releaseYear")}
-            <th>Tags</th>
+            <th scope="col">Tags</th>
           </tr>
         </thead>
         <tbody>
