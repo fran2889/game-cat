@@ -2359,18 +2359,29 @@ votes descending, then name ascending. A SteamSpy name may replace `placeholder`
 
 ### 6.6 Storefront response handling
 
-| Upstream result                                             | Stored effect                                                                         | `store_status`  | Source state      |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------- | ----------------- |
-| `200`, `success: true`, usable `data`                       | Store canonical fields and raw payload; set `store_fetched_at`; apply name precedence | `ok`            | `ok`              |
-| `200`, `success: false`, missing key, `data: null`, or `{}` | Keep last-known-good Metadata; record that no store data is available                 | `unavailable`   | `ok`/`partial`    |
-| `200`, malformed JSON or `steam_appid` mismatch             | Do not store; record a short error; keep last-known-good                              | `stale`/`error` | `error`/`partial` |
-| `400`                                                       | Request-shape bug; do not retry; record a short error                                 | `stale`/`error` | `error`           |
-| `429`                                                       | Honour `Retry-After`; keep last-known-good                                            | `stale`/`error` | `rate_limited`    |
-| `403` or block challenge                                    | Stop the store host for 15 minutes; keep last-known-good                              | `stale`/`error` | `blocked`         |
-| `5xx`, timeout, or network error                            | Retry with backoff; keep last-known-good                                              | `stale`/`error` | `error`/`offline` |
+| Upstream result                                                            | Stored effect                                                                         | `store_status`  | Source state      |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------- | ----------------- |
+| `200`, `success: true`, usable `data`                                      | Store canonical fields and raw payload; set `store_fetched_at`; apply name precedence | `ok`            | `ok`              |
+| `200`, `success: false`, missing key, `data: null`, or `{}`                | Keep last-known-good Metadata; record that no store data is available                 | `unavailable`   | `ok`/`partial`    |
+| `200`, malformed JSON, or `success: true` keyed only by a different App ID | Do not store; record a short error; keep last-known-good                              | `stale`/`error` | `error`/`partial` |
+| `400`                                                                      | Request-shape bug; do not retry; record a short error                                 | `stale`/`error` | `error`           |
+| `429`                                                                      | Honour `Retry-After`; otherwise retry with backoff; keep last-known-good              | `stale`/`error` | `rate_limited`    |
+| `403` or block challenge                                                   | Stop the store host for 15 minutes; keep last-known-good                              | `stale`/`error` | `blocked`         |
+| `5xx`, timeout, or network error                                           | Retry with backoff; keep last-known-good                                              | `stale`/`error` | `error`/`offline` |
 
 - `success: false` means delisted, region-blocked, or not a store product. The response cannot
   distinguish them, so the UI says "not available on the store", never "delisted".
+- The response is an object keyed by the requested App ID, and that outer key is the identity. A
+  `success: true` response keyed by the requested App ID is stored for that App regardless of
+  `data.steam_appid`: absent, null, differently typed, or a different Canonical App ID all leave the
+  outer key authoritative. The nested value is not independently validated.
+- Steam canonicalizes some Library Aliases while keeping the requested outer key. Live examples are
+  `100` → `80` (Counter-Strike: Condition Zero) and `870` → `550` (Left 4 Dead 2). Store the response
+  against the requested `app_id`; the Canonical App ID remains in `raw_store_json` and is not a
+  per-Game error. Add any further observed mappings here.
+- Only a `success: true` response whose sole key is a different App ID is a mismatch. It stores
+  nothing, keeps last-known-good Metadata, records a short diagnostic naming both App IDs, and does
+  not retry; the raw payload is never copied into the error.
 - Store `type`, developer and publisher arrays, Genre and Storefront Category names, platforms,
   Metacritic score, and the raw localized `release_date.date`. Parse a release year defensively; keep
   the raw string. Never sort on the raw release string.
@@ -2411,19 +2422,21 @@ Rules:
 
 ### 6.8 Retry, backoff, and circuit breaking
 
-| Response               | Action                                                                                                                                                            |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `429`                  | Honour `Retry-After`; otherwise exponential backoff with full jitter, base 2 s, factor 2, cap 60 s, max 5 attempts. Pause the whole source, not just the request. |
-| `403`                  | Block or challenge. Do not retry quickly. Stop the source for 15 minutes, surface `blocked`, resume on a later Fetch.                                             |
-| `400` (storefront)     | Request-shape bug, not transient. Fix the query; do not retry.                                                                                                    |
-| `5xx`, timeout, reset  | Retry with jitter, max 5 attempts; mark `stale`, continue with the next App.                                                                                      |
-| Other `4xx`            | No retry. Record the status and continue.                                                                                                                         |
-| `200`, missing summary | Not an error. Record `unavailable`; no immediate retry.                                                                                                           |
-| 5 consecutive failures | Open the circuit for that source for 15 minutes; keep serving cache.                                                                                              |
+| Response               | Action                                                                                                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `429`                  | Honour `Retry-After` immediately. Otherwise retry the request with exponential backoff and full jitter, base 2 s, factor 2, cap 60 s, max 5 attempts, then pause the whole source. Do not issue other requests while it retries. |
+| `403`                  | Block or challenge. Do not retry quickly. Stop the source for 15 minutes, surface `blocked`, resume on a later Fetch.                                                                                                            |
+| `400` (storefront)     | Request-shape bug, not transient. Fix the query; do not retry.                                                                                                                                                                   |
+| `5xx`, timeout, reset  | Retry with jitter, max 5 attempts; mark `stale`, continue with the next App.                                                                                                                                                     |
+| Other `4xx`            | No retry. Record the status and continue.                                                                                                                                                                                        |
+| `200`, missing summary | Not an error. Record `unavailable`; no immediate retry.                                                                                                                                                                          |
+| 5 consecutive failures | Open the circuit for that source for 15 minutes; keep serving cache.                                                                                                                                                             |
 
 Do not parallelize within a source. One in-flight request per host is enough at these budgets. A
 source in backoff is skipped by Fetch until `retry_after_at`; the run is `partial` and records the
-skipped count. SteamSpy is paced at about one request per second. The storefront and reviews use
+skipped count. A `Retry-After` pauses the source immediately; a `429` without it records the
+source-wide pause and `retry_after_at` only after the attempts are exhausted. SteamSpy is paced at
+about one request per second. The storefront and reviews use
 separate hosts, each paced at one 1.5-second interval; their passes may overlap. A pause applies only
 to the affected source; a later pass skipped by that pause reports the pause reason: `blocked` after
 a `403` or challenge, `rate_limited` after a `429`.
@@ -3893,7 +3906,7 @@ No item below blocks implementation. Each has a mitigation or a release gate.
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Real-install verification gaps            | The local-library research could not verify current key casing, `appmanifest.LastPlayed`, cloudstorage presence, macOS paths, portable installs, or legacy tags on a live Steam client. | Run the [§10.6](#106-manual-release-checklist) checklist on Linux first, then macOS and Windows before release. Treat parser findings as bugs, not contract changes.                                                                                               |
 | Review endpoint rate limit is unpublished | `IUserReviewsService/GetAppReviews` is documented, but anonymous calls share a lower, unpublished rate limit and the response shape can change.                                         | One request per App with `num_per_page: 1`, 1.5-second pacing on the `steam_web_api` host, honour `429`/`Retry-After`, keep the adapter replaceable, and fail closed on `3xx` (not followed), HTML, or `403`. See [ADR 0003](../adr/0003-user-reviews-service.md). |
-| Storefront endpoint is undocumented       | The endpoint is not part of Valve's documented Web API; field shapes and batching behavior can change.                                                                                  | One App per request, validate `steam_appid`, keep raw payloads, and keep the adapter replaceable. A `400` is a request bug, not a retry.                                                                                                                           |
+| Storefront endpoint is undocumented       | The endpoint is not part of Valve's documented Web API; field shapes and batching behavior can change.                                                                                  | One App per request, treat the requested-App-ID key as identity, accept Canonical App ID mappings, keep raw payloads, and keep the adapter replaceable. A `400` is a request bug, not a retry.                                                                     |
 | SteamSpy terms are unresolved             | Redistribution or commercial use could create legal exposure.                                                                                                                           | Attribute SteamSpy, cache locally, do not redistribute bulk data, and re-check terms before any commercial distribution. The project license grants no rights to SteamSpy data.                                                                                    |
 | Rate limits are not probed                | The SteamSpy, storefront, and anonymous review limits come from clients and prior art, not a documented contract.                                                                       | Use conservative pacing, honor `Retry-After`, use full-jitter backoff and a 15-minute circuit breaker. Never parallelize within a source.                                                                                                                          |
 | Large Library performance                 | A 20,000-Game Library with 100 Rules may exceed the evaluator budget; a global Full Refresh is capped at 5,000.                                                                         | The [§10.5](#105-performance-tests) budget gates the in-memory evaluator; SQL compilation or cached membership is the fallback. The UI disables Full Refresh above 5,000 and explains why.                                                                         |

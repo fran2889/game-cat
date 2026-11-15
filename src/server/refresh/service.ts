@@ -1503,6 +1503,15 @@ export class RefreshService {
         }
 
         if (outcome.kind === "rate_limited") {
+          // No Retry-After means Steam gives no deadline: retry this request
+          // with full-jitter exponential backoff (§6.8). Pacing still runs
+          // before each attempt, and the source issues no other request while
+          // the backoff waits. Once the attempts are exhausted, record the
+          // source-wide pause for later Fetch runs.
+          if (outcome.retryAfterAt === null && attempt < MAX_ATTEMPTS) {
+            await this.sleep(this.backoffMilliseconds(attempt));
+            continue;
+          }
           const at = this.now();
           const until = outcome.retryAfterAt ?? at + this.backoffSeconds(attempt);
           const previous = hostPause.get(hostKey);

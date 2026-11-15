@@ -216,3 +216,6 @@ No data, API, rule, or runtime semantics were changed.
 4. Install from `github:fran2889/game-cat#v1.0.0` on Node 24 after the tag exists and confirm the
    packaged `prepare` build, binary, and `--version`.
 5. Create and push `v1.0.0` after this pull request merges.
+6. Verify issue #41 on a real Library: after a Refresh, affected Games report `store_status = 'ok'`
+   (or a documented `unavailable`/`stale`/`error` with a truthful cause) and there are no unexplained
+   App ID mismatch errors. This is a release gate, not a code-only check.
