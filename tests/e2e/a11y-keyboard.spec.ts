@@ -52,9 +52,7 @@ test("keyboard-only onboarding saves the key and starts the first Fetch", async 
     // Wait for the client shell to render before sending the first Tab: the
     // URL can change before React mounts the skip link, and a Tab sent during
     // that window never reaches it.
-    await expect(
-      page.getByRole("heading", { name: "Connect your Steam library" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Connect your Steam library" })).toBeVisible();
 
     await focusMain(page);
     const key = page.getByLabel("Steam Web API key");
