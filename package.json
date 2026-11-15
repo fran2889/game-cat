@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@fastify/static": "10.1.11",
+    "better-sqlite3": "13.2.0",
     "fastify": "5.12.8",
     "pino": "10.4.0",
     "pino-pretty": "13.2.0",
@@ -39,6 +40,7 @@
     "react-router-dom": "7.18.5"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
     "@types/node": "26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",

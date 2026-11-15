@@ -7,4 +7,5 @@ playwright-report/
 .data/
 *.sqlite
 *.sqlite-*
+migrations/
 .idea/

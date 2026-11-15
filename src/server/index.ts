@@ -2,10 +2,11 @@ import { homedir as osHomedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Writable } from "node:stream";
 import type { FastifyInstance } from "fastify";
-import { APP_VERSION, DB_SCHEMA_VERSION, MIN_NODE_MAJOR } from "../shared/app.ts";
+import { APP_VERSION, MIN_NODE_MAJOR } from "../shared/app.ts";
 import type { Config, LogLevel, Status } from "../shared/types.ts";
 import { loadConfig, type ConfigOverrides, type ResolvedConfig } from "./config/load.ts";
 import { assertDataDirOutsideSteam, prepareDataDir } from "./config/data-dir.ts";
+import { openAppDatabase, type AppDatabase, type OpenDatabase } from "./db/database.ts";
 import { isStartupError, StartupError } from "./errors.ts";
 import { createHttpApp } from "./http/app.ts";
 import { createLogger, defaultLogPath, type AppLogger } from "./logging/logger.ts";
@@ -44,6 +45,8 @@ export interface ServerOptions {
   logKeepFiles?: number;
   /** Test seam and the future local-scan boundary (#23). */
   steamDiscovery?: SteamDiscoveryFn;
+  /** Injectable database boundary. Defaults to the bundled migration runner. */
+  database?: OpenDatabase;
 }
 
 export interface RunningServer {
@@ -51,6 +54,7 @@ export interface RunningServer {
   logger: AppLogger;
   config: Config;
   discovery: SteamDiscovery;
+  database: AppDatabase;
   port: number;
   url: string;
   close(): Promise<void>;
@@ -117,6 +121,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
   let lock: LockHandle | null = null;
   let appLogger: AppLogger | null = null;
   let app: FastifyInstance | null = null;
+  let database: AppDatabase | null = null;
 
   try {
     // The lock is taken before any database work. #22 opens SQLite after this.
@@ -143,11 +148,21 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       logger.warn({ warning }, "startup warning");
     }
 
+    // §8.5 step 7: open SQLite only after the single-instance lock. The
+    // account guard (§8.5 step 8) runs inside the opener.
+    const selectedSteamId64 = discovery.account?.steamId64 ?? resolved.steamId64;
+    const openDatabase = options.database ?? openAppDatabase;
+    database = openDatabase({
+      dataDir: resolved.dataDir,
+      steamWebApiConfigured: resolved.steamApiKey !== null && selectedSteamId64 !== null,
+      selectedSteamId64,
+    });
+
     const status: Status = buildStatus({
       discovery,
       steamApiKey: resolved.steamApiKey,
       configuredSteamId64: resolved.steamId64,
-      schemaVersion: DB_SCHEMA_VERSION,
+      schemaVersion: database.schemaVersion,
       version: APP_VERSION,
     });
 
@@ -186,7 +201,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
     logger.info(
       {
         version: APP_VERSION,
-        schemaVersion: DB_SCHEMA_VERSION,
+        schemaVersion: database.schemaVersion,
         nodeVersion: process.versions.node,
         dataDir: resolved.dataDir,
         port: actualPort,
@@ -220,6 +235,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       logger: appLogger,
       config: publicConfig,
       discovery,
+      database,
       port: actualPort,
       url,
       async close() {
@@ -227,9 +243,10 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
           return;
         }
         closed = true;
-        // §8.9: stop accepting, then release the lock and close the log. The
-        // database close and active-run marking join this sequence in #22/#36.
+        // §8.9: stop accepting, close the database, then release the lock and
+        // close the log. Active-run marking joins this sequence in #36.
         await app?.close();
+        database?.close();
         lock?.release();
         await appLogger?.close();
       },
@@ -244,6 +261,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
         // Best effort during startup failure cleanup.
       }
     }
+    database?.close();
     lock?.release();
     if (appLogger !== null) {
       await appLogger.close();

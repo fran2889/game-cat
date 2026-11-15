@@ -59,7 +59,7 @@ describe("CLI", () => {
     const result = await runCli(["--version"]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("0.1.0");
-    expect(result.stdout).toContain("schema 0");
+    expect(result.stdout).toContain("schema 1");
   });
 
   it("--help lists the flags", async () => {
