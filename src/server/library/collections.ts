@@ -12,6 +12,7 @@ import {
   GAME_SORTS,
   gameOrderSql,
   readDataAsOf,
+  readTagsForGames,
   toGameSummary,
   type GameOrder,
   type GamesRow,
@@ -195,9 +196,13 @@ export class SteamCollectionsRepository {
          LIMIT ? OFFSET ?`,
       )
       .all(id, query.pageSize, (query.page - 1) * query.pageSize) as GamesRow[];
+    const tags = readTagsForGames(
+      this.db,
+      rows.map((row) => row.app_id),
+    );
 
     return {
-      data: rows.map(toGameSummary),
+      data: rows.map((row) => toGameSummary(row, tags.get(row.app_id) ?? [])),
       pagination: pagination(query.page, query.pageSize, total),
       meta: { dataAsOf: readDataAsOf(this.db), dynamic: false },
     };

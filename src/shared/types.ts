@@ -50,6 +50,15 @@ export type LibraryScanStatus = "never" | "ok" | "partial" | "failed";
 
 export type OwnershipStatus = "owned" | "local_only" | "unknown";
 
+/** The documented `GET /api/games` sort whitelist. */
+export type GameSort = "name" | "playtime" | "lastPlayed" | "releaseYear" | "metacritic" | "appId";
+export type GameOrder = "asc" | "desc";
+
+/** The four client view kinds that own a layout and a selection. */
+export type ViewKind = "library" | "installed" | "smart" | "steam";
+
+export type ReviewTone = "great" | "good" | "mixed" | "bad" | "none";
+
 export type MetadataSourceStatus =
   | "ok"
   | "unavailable"

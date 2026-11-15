@@ -2,9 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import type { GamesResponse } from "../../shared/types.ts";
 import { ApiError, fetchGames, startLibraryScan, startOwnershipRefresh } from "../api.ts";
-import { GameCard } from "../components/GameCard.tsx";
+import { useBrowse } from "../browse-context.tsx";
+import { GameResults } from "../components/GameResults.tsx";
 import { OwnershipBanner } from "../components/OwnershipBanner.tsx";
+import { Pagination } from "../components/Pagination.tsx";
+import { ResultsHeader } from "../components/ResultsHeader.tsx";
+import { SelectionBar } from "../components/SelectionBar.tsx";
 import { useToast } from "../components/ToastProvider.tsx";
+import { formatTimestamp } from "../format.ts";
 import type { ShellContext } from "../shell-context.ts";
 
 export interface LibraryViewProps {
@@ -30,13 +35,27 @@ function LoadingGrid() {
 }
 
 export function LibraryView({ mode }: LibraryViewProps) {
-  const { status, reloadStatus } = useOutletContext<ShellContext>();
+  const { status, error: statusError, reloadStatus } = useOutletContext<ShellContext>();
   const { showToast } = useToast();
+  const {
+    search,
+    clearSearch,
+    sort,
+    order,
+    installedOnly,
+    layout,
+    selectedCount,
+    isSelected,
+    selectShown,
+    clearSelection,
+  } = useBrowse();
   const [games, setGames] = useState<GamesResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [scanning, setScanning] = useState(false);
   const [refreshingOwnership, setRefreshingOwnership] = useState(false);
+
+  const installedFilter = mode === "installed" || installedOnly;
 
   const load = useCallback(
     (signal?: AbortSignal) => {
@@ -44,7 +63,10 @@ export function LibraryView({ mode }: LibraryViewProps) {
         {
           page,
           pageSize: PAGE_SIZE,
-          ...(mode === "installed" ? { installed: true } : {}),
+          sort,
+          order,
+          ...(search.trim() === "" ? {} : { search }),
+          ...(installedFilter ? { installed: true } : {}),
         },
         signal,
       )
@@ -58,8 +80,12 @@ export function LibraryView({ mode }: LibraryViewProps) {
           }
         });
     },
-    [mode, page],
+    [installedFilter, order, page, search, sort],
   );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, sort, order, installedFilter, layout, mode]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -115,7 +141,12 @@ export function LibraryView({ mode }: LibraryViewProps) {
     }
   };
 
-  if (status === null || (games === null && error === null)) {
+  if (status === null) {
+    // AppShell already shows the disconnected banner when the status fetch fails.
+    return statusError === null ? <LoadingGrid /> : null;
+  }
+
+  if (games === null && error === null) {
     return <LoadingGrid />;
   }
 
@@ -124,7 +155,10 @@ export function LibraryView({ mode }: LibraryViewProps) {
   const noAccount = status.steam.state === "no_account";
   const totalItems = games?.pagination.totalItems ?? 0;
   const totalPages = games?.pagination.totalPages ?? 0;
+  const dataAsOf = games?.meta.dataAsOf ?? null;
   const rows = games?.data ?? [];
+  const filtered = search.trim() !== "" || installedFilter;
+  const allShownSelected = rows.length > 0 && rows.every((game) => isSelected(game.appId));
 
   const actions = (
     <div className="empty-actions">
@@ -137,7 +171,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
     </div>
   );
 
-  if (steamMissing && rows.length === 0) {
+  if (steamMissing && rows.length === 0 && search.trim() === "") {
     return (
       <section className="empty-library" aria-labelledby="steam-missing-heading">
         <div className="empty-illustration" aria-hidden="true">
@@ -160,32 +194,51 @@ export function LibraryView({ mode }: LibraryViewProps) {
     );
   }
 
-  if (error !== null) {
-    return (
-      <div className="banner banner-error" role="alert">
-        <div>
-          <strong>Cannot reach game-cat. Is the server still running?</strong>
-          <p>{error}</p>
-        </div>
-        <button type="button" className="button" onClick={() => void load()}>
-          Retry connection
-        </button>
-      </div>
-    );
+  if (error !== null && games === null) {
+    return <DisconnectedBanner message={error} onRetry={() => void load()} />;
   }
 
+  const banners = (
+    <>
+      {error !== null && <DisconnectedBanner message={error} onRetry={() => void load()} />}
+      {noAccount && <NoAccountBanner />}
+      {status !== null && (
+        <OwnershipBanner
+          status={status}
+          refreshing={refreshingOwnership}
+          onRetry={retryOwnership}
+        />
+      )}
+    </>
+  );
+
   if (rows.length === 0) {
+    if (search.trim() !== "") {
+      return (
+        <section className="library" aria-label="Search results">
+          {banners}
+          {selectedCount > 0 && <SelectionBar />}
+          <section className="empty-library" role="status" aria-labelledby="no-results-heading">
+            <h2 id="no-results-heading">No games match &quot;{search}&quot;.</h2>
+            <p>Search looks at game names only. Tags, genres, and playtime belong in Rules.</p>
+            <div className="empty-actions">
+              <button type="button" className="button" onClick={clearSearch}>
+                Clear search
+              </button>
+            </div>
+          </section>
+        </section>
+      );
+    }
+
     const heading = mode === "installed" ? "No installed games found." : "No games found.";
     return (
-      <>
-        {noAccount && <NoAccountBanner />}
-        {status !== null && (
-          <OwnershipBanner
-            status={status}
-            refreshing={refreshingOwnership}
-            onRetry={retryOwnership}
-          />
-        )}
+      <section
+        className="library"
+        aria-label={mode === "installed" ? "Installed games" : "All games"}
+      >
+        {banners}
+        {selectedCount > 0 && <SelectionBar />}
         <section className="empty-library" aria-labelledby="empty-heading">
           <div className="empty-illustration" aria-hidden="true">
             <span />
@@ -205,7 +258,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
           )}
           {actions}
         </section>
-      </>
+      </section>
     );
   }
 
@@ -214,49 +267,48 @@ export function LibraryView({ mode }: LibraryViewProps) {
       className="library"
       aria-label={mode === "installed" ? "Installed games" : "All games"}
     >
-      {noAccount && <NoAccountBanner />}
-      {status !== null && (
-        <OwnershipBanner
-          status={status}
-          refreshing={refreshingOwnership}
-          onRetry={retryOwnership}
+      {banners}
+      <SelectionBar />
+      <ResultsHeader
+        totalItems={totalItems}
+        shownItems={rows.length}
+        filtered={filtered}
+        allShownSelected={allShownSelected}
+        hasGames={rows.length > 0}
+        selectionCount={selectedCount}
+        onSelectShown={() => selectShown(rows.map((game) => game.appId))}
+        onClearSelection={clearSelection}
+      />
+      <GameResults games={rows} />
+      {totalItems > 0 && (
+        <Pagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          totalItems={totalItems}
+          totalPages={totalPages}
+          onPageChange={setPage}
         />
       )}
-      <div className="library-summary">
-        <p>
-          {totalItems} {totalItems === 1 ? "game" : "games"}
-        </p>
-        <button type="button" className="button" onClick={() => void scan()} disabled={scanning}>
-          {scanning ? "Scanning…" : "Scan again"}
-        </button>
-      </div>
-      <div className="game-grid">
-        {rows.map((game) => (
-          <GameCard key={game.appId} game={game} />
-        ))}
-      </div>
-      <nav className="pagination" aria-label="Pagination">
-        <button
-          type="button"
-          className="button"
-          onClick={() => setPage((current) => Math.max(1, current - 1))}
-          disabled={page <= 1}
-        >
-          Previous
-        </button>
-        <span aria-live="polite">
-          Page {page} of {totalPages}
-        </span>
-        <button
-          type="button"
-          className="button"
-          onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-          disabled={page >= totalPages}
-        >
-          Next
-        </button>
-      </nav>
+      {dataAsOf !== null && (
+        <footer className="results-footer">
+          Data as of <time dateTime={dataAsOf}>{formatTimestamp(dataAsOf)}</time>
+        </footer>
+      )}
     </section>
+  );
+}
+
+function DisconnectedBanner({ message, onRetry }: { message: string; onRetry(): void }) {
+  return (
+    <div className="banner banner-error" role="alert">
+      <div>
+        <strong>Cannot reach game-cat. Is the server still running?</strong>
+        <p>{message}</p>
+      </div>
+      <button type="button" className="button" onClick={onRetry}>
+        Retry connection
+      </button>
+    </div>
   );
 }
 
