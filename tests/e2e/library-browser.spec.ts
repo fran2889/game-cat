@@ -106,6 +106,11 @@ test("the table has the documented columns, sortable headers, and null cells", a
   await expect(dotaRow.locator("td").nth(4)).toHaveText("—");
   await expect(dotaRow.locator("td").nth(6)).toHaveText("—");
 
+  await page.getByRole("searchbox", { name: "Search game names" }).fill("Portal");
+  const portalRow = page.locator(".game-table tbody tr", { hasText: "Portal 2" });
+  await expect(portalRow.locator("td").nth(5)).toHaveText("98%");
+  await expect(portalRow.locator("td").nth(6)).toHaveText("2011");
+
   await page.getByRole("combobox", { name: "Sort by" }).selectOption("metacritic");
   await expect(gameHeader).toHaveAttribute("aria-sort", "none");
 });

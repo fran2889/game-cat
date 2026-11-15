@@ -7,6 +7,7 @@ import {
   type SteamCollectionsRepository,
 } from "../library/collections.ts";
 import { GamesRepository, parseGamesQuery } from "../library/games.ts";
+import { parseRuleValuesQuery, type RuleValuesRepository } from "../library/rule-values.ts";
 import { parseTagsQuery, type TagsRepository } from "../library/tags.ts";
 import type { RefreshService } from "../refresh/service.ts";
 
@@ -14,6 +15,7 @@ export interface ApiRoutesOptions {
   status: Status | (() => Status);
   games: GamesRepository;
   collections: SteamCollectionsRepository;
+  ruleValues: RuleValuesRepository;
   tags: TagsRepository;
   refresh: RefreshService;
 }
@@ -76,6 +78,10 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     }
     return { data: game };
   });
+
+  app.get("/api/rule-values", async (request) =>
+    options.ruleValues.list(parseRuleValuesQuery(queryValues(request.query))),
+  );
 
   app.get("/api/tags", async (request) =>
     options.tags.list(parseTagsQuery(queryValues(request.query))),
