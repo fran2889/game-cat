@@ -1,3 +1,10 @@
 node_modules/
+dist/
+build/
+coverage/
+test-results/
+playwright-report/
+.data/
+*.sqlite
+*.sqlite-*
 .idea/
-package-lock.json

@@ -1,18 +1,55 @@
 {
   "name": "game-cat",
+  "version": "0.1.0",
   "private": true,
   "license": "GPL-3.0-only",
+  "type": "module",
+  "description": "A local, read-first view of a Steam library",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "game-cat": "dist/server/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/server/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "lint:links": "remark --frail --quiet .",
-    "check": "npm run format:check && npm run lint:md && npm run lint:links"
+    "check": "npm run format:check && npm run lint:md && npm run lint:links && npm run typecheck"
+  },
+  "dependencies": {
+    "@fastify/static": "10.1.11",
+    "fastify": "5.12.8",
+    "pino": "10.4.0",
+    "pino-pretty": "13.2.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router-dom": "7.18.5"
   },
   "devDependencies": {
-    "markdownlint-cli2": "^0.24.1",
-    "prettier": "^3.10.1",
-    "remark-cli": "^12.0.1",
-    "remark-validate-links": "^13.1.0"
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "markdownlint-cli2": "0.24.1",
+    "prettier": "3.10.1",
+    "remark-cli": "12.0.1",
+    "remark-validate-links": "13.1.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
   }
 }

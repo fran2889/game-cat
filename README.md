@@ -6,8 +6,29 @@ Steam-only for now. Later phases add How Long To Beat times, writing Smart Colle
 
 ## Status
 
-Pre-implementation. The v1 contract is merged and authoritative:
-[docs/specs/game-cat-v1.md](docs/specs/game-cat-v1.md).
+Early implementation. The v1 contract is merged and authoritative:
+[docs/specs/game-cat-v1.md](docs/specs/game-cat-v1.md). The bootable server, configuration, data
+directory, lock, logging, HTTP boundary, and React shell are in place; the SQLite schema, local
+Steam scan, Metadata Refresh, and Smart Collection editor land in later slices.
+
+## Development
+
+Requires Node 24 or newer and npm with the committed lockfile.
+
+```sh
+npm ci
+npm run dev        # API on 4780, Vite UI on http://127.0.0.1:5173/
+npm test           # unit and HTTP integration tests
+npm run check      # formatting, Markdown, links, and typecheck
+npm run build      # server and static client in dist/
+npm start          # production-shaped single process
+```
+
+Use a separate data directory while developing:
+
+```sh
+GAME_CAT_DATA_DIR="$PWD/.data" npm run dev
+```
 
 ## Planning
 
