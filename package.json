@@ -1,6 +1,6 @@
 {
   "name": "game-cat",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "license": "GPL-3.0-only",
   "type": "module",
   "description": "A local, read-first view of a Steam library",
@@ -44,7 +44,9 @@
     "format:check": "prettier --check .",
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "lint:links": "remark --frail --quiet .",
-    "check": "npm run format:check && npm run lint:md && npm run lint:links && npm run typecheck"
+    "audit:tests": "node scripts/audit-tests.mjs",
+    "audit:secrets": "node scripts/audit-secrets.mjs",
+    "check": "npm run format:check && npm run lint:md && npm run lint:links && npm run typecheck && npm run audit:tests && npm run audit:secrets"
   },
   "dependencies": {
     "@fastify/static": "10.1.11",

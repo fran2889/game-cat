@@ -5,6 +5,7 @@ import { PassThrough } from "node:stream";
 import pino from "pino";
 import { afterEach, describe, expect, it } from "vitest";
 import { createHttpApp } from "../../src/server/http/app.ts";
+import { APP_VERSION } from "../../src/shared/app.ts";
 import type { Status } from "../../src/shared/types.ts";
 
 const PORT = 4780;
@@ -12,7 +13,7 @@ const HOST = `127.0.0.1:${PORT}`;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 const status: Status = {
-  app: { version: "0.1.0", dbSchemaVersion: 0 },
+  app: { version: APP_VERSION, dbSchemaVersion: 0 },
   steam: { state: "not_found", root: null, account: null },
   ownership: {
     state: "not_configured",
