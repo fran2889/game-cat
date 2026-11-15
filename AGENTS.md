@@ -2,13 +2,11 @@
 
 Docs-only repo; no runtime code yet.
 
-- v1 spec (build-ready, proposed for #8): [docs/specs/game-cat-v1.md](docs/specs/game-cat-v1.md) — becomes the single v1 contract when #8 merges.
-- Drafts, authoritative until #8 merges:
-  - Data model and API: [docs/specs/game-cat-v1-data-model-and-api.md](docs/specs/game-cat-v1-data-model-and-api.md) — draft for #3.
-  - Rule grammar: [docs/specs/game-cat-v1-rule-grammar.md](docs/specs/game-cat-v1-rule-grammar.md) — draft for #4.
-  - Run contract: [docs/specs/game-cat-v1-run-contract.md](docs/specs/game-cat-v1-run-contract.md) — draft for #7.
+- v1 contract: [docs/specs/game-cat-v1.md](docs/specs/game-cat-v1.md) is the single authoritative
+  v1 specification. It was merged via [#8](https://github.com/fran2889/game-cat/issues/8) and retired
+  the earlier data model and API, rule grammar, and run contract drafts.
 - ADRs: [docs/adr/](docs/adr/).
 - Vocabulary: [GLOSSARY.md](GLOSSARY.md) is canonical.
 - Research notes: `git show research/<slug>:docs/research/<slug>.md`; stable summaries in issues #2, #5, and #14.
-- Tracker: GitHub issues. #1 is the map, #3 the data model and API draft, #8 the final v1 spec.
+- Tracker: GitHub issues. #1 is the map, #8 the merged v1 contract.
 - Checks: `npm ci && npm run check`.
