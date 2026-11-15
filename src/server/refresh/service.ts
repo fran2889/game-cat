@@ -452,6 +452,8 @@ export class RefreshService {
   private readonly jitter: () => number;
   private readonly sleep: (milliseconds: number) => Promise<void>;
   private readonly sources: MetadataSourceRegistry;
+  /** Aborted on shutdown so upstream requests and backoff waits stop promptly. */
+  private readonly stopController = new AbortController();
   private worker: Promise<void> | null = null;
   private stopping = false;
   /** Live settings for the next run; an in-flight run uses its snapshot. */
@@ -462,9 +464,7 @@ export class RefreshService {
     this.db = options.db;
     this.now = options.now ?? unixSeconds;
     this.jitter = options.jitter ?? Math.random;
-    this.sleep =
-      options.sleep ??
-      ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+    this.sleep = options.sleep ?? ((milliseconds) => this.sleepUnlessStopped(milliseconds));
     this.sources =
       options.sources instanceof MetadataSourceRegistry
         ? options.sources
@@ -582,6 +582,7 @@ export class RefreshService {
    */
   async shutdown(): Promise<void> {
     this.stopping = true;
+    this.stopController.abort();
     const row = this.readActiveRow();
     if (row !== undefined) {
       const message = "The Refresh run was interrupted by shutdown.";
@@ -599,6 +600,22 @@ export class RefreshService {
     if (this.worker !== null) {
       await this.worker;
     }
+  }
+
+  /** Backoff that never delays a graceful shutdown for up to a minute. */
+  private sleepUnlessStopped(milliseconds: number): Promise<void> {
+    if (this.stopping || this.stopController.signal.aborted) {
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      const finish = (): void => {
+        clearTimeout(timer);
+        this.stopController.signal.removeEventListener("abort", finish);
+        resolve();
+      };
+      const timer = setTimeout(finish, milliseconds);
+      this.stopController.signal.addEventListener("abort", finish, { once: true });
+    });
   }
 
   private steamIdForRun(scope: RefreshScope): string | null {
@@ -853,7 +870,7 @@ export class RefreshService {
       this.options.ownershipSource ?? createSteamOwnershipSource({ apiKey: config.steamApiKey! });
     let result: OwnershipFetchResult;
     try {
-      result = await source.fetchOwnedGames(steamId64);
+      result = await source.fetchOwnedGames(steamId64, this.stopController.signal);
     } catch {
       result = { kind: "error", message: "The Steam Web API could not be reached." };
     }
@@ -1407,6 +1424,7 @@ export class RefreshService {
             db: this.db,
             game: item,
             now: this.now(),
+            signal: this.stopController.signal,
           });
         } catch (error) {
           outcome = {

@@ -317,7 +317,7 @@ export class StorefrontSource implements MetadataSource {
   async fetch(context: MetadataSourceContext): Promise<MetadataSourceOutcome> {
     const { db, game, now } = context;
     try {
-      return await this.request(db, game.appId, now);
+      return await this.request(db, game.appId, now, context.signal);
     } catch {
       // An adapter never throws; the engine classifies this as transient.
       try {
@@ -333,11 +333,16 @@ export class StorefrontSource implements MetadataSource {
     db: BetterSqlite3.Database,
     appId: number,
     now: number,
+    outerSignal?: AbortSignal,
   ): Promise<MetadataSourceOutcome> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const signal =
+      outerSignal === undefined
+        ? controller.signal
+        : AbortSignal.any([controller.signal, outerSignal]);
     try {
-      return await this.performRequest(db, appId, now, controller.signal);
+      return await this.performRequest(db, appId, now, signal, outerSignal);
     } finally {
       clearTimeout(timer);
     }
@@ -348,6 +353,7 @@ export class StorefrontSource implements MetadataSource {
     appId: number,
     now: number,
     signal: AbortSignal,
+    outerSignal?: AbortSignal,
   ): Promise<MetadataSourceOutcome> {
     const url = `${ENDPOINT}?appids=${appId}&cc=us&l=english&filters=${FILTERS}`;
     let response: Response;
@@ -358,9 +364,11 @@ export class StorefrontSource implements MetadataSource {
         signal,
       });
     } catch {
-      const message = signal.aborted
-        ? "The storefront request timed out."
-        : "The storefront request failed.";
+      const message = outerSignal?.aborted
+        ? "The storefront request was interrupted by shutdown."
+        : signal.aborted
+          ? "The storefront request timed out."
+          : "The storefront request failed.";
       recordFailure(db, appId, now, message);
       return { kind: "error", message };
     }

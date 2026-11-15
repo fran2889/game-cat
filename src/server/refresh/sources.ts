@@ -23,6 +23,11 @@ export interface MetadataSourceContext {
   game: MetadataSourceGame;
   /** Unix seconds. Adapters must use this instead of reading the clock. */
   now: number;
+  /**
+   * Aborted when the server shuts down. Adapters must pass it to their upstream
+   * request so graceful shutdown can stop in-flight work.
+   */
+  signal?: AbortSignal;
 }
 
 /**

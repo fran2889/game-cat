@@ -1,28 +1,44 @@
 {
   "name": "game-cat",
   "version": "0.1.0",
-  "private": true,
   "license": "GPL-3.0-only",
   "type": "module",
   "description": "A local, read-first view of a Steam library",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fran2889/game-cat.git"
+  },
+  "homepage": "https://github.com/fran2889/game-cat",
+  "bugs": {
+    "url": "https://github.com/fran2889/game-cat/issues"
+  },
   "engines": {
     "node": ">=24"
   },
   "bin": {
     "game-cat": "dist/server/cli.js"
   },
+  "main": "./dist/server/index.js",
+  "exports": {
+    ".": "./dist/server/index.js"
+  },
   "files": [
     "dist",
+    "migrations",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",
+    "prepare": "npm run build",
     "start": "node dist/server/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
+    "test:package": "node scripts/verify-package.mjs",
+    "test:perf": "npm run build && tsx scripts/perf/run.ts",
+    "perf:fixtures": "tsx scripts/perf/print-fixtures.ts",
     "typecheck": "tsc -p tsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

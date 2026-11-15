@@ -243,6 +243,10 @@ export class SteamReviewSource implements MetadataSource {
     const { db, game, now } = context;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const signal =
+      context.signal === undefined
+        ? controller.signal
+        : AbortSignal.any([controller.signal, context.signal]);
     try {
       let response: Response;
       try {
@@ -250,12 +254,14 @@ export class SteamReviewSource implements MetadataSource {
           method: "GET",
           headers: { accept: "application/json", "user-agent": REVIEWS_USER_AGENT },
           redirect: "manual",
-          signal: controller.signal,
+          signal,
         });
       } catch {
-        const message = controller.signal.aborted
-          ? "The Steam reviews request timed out."
-          : "The Steam reviews request could not be reached.";
+        const message = context.signal?.aborted
+          ? "The Steam reviews request was interrupted by shutdown."
+          : controller.signal.aborted
+            ? "The Steam reviews request timed out."
+            : "The Steam reviews request could not be reached.";
         recordFailure(db, game.appId, now, message);
         return { kind: "error", message };
       }

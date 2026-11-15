@@ -3,6 +3,7 @@ import { HttpError } from "../errors.ts";
 import { discoverSteam, type SteamDiscovery, type SteamDiscoveryFn } from "../steam/discovery.ts";
 import type { FileConfig, ResolvedConfig } from "./load.ts";
 import { expandHome, isAbsolutePath } from "./paths.ts";
+import { createConfigFileSecretStore, type SecretStore } from "./secrets.ts";
 import { writeConfigAtomically } from "./write.ts";
 
 export interface ConfigStoreOptions {
@@ -19,6 +20,11 @@ export interface ConfigStoreOptions {
   /** Read dynamically so a first run can bind the Account after startup. */
   boundSteamId64?: () => string | null;
   onChange?: (config: Config, restartRequired: boolean) => void;
+  /**
+   * Replaceable key storage (§8.10 item 8). The default reads and writes the
+   * `steamApiKey` field in `config.json`; a wrapper can inject the OS keychain.
+   */
+  secretStore?: SecretStore;
 }
 
 export interface ConfigPatchResult {
@@ -57,6 +63,7 @@ export class ConfigStore {
   private readonly setLogLevel: ((level: LogLevel) => void) | undefined;
   private readonly boundSteamId64: (() => string | null) | undefined;
   private readonly onChange: ((config: Config, restartRequired: boolean) => void) | undefined;
+  private readonly secretStore: SecretStore;
 
   private fileConfig: FileConfig;
   private currentDiscovery: SteamDiscovery;
@@ -83,9 +90,44 @@ export class ConfigStore {
     this.onChange = options.onChange;
 
     this.fileConfig = { ...options.resolved.fileConfig };
+    if (options.secretStore !== undefined && options.secretStore.storage === "external") {
+      // The external store owns the key; never leave a stale copy in the file.
+      delete this.fileConfig.steamApiKey;
+    }
+    this.secretStore =
+      options.secretStore ??
+      createConfigFileSecretStore({
+        configPath: this.configPath,
+        platform: this.platform,
+        readDocument: () => this.fileConfig,
+        commitDocument: (document) => {
+          this.fileConfig = document;
+        },
+      });
+
+    // Precedence is environment, then a programmatic option, then the store
+    // (which is `config.json` by default).
+    const environmentKey =
+      options.resolved.steamApiKeySource === "env" ? options.resolved.steamApiKey : null;
+    const programmaticKey =
+      options.resolved.steamApiKeySource !== "env" &&
+      options.resolved.steamApiKey !== null &&
+      options.resolved.steamApiKey !== options.resolved.fileConfig.steamApiKey;
+    if (environmentKey !== null) {
+      this.apiKey = environmentKey;
+      this.apiKeySource = "env";
+    } else if (programmaticKey) {
+      this.apiKey = options.resolved.steamApiKey;
+      this.apiKeySource = "file";
+    } else {
+      const stored =
+        options.secretStore === undefined
+          ? options.resolved.steamApiKey
+          : options.secretStore.read();
+      this.apiKey = stored;
+      this.apiKeySource = stored === null ? "none" : "file";
+    }
     this.currentDiscovery = options.discovery;
-    this.apiKey = options.resolved.steamApiKey;
-    this.apiKeySource = options.resolved.steamApiKeySource;
     this.configuredSteamRoot = options.resolved.steamRoot;
     this.configuredSteamId64 = options.resolved.steamId64;
     this.effectiveSteamRoot = options.discovery.root ?? options.resolved.steamRoot;
@@ -176,8 +218,9 @@ export class ConfigStore {
       }
     }
 
+    const keyChanged = record.steamApiKey !== undefined;
     const nextFileConfig: FileConfig = { ...this.fileConfig };
-    if (record.steamApiKey !== undefined) {
+    if (keyChanged && this.secretStore.storage === "config-file") {
       nextFileConfig.steamApiKey = record.steamApiKey as string;
     }
     if (record.steamRoot !== undefined) {
@@ -196,15 +239,27 @@ export class ConfigStore {
       nextFileConfig.logLevel = record.logLevel as LogLevel;
     }
 
+    const previousFileConfig = this.fileConfig;
+    const previousApiKey = this.apiKey;
+    this.fileConfig = nextFileConfig;
     try {
-      writeConfigAtomically(this.configPath, nextFileConfig, this.platform);
+      if (keyChanged) {
+        // The store merges/persists the key. A file-backed store also writes
+        // the non-secret fields collected above; an external store does not.
+        this.secretStore.write(record.steamApiKey as string);
+        if (this.secretStore.storage !== "config-file") {
+          writeConfigAtomically(this.configPath, nextFileConfig, this.platform);
+        }
+      } else {
+        writeConfigAtomically(this.configPath, nextFileConfig, this.platform);
+      }
     } catch {
+      this.fileConfig = previousFileConfig;
+      this.apiKey = previousApiKey;
       throw new HttpError(500, "INTERNAL_ERROR", "The configuration could not be saved.");
     }
 
-    this.fileConfig = nextFileConfig;
-
-    if (record.steamApiKey !== undefined) {
+    if (keyChanged) {
       this.apiKey = record.steamApiKey as string;
       this.apiKeySource = "file";
     }

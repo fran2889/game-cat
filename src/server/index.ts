@@ -6,6 +6,7 @@ import { APP_VERSION, MIN_NODE_MAJOR } from "../shared/app.ts";
 import type { Config, LogLevel, Status } from "../shared/types.ts";
 import { loadConfig, type ConfigOverrides, type ResolvedConfig } from "./config/load.ts";
 import { assertDataDirOutsideSteam, prepareDataDir } from "./config/data-dir.ts";
+import type { SecretStore } from "./config/secrets.ts";
 import { ConfigStore } from "./config/store.ts";
 import {
   openAppDatabase,
@@ -77,6 +78,11 @@ export interface ServerOptions {
    * interrupted runs still happens.
    */
   startupRefresh?: boolean;
+  /**
+   * Replaceable Steam Web API key storage (§8.10 item 8). Defaults to the
+   * `steamApiKey` field in `<data-dir>/config.json`.
+   */
+  secretStore?: SecretStore;
 }
 
 export interface RunningServer {
@@ -126,6 +132,28 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
     cwd: options.cwd,
   });
 
+  // Resolve the key before the database opens, with the same precedence the
+  // ConfigStore uses. An external store never requires 0600 on config.json.
+  const environmentKey = resolved.steamApiKeySource === "env" ? resolved.steamApiKey : null;
+  const programmaticKey =
+    resolved.steamApiKeySource !== "env" &&
+    resolved.steamApiKey !== null &&
+    resolved.steamApiKey !== resolved.fileConfig.steamApiKey;
+  const initialApiKey =
+    environmentKey !== null
+      ? environmentKey
+      : programmaticKey
+        ? resolved.steamApiKey
+        : options.secretStore === undefined
+          ? resolved.steamApiKey
+          : options.secretStore.read();
+  const keySource: "file" | "env" | "none" =
+    options.secretStore !== undefined && options.secretStore.storage === "external"
+      ? environmentKey === null
+        ? "none"
+        : "env"
+      : resolved.steamApiKeySource;
+
   const discovery = (options.steamDiscovery ?? discoverSteam)({
     steamRoot: resolved.steamRoot,
     steamId64: resolved.steamId64,
@@ -140,7 +168,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
     dataDir: resolved.dataDir,
     configPath: resolved.configPath,
     configFileExists: resolved.configFileExists,
-    keySource: resolved.steamApiKeySource,
+    keySource,
     platform,
   });
 
@@ -184,7 +212,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
     const openDatabase = options.database ?? openAppDatabase;
     database = openDatabase({
       dataDir: resolved.dataDir,
-      steamWebApiConfigured: resolved.steamApiKey !== null && selectedSteamId64 !== null,
+      steamWebApiConfigured: initialApiKey !== null && selectedSteamId64 !== null,
       selectedSteamId64,
     });
 
@@ -201,6 +229,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
         logger.level = level;
       },
       boundSteamId64: () => (database === null ? null : readBoundSteamId64(database.raw)),
+      ...(options.secretStore === undefined ? {} : { secretStore: options.secretStore }),
       onChange: (config, restartRequired) => {
         refreshService?.applyConfig({
           steamRoot: config.steamRoot,
@@ -337,13 +366,32 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
           return;
         }
         closed = true;
-        // §8.9: stop accepting, mark the active run, then close SQLite and
-        // release the lock.
-        await app?.close();
-        await refresh.shutdown();
+        // §8.9: stop accepting, abort upstream work, let the active run be
+        // marked (or finish), then close SQLite, release the lock, and flush
+        // the log. Every step runs even when an earlier one fails so a caller
+        // never keeps the database or lock open.
+        let failure: unknown = null;
+        try {
+          await app?.close();
+        } catch (error) {
+          failure = error;
+        }
+        try {
+          await refresh.shutdown();
+        } catch (error) {
+          failure ??= error;
+        }
         database?.close();
         lock?.release();
+        try {
+          logger.info({}, "shutdown complete");
+        } catch {
+          // The log sink may already be gone; cleanup continues.
+        }
         await appLogger?.close();
+        if (failure !== null) {
+          throw failure;
+        }
       },
     };
 
@@ -373,44 +421,117 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
   }
 }
 
+/** Default graceful-shutdown budget from §8.9. */
+export const SHUTDOWN_WARNING_MS = 5_000;
+export const SHUTDOWN_FORCE_MS = 10_000;
+
+export interface LifecycleOptions {
+  /** Cleanup still running at this point logs a warning and keeps waiting. */
+  warningAfterMs?: number;
+  /** Cleanup still running at this point exits non-zero. */
+  forceAfterMs?: number;
+  /** Test seam; production exits the process. */
+  exit?: (code: number) => void;
+}
+
 /**
  * `startServer` adds process signal handling on top of `createServer`. Use
  * `createServer` when embedding game-cat in another process (v4 wrapper, tests).
  */
-export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
+export async function startServer(
+  options: ServerOptions = {},
+  lifecycle: LifecycleOptions = {},
+): Promise<RunningServer> {
   const running = await createServer(options);
-  installSignalHandlers(running);
+  installSignalHandlers(running, lifecycle);
   return running;
 }
 
-function installSignalHandlers(running: RunningServer): void {
+/**
+ * The §8.9 signal sequence. The handlers stay installed while cleanup runs so a
+ * second signal can exit immediately; `close()` removes them when it finishes.
+ */
+export function installSignalHandlers(
+  running: RunningServer,
+  lifecycle: LifecycleOptions = {},
+): void {
+  const logger = running.logger.logger;
+  const exit = lifecycle.exit ?? ((code: number) => process.exit(code));
+  const warningAfterMs = lifecycle.warningAfterMs ?? SHUTDOWN_WARNING_MS;
+  const forceAfterMs = lifecycle.forceAfterMs ?? SHUTDOWN_FORCE_MS;
   let stopping = false;
+  let warningTimer: NodeJS.Timeout | null = null;
+  let forceTimer: NodeJS.Timeout | null = null;
+
+  const clearTimers = (): void => {
+    if (warningTimer !== null) {
+      clearTimeout(warningTimer);
+      warningTimer = null;
+    }
+    if (forceTimer !== null) {
+      clearTimeout(forceTimer);
+      forceTimer = null;
+    }
+  };
+  const removeListeners = (): void => {
+    for (const signal of SIGNALS) {
+      process.off(signal, onSignal);
+    }
+  };
 
   const onSignal = (signal: NodeJS.Signals): void => {
     if (stopping) {
-      running.logger.logger.warn({ signal }, "second shutdown signal; exiting now");
-      process.exit(1);
+      logger.warn({ signal }, "second shutdown signal; exiting now");
+      clearTimers();
+      removeListeners();
+      exit(1);
+      return;
     }
     stopping = true;
-    running.logger.logger.info({ signal }, "shutting down");
-    void running
-      .close()
-      .then(() => process.exit(0))
-      .catch((error: unknown) => {
-        running.logger.logger.error({ err: error }, "shutdown failed");
-        process.exit(1);
-      });
+    logger.info({ signal, warningAfterMs, forceAfterMs }, "shutting down");
+    warningTimer = setTimeout(() => {
+      logger.warn(
+        { signal, elapsedMs: warningAfterMs },
+        "shutdown is taking longer than expected; still cleaning up",
+      );
+    }, warningAfterMs);
+    forceTimer = setTimeout(() => {
+      logger.error(
+        { signal, elapsedMs: forceAfterMs },
+        "shutdown exceeded the graceful budget; exiting non-zero",
+      );
+      clearTimers();
+      removeListeners();
+      exit(1);
+    }, forceAfterMs);
+    void running.close().then(
+      () => {
+        clearTimers();
+        exit(0);
+      },
+      (error: unknown) => {
+        logger.error({ err: error }, "shutdown failed");
+        clearTimers();
+        exit(1);
+      },
+    );
   };
 
   for (const signal of SIGNALS) {
     process.on(signal, onSignal);
   }
+
   const originalClose = running.close.bind(running);
   running.close = async () => {
-    for (const signal of SIGNALS) {
-      process.off(signal, onSignal);
+    try {
+      await originalClose();
+    } finally {
+      // A programmatic close is not a signal stop, but a signal-triggered close
+      // must keep the listeners until cleanup finishes so a second signal is
+      // handled immediately rather than by the platform default.
+      removeListeners();
+      clearTimers();
     }
-    await originalClose();
   };
 }
 
@@ -442,4 +563,6 @@ function describePortSource(port: number, source: ResolvedConfig["portSource"]):
 }
 
 export { MIN_NODE_MAJOR };
+export { createConfigFileSecretStore } from "./config/secrets.ts";
 export type { LogLevel };
+export type { SecretStore } from "./config/secrets.ts";
