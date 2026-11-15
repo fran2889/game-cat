@@ -964,8 +964,9 @@ forward compatibility. No v1 read path depends on their contents beyond the docu
 
 ### 4.1 Conventions
 
-- Base path: `/api`. There is no `/v1` segment; v1 changes are additive. A breaking change requires a
-  new app major and a new path.
+- Base path: `/api`. There is no `/v1` segment; v1 changes are additive. API compatibility is
+  independent of the package version: a breaking API change requires a new API path (`/api/v2`).
+  Package versions follow SemVer; `1.0.0` is declared manually when the contract is stable.
 - Requests and responses are `application/json; charset=utf-8`. POST/PATCH bodies must be JSON; other
   content types return `415`.
 - Response fields are camelCase. Database columns are snake_case. Map keys that are
@@ -1218,7 +1219,7 @@ errors (`RefreshRun.error` and `Status.ownership.error`) use the same shape but 
 ```json
 {
   "app": {
-    "version": "1.0.0",
+    "version": "0.1.0",
     "dbSchemaVersion": 1
   },
   "steam": {
@@ -2977,12 +2978,17 @@ The decisions below were settled on [#7](https://github.com/fran2889/game-cat/is
 ### 8.2 Install and start
 
 ```sh
-npm install -g github:fran2889/game-cat#v1.0.0
+npm install -g github:fran2889/game-cat#v0.1.0
 game-cat
 ```
 
 - The git install runs the package's `prepare` build (server and frontend) and installs the `game-cat`
   binary. It requires Git, Node 24 or newer, and npm.
+- Product phases (`v1`, `v2`, `v3`, `v4`) are milestone names, not SemVer majors. The v1 phase ships
+  as package version `0.1.0`. Backwards-compatible feature milestones bump the minor version, fixes
+  bump the patch version, and `1.0.0` is declared manually when the contract is stable. Do not pin a
+  future milestone to a version in advance; milestones may ship out of order or gain features between
+  them. The database schema version is independent of the package version.
 - Pin a tag or commit. Do not install a floating `main` for daily use; an unreviewed commit can change
   the data contract.
 - The first start creates the data directory, applies migrations, prints the URL, opens the browser,

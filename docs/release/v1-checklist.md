@@ -79,7 +79,7 @@ fake sources and fake HTTP responses in the integration suites.
 
 | §10.6 item                                                              | Result here                           | Evidence and remaining gap                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ----------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pinned Git install on Node 24, launch with `game-cat`                   | PARTIAL                               | `npm run test:package` packs and installs into a temporary prefix, then runs `--help`, `--version`, `GET /api/status`, and SIGTERM on Node 26.13.1. The real `github:` install and Node 24 were **not verified here**. The documented command is `npm install -g github:fran2889/game-cat#v1.0.0`; the tag does not exist yet.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Pinned Git install on Node 24, launch with `game-cat`                   | PARTIAL                               | `npm run test:package` packs and installs into a temporary prefix, then runs `--help`, `--version`, `GET /api/status`, and SIGTERM on Node 26.13.1. The real `github:` install and Node 24 were **not verified here**. The documented command is `npm install -g github:fran2889/game-cat#v0.1.0`; the tag does not exist yet.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Data directory, permissions, lock, logs, backups, config                | VERIFIED HERE                         | Live run: data dir, `logs/`, `backups/` are `0700`; `config.json`, database, and log are `0600`; the lock contained the owning PID and was removed on SIGTERM; the log file is JSON lines. Pre-migration backup content and three-file retention are covered by `tests/integration/migrations.test.ts` with a synthetic migration.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Real Steam root with a second library; manifests, playtime, Collections | VERIFIED HERE (SYNTHETIC)             | Live run discovered two libraries and served Games from both; manifest `installed`, local playtime, and a static Steam Collection were scanned. A real Steam client tree was **not verified here**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `loginusers.vdf` Account selection and multi-Account picker             | VERIFIED HERE (SYNTHETIC)             | Single Account resolved `steam.state = ready` with the PersonaName; multi-Account and picker paths are covered by `tests/integration/config-api.test.ts` and `tests/e2e/onboarding.spec.ts`. A real `loginusers.vdf` was **not verified here**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -99,7 +99,7 @@ fake sources and fake HTTP responses in the integration suites.
 - **Install simulation.** `npm pack --json --pack-destination <dir>` followed by
   `npm install -g --prefix <prefix> <tarball>` is what `scripts/verify-package.mjs` runs; it then checks
   `--help`, `--version`, `GET /api/status`, and SIGTERM. The real command remains
-  `npm install -g github:fran2889/game-cat#v1.0.0`.
+  `npm install -g github:fran2889/game-cat#v0.1.0`.
 - **Live runtime.** Build, then run `node dist/server/cli.js --data-dir <tmp> --port 0 --no-open` with
   `GAME_CAT_STEAM_ROOT` pointing at a `SteamFixture`. The run above used a second library, manifests,
   `localconfig.vdf`, and a cloud-storage Collection, then sent `POST /api/refresh` with
@@ -177,26 +177,25 @@ and the focused aliases.
 
 ## Release tag and install
 
-The candidate version is `1.0.0`, matching the v1 contract and the `#v1.0.0` install example in
+The candidate version is `0.1.0`, matching the v1 phase and the `#v0.1.0` install example in
 [§8.2](../specs/game-cat-v1.md#82-install-and-start). The tag was **not created or pushed** because this
 pull request is not merged yet.
 
 After merge, create the tag on the merged commit and publish the install command:
 
 ```sh
-git tag -a v1.0.0 -m "game-cat v1.0.0"
-git push origin v1.0.0
-npm install -g github:fran2889/game-cat#v1.0.0
-game-cat --version   # game-cat 1.0.0 (database schema 1)
+git tag -a v0.1.0 -m "game-cat 0.1.0 (v1 phase)"
+git push origin v0.1.0
+npm install -g github:fran2889/game-cat#v0.1.0
+game-cat --version   # game-cat 0.1.0 (database schema 1)
 ```
 
 A floating branch is not a supported install target; pin the tag or a commit.
 
 ## Release blockers fixed in this ticket
 
-- The app reported `0.1.0` while the contract and install command say `v1.0.0`. `package.json`,
-  `package-lock.json`, and `APP_VERSION` are now `1.0.0`; tests read the constant instead of repeating
-  the literal.
+- The v1 phase ships as package version `0.1.0`. Product phase names (`v1`, `v2`, ...) are
+  milestones, not SemVer majors; `package.json` is the single version source and `APP_VERSION` reads it.
 - The README install command did not match §8.2 and did not link the manual checklist. Both are fixed.
 - There was no automated guard against focused/skipped acceptance tests. `audit:tests` now runs in
   `npm run check`.
@@ -213,9 +212,9 @@ No data, API, rule, or runtime semantics were changed.
    no-storefront responses, a live review request, and a real Steam launch.
 2. Run `npm run test:perf` on the 4 vCPU / 8 GB / Node 24 reference machine and sign off `AC-Q3`.
 3. Run the full checklist and E2E suite on macOS and Windows and record the results.
-4. Install from `github:fran2889/game-cat#v1.0.0` on Node 24 after the tag exists and confirm the
+4. Install from `github:fran2889/game-cat#v0.1.0` on Node 24 after the tag exists and confirm the
    packaged `prepare` build, binary, and `--version`.
-5. Create and push `v1.0.0` after this pull request merges.
+5. Create and push `v0.1.0` after this pull request merges.
 6. Verify issue #41 on a real Library: after a Refresh, affected Games report `store_status = 'ok'`
    (or a documented `unavailable`/`stale`/`error` with a truthful cause) and there are no unexplained
    App ID mismatch errors. This is a release gate, not a code-only check.
