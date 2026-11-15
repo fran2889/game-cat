@@ -207,6 +207,38 @@ describe("StorefrontSource request and success persistence", () => {
   });
 });
 
+describe("StorefrontSource App ID identity", () => {
+  const accepted: Array<[string, Record<string, unknown>]> = [
+    ["missing steam_appid", fullPayload({ steam_appid: undefined })],
+    ["numeric-string steam_appid", fullPayload({ steam_appid: "620" })],
+    ["null steam_appid", fullPayload({ steam_appid: null })],
+    ["object steam_appid", fullPayload({ steam_appid: { id: 620 } })],
+    ["non-integer steam_appid", fullPayload({ steam_appid: 620.5 })],
+    ["zero steam_appid", fullPayload({ steam_appid: 0 })],
+  ];
+
+  for (const [label, data] of accepted) {
+    it(`accepts a response keyed by the requested App ID with ${label}`, async () => {
+      const db = database();
+      seedGame(db, 620);
+      const { source: storefront } = source(json(payload(620, data)));
+
+      expect(await fetchStorefront(db, storefront, 620)).toEqual({ kind: "ok" });
+      expect(row(db, 620)).toMatchObject({
+        store_status: "ok",
+        store_fetched_at: NOW,
+        store_error: null,
+        metacritic_score: 95,
+        release_year: 2011,
+      });
+      expect(db.raw.prepare("SELECT name, name_source FROM games").get()).toEqual({
+        name: "Portal 2",
+        name_source: "storefront",
+      });
+    });
+  }
+});
+
 describe("StorefrontSource unavailable responses", () => {
   const unavailable: Array<[string, unknown]> = [
     ["success false", { "620": { success: false } }],
@@ -280,7 +312,7 @@ describe("StorefrontSource malformed and failed responses", () => {
     expect(String(row(db, 620)!.store_error)).toMatch(/malformed/i);
   });
 
-  it("stores nothing on a steam_appid mismatch and records error without data", async () => {
+  it("stores nothing on an explicit steam_appid mismatch and records error without data", async () => {
     const db = database();
     seedGame(db, 620);
     const { source: storefront } = source(
@@ -296,8 +328,49 @@ describe("StorefrontSource malformed and failed responses", () => {
       store_fetched_at: null,
       raw_store_json: null,
     });
-    expect(String(row(db, 620)!.store_error)).toMatch(/App ID/i);
+    expect(String(row(db, 620)!.store_error)).toMatch(/620/);
+    expect(String(row(db, 620)!.store_error)).toMatch(/999/);
     expect(db.raw.prepare("SELECT name FROM games").get()).toEqual({ name: "Game 620" });
+  });
+
+  it("keeps last-known-good data and writes only both IDs on a mismatch", async () => {
+    const db = database();
+    seedGame(db, 620);
+    seedStorefront(db, 620);
+    const { source: storefront } = source(
+      json({ "620": { success: true, data: fullPayload({ steam_appid: 999 }) } }),
+    );
+
+    const outcome = await fetchStorefront(db, storefront, 620);
+    expect(outcome).toMatchObject({ kind: "error" });
+    const stored = row(db, 620)!;
+    expect(stored).toMatchObject({
+      type: "game",
+      developers_json: '["Valve"]',
+      metacritic_score: 95,
+      store_status: "stale",
+      store_fetched_at: NOW - 100,
+      raw_store_json: '{"cached":true}',
+    });
+
+    // The diagnostic names both App IDs and never leaks the payload.
+    expect(String(stored.store_error)).toContain("620");
+    expect(String(stored.store_error)).toContain("999");
+    expect(String(stored.store_error)).not.toContain("Portal 2");
+    expect(String(stored.store_error)).not.toContain("Valve");
+    expect(db.raw.prepare("SELECT name FROM games").get()).toEqual({ name: "Game 620" });
+  });
+
+  it("treats a different numeric-string steam_appid as a mismatch", async () => {
+    const db = database();
+    seedGame(db, 620);
+    const { source: storefront } = source(
+      json({ "620": { success: true, data: fullPayload({ steam_appid: "999" }) } }),
+    );
+
+    const outcome = await fetchStorefront(db, storefront, 620);
+    expect(outcome).toMatchObject({ kind: "error" });
+    expect(String(row(db, 620)!.store_error)).toContain("999");
   });
 
   it("does not retry a 400 and records the failure", async () => {

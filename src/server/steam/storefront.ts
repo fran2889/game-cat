@@ -227,24 +227,43 @@ interface ParsedStorefront {
   raw: string;
 }
 
-function parseStorefrontData(
-  data: Record<string, unknown>,
-  appId: number,
-): ParsedStorefront | null {
-  if (data.steam_appid !== appId) {
-    return null;
+/**
+ * Recognize a returned App ID as a positive integer or numeric string. A missing
+ * or differently-typed value is not an identity claim; the response is keyed by
+ * the requested App ID, so it is accepted (spec §6.6).
+ */
+function returnedAppId(value: unknown): number | null {
+  const number =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value.trim())
+        ? Number(value.trim())
+        : null;
+  return number !== null && Number.isSafeInteger(number) && number > 0 ? number : null;
+}
+
+type ParsedStorefrontResult =
+  { kind: "ok"; parsed: ParsedStorefront } | { kind: "mismatch"; returnedAppId: number };
+
+function parseStorefrontData(data: Record<string, unknown>, appId: number): ParsedStorefrontResult {
+  const returned = returnedAppId(data.steam_appid);
+  if (returned !== null && returned !== appId) {
+    return { kind: "mismatch", returnedAppId: returned };
   }
   return {
-    type: typeof data.type === "string" ? data.type : null,
-    name: typeof data.name === "string" && data.name.trim() !== "" ? data.name.trim() : null,
-    developers: stringArray(data.developers),
-    publishers: stringArray(data.publishers),
-    genres: genreNames(data.genres),
-    categories: categoryNames(data.categories),
-    platforms: platformsObject(data.platforms),
-    metacriticScore: metacriticScore(data.metacritic),
-    releaseDateRaw: releaseDateRaw(data.release_date),
-    raw: JSON.stringify(data),
+    kind: "ok",
+    parsed: {
+      type: typeof data.type === "string" ? data.type : null,
+      name: typeof data.name === "string" && data.name.trim() !== "" ? data.name.trim() : null,
+      developers: stringArray(data.developers),
+      publishers: stringArray(data.publishers),
+      genres: genreNames(data.genres),
+      categories: categoryNames(data.categories),
+      platforms: platformsObject(data.platforms),
+      metacriticScore: metacriticScore(data.metacritic),
+      releaseDateRaw: releaseDateRaw(data.release_date),
+      raw: JSON.stringify(data),
+    },
   };
 }
 
@@ -431,12 +450,14 @@ export class StorefrontSource implements MetadataSource {
     }
 
     const parsed = parseStorefrontData(data, appId);
-    if (parsed === null) {
-      recordFailure(db, appId, now, "The storefront App ID did not match.");
-      return { kind: "error", message: "The storefront App ID did not match." };
+    if (parsed.kind === "mismatch") {
+      // A safe diagnostic: both identities, never the raw payload.
+      const message = `The storefront returned App ID ${parsed.returnedAppId} for App ID ${appId}.`;
+      recordFailure(db, appId, now, message);
+      return { kind: "error", message };
     }
 
-    persistSuccess(db, appId, now, parsed);
+    persistSuccess(db, appId, now, parsed.parsed);
     return { kind: "ok" };
   }
 }
