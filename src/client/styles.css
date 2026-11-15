@@ -782,6 +782,142 @@ main {
   color: var(--text-muted);
 }
 
+/* Library grid */
+
+.library {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.library-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 14px;
+}
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+.game-card:hover {
+  border-color: var(--border-strong);
+}
+
+.game-cover-wrap {
+  position: relative;
+  aspect-ratio: 460 / 215;
+  background: var(--surface-2);
+}
+
+.game-cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.game-cover-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background:
+    radial-gradient(circle at 28% 24%, #3a2c10 0%, transparent 60%),
+    linear-gradient(135deg, var(--surface-4), var(--surface-2));
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: var(--surface-1);
+  color: var(--text-muted);
+}
+
+.pill-installed {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  border-color: #24603c;
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.game-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 10px 11px;
+}
+
+.game-name {
+  font-size: 13px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.ownership-flag {
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 0 4px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.banner-warning {
+  border-color: #5a451a;
+  background: var(--accent-soft);
+}
+
+.banner-warning strong {
+  color: var(--accent-strong);
+}
+
 /* Loading skeleton */
 
 .skeleton-grid {

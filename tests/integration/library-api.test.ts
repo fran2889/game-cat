@@ -1,0 +1,454 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import pino from "pino";
+import { afterEach, describe, expect, it } from "vitest";
+import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.ts";
+import { createHttpApp } from "../../src/server/http/app.ts";
+import { GamesRepository } from "../../src/server/library/games.ts";
+import { RefreshService } from "../../src/server/refresh/service.ts";
+import { buildStatus } from "../../src/server/status.ts";
+import type { SteamDiscovery } from "../../src/server/steam/discovery.ts";
+import type { GameDetail, GameSummary, RefreshRun, Status } from "../../src/shared/types.ts";
+import { SteamFixture, TEST_STEAM_ID64 } from "../helpers/steam-fixture.ts";
+
+const PORT = 4780;
+const HOST = `127.0.0.1:${PORT}`;
+
+const fixtures: SteamFixture[] = [];
+const dataDirs: string[] = [];
+const databases: AppDatabase[] = [];
+const apps: Array<ReturnType<typeof createHttpApp>> = [];
+
+afterEach(async () => {
+  while (apps.length > 0) {
+    await apps.pop()?.close();
+  }
+  while (databases.length > 0) {
+    databases.pop()?.close();
+  }
+  while (fixtures.length > 0) {
+    fixtures.pop()?.dispose();
+  }
+  while (dataDirs.length > 0) {
+    rmSync(dataDirs.pop()!, { recursive: true, force: true });
+  }
+});
+
+function fixture(): SteamFixture {
+  const value = new SteamFixture();
+  fixtures.push(value);
+  return value;
+}
+
+const discovery: SteamDiscovery = {
+  root: "/fixture/Steam",
+  state: "ready",
+  accounts: [{ steamId64: TEST_STEAM_ID64, accountId: "39734272", personaName: "Player One" }],
+  account: {
+    steamId64: TEST_STEAM_ID64,
+    accountId: "39734272",
+    personaName: "Player One",
+  },
+  error: null,
+};
+
+interface Harness {
+  db: AppDatabase;
+  steam: SteamFixture;
+  app: ReturnType<typeof createHttpApp>;
+  refresh: RefreshService;
+}
+
+function harness(steam = fixture()): Harness {
+  const dir = mkdtempSync(join(tmpdir(), "game-cat-api-db-"));
+  dataDirs.push(dir);
+  const db = openAppDatabase({ dataDir: dir, steamWebApiConfigured: false });
+  databases.push(db);
+  const games = new GamesRepository(db.raw);
+  const refresh = new RefreshService({
+    db: db.raw,
+    steamRoot: steam.root,
+    steamId64: TEST_STEAM_ID64,
+    now: () => 1_700_000_000,
+  });
+  const app = createHttpApp({
+    port: PORT,
+    clientDir: null,
+    logger: pino({ level: "silent" }),
+    status: () =>
+      buildStatus({
+        discovery: { ...discovery, root: steam.root },
+        steamApiKey: null,
+        configuredSteamId64: TEST_STEAM_ID64,
+        schemaVersion: db.schemaVersion,
+        db: db.raw,
+      }),
+    library: { games, refresh },
+  });
+  apps.push(app);
+  return { db, steam, app, refresh };
+}
+
+async function get(app: Harness["app"], url: string) {
+  return app.inject({ method: "GET", url, headers: { host: HOST } });
+}
+
+async function post(app: Harness["app"], url: string, payload: object) {
+  return app.inject({ method: "POST", url, headers: { host: HOST }, payload });
+}
+
+function seedGame(
+  db: AppDatabase,
+  appId: number,
+  fields: {
+    name?: string;
+    installed?: number | null;
+    playtime?: number;
+    lastPlayed?: number | null;
+    releaseYear?: number | null;
+    metacritic?: number | null;
+    ownership?: string;
+  } = {},
+): void {
+  db.raw
+    .prepare(
+      `INSERT INTO games (
+         app_id, name, name_key, name_source, ownership_status, installed,
+         playtime_minutes, manifest_last_played_at, first_seen_at, last_seen_at
+       ) VALUES (?, ?, ?, 'local', ?, ?, ?, ?, 1, 1)`,
+    )
+    .run(
+      appId,
+      fields.name ?? `Game ${appId}`,
+      (fields.name ?? `Game ${appId}`).toLowerCase(),
+      fields.ownership ?? "owned",
+      fields.installed === undefined ? 0 : fields.installed,
+      fields.playtime ?? 0,
+      fields.lastPlayed ?? null,
+    );
+  if (fields.releaseYear !== undefined || fields.metacritic !== undefined) {
+    db.raw
+      .prepare(
+        `INSERT INTO storefront_appdetails (
+           app_id, release_year, metacritic_score, updated_at
+         ) VALUES (?, ?, ?, 1)`,
+      )
+      .run(appId, fields.releaseYear ?? null, fields.metacritic ?? null);
+  }
+}
+
+describe("POST /api/refresh (library)", () => {
+  it("runs the local scan, returns 202 with the RefreshRun shape and Location", async () => {
+    const steam = fixture();
+    steam.writeManifest(steam.root, 620, { name: "Portal 2" });
+    steam.writeLocalConfig({ "620": { playtime: 612, lastPlayed: 1712100000 } });
+    const test = harness(steam);
+
+    const response = await post(test.app, "/api/refresh", { scope: "library" });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.headers.location).toMatch(/^\/api\/refresh\/\d+$/);
+    const body = response.json() as { data: RefreshRun };
+    expect(body.data).toMatchObject({
+      scope: "library",
+      mode: null,
+      status: "succeeded",
+      total: 1,
+      done: 1,
+      appIds: null,
+      stats: null,
+      error: null,
+    });
+    expect(body.data.id).toBe(response.headers.location?.split("/").at(-1));
+    expect(body.data.finishedAt).not.toBeNull();
+
+    const run = await get(test.app, `/api/refresh/${body.data.id}`);
+    expect(run.statusCode).toBe(200);
+    expect((run.json() as { data: RefreshRun }).data).toEqual(body.data);
+
+    const unknown = await get(test.app, "/api/refresh/999");
+    expect(unknown.statusCode).toBe(404);
+    expect((unknown.json() as { error: { code: string } }).error.code).toBe("NOT_FOUND");
+
+    const row = test.db.raw
+      .prepare("SELECT scope, mode, status, stats_json FROM refresh_runs WHERE id = ?")
+      .get(body.data.id) as {
+      scope: string;
+      mode: string | null;
+      status: string;
+      stats_json: string;
+    };
+    expect(row.scope).toBe("library");
+    expect(row.mode).toBeNull();
+    expect(row.status).toBe("succeeded");
+    expect(JSON.parse(row.stats_json)).toMatchObject({
+      libraries: 1,
+      manifests: 1,
+      localconfigApps: 1,
+      upserted: 1,
+      deleted: 0,
+      warnings: { negativePlaytime: 0 },
+    });
+  });
+
+  it("records negative playtime on the run without failing it", async () => {
+    const steam = fixture();
+    steam.writeLocalConfig({ "730": { playtime: -5 } });
+    const test = harness(steam);
+
+    const response = await post(test.app, "/api/refresh", { scope: "library" });
+    expect(response.statusCode).toBe(202);
+
+    const row = test.db.raw
+      .prepare("SELECT stats_json FROM refresh_runs ORDER BY id DESC LIMIT 1")
+      .get() as { stats_json: string };
+    expect(JSON.parse(row.stats_json).warnings.negativePlaytime).toBe(1);
+  });
+
+  it("marks the run partial when no Account is selected and writes no Game rows", async () => {
+    const steam = fixture();
+    steam.writeManifest(steam.root, 620);
+    const test = harness(steam);
+    const refresh = new RefreshService({
+      db: test.db.raw,
+      steamRoot: steam.root,
+      steamId64: null,
+      now: () => 1_700_000_000,
+    });
+    const app = createHttpApp({
+      port: PORT,
+      clientDir: null,
+      logger: pino({ level: "silent" }),
+      status: () => ({}) as Status,
+      library: { games: new GamesRepository(test.db.raw), refresh },
+    });
+
+    const response = await post(app, "/api/refresh", { scope: "library" });
+    const body = response.json() as { data: RefreshRun };
+    expect(body.data.status).toBe("partial");
+    expect(body.data.error).toBeNull();
+    expect(test.db.raw.prepare("SELECT COUNT(*) AS count FROM games").get()).toEqual({ count: 0 });
+    await app.close();
+  });
+
+  it("rejects modes, appIds, and scopes this build does not implement", async () => {
+    const test = harness();
+
+    const withMode = await post(test.app, "/api/refresh", { scope: "library", mode: "fetch" });
+    expect(withMode.statusCode).toBe(422);
+    expect(
+      (withMode.json() as { error: { details: { fieldErrors: object } } }).error.details
+        .fieldErrors,
+    ).toHaveProperty("mode");
+
+    const withAppIds = await post(test.app, "/api/refresh", { scope: "library", appIds: [1] });
+    expect(withAppIds.statusCode).toBe(422);
+
+    const ownership = await post(test.app, "/api/refresh", { scope: "ownership" });
+    expect(ownership.statusCode).toBe(422);
+
+    const missing = await post(test.app, "/api/refresh", {});
+    expect(missing.statusCode).toBe(422);
+  });
+});
+
+describe("GET /api/games", () => {
+  it("returns the documented pagination, meta, and GameSummary shape", async () => {
+    const steam = fixture();
+    steam.writeManifest(steam.root, 620, {
+      name: "Portal 2",
+      sizeOnDisk: 13200000000,
+      lastPlayed: 1712100000,
+    });
+    steam.writeLocalConfig({ "620": { playtime: 612, playtime2wks: 45 } });
+    const test = harness(steam);
+    await post(test.app, "/api/refresh", { scope: "library" });
+
+    const response = await get(test.app, "/api/games?pageSize=60");
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      data: GameSummary[];
+      pagination: Record<string, number>;
+      meta: { dataAsOf: string | null };
+    };
+    expect(body.pagination).toEqual({ page: 1, pageSize: 60, totalItems: 1, totalPages: 1 });
+    expect(body.meta.dataAsOf).toMatch(/Z$/);
+    expect(body.data[0]).toMatchObject({
+      appId: 620,
+      name: "Portal 2",
+      ownershipStatus: "local_only",
+      installed: true,
+      playtimeMinutes: 612,
+      lastPlayedAt: "2024-04-02T23:20:00Z",
+      tags: [],
+      platforms: null,
+      type: null,
+      releaseYear: null,
+      metacriticScore: null,
+      reviewScore: null,
+      reviewTier: null,
+      reviewCount: null,
+      metadata: { tagsStatus: "missing", storeStatus: "missing", reviewStatus: "missing" },
+    });
+    expect(body.data[0]).not.toHaveProperty("libraryPath");
+    expect(body.data[0]).not.toHaveProperty("sourceMask");
+  });
+
+  it("searches names, filters installed, sorts with nulls last, and pages with appId ties", async () => {
+    const test = harness();
+    seedGame(test.db, 10, { name: "Alpha", installed: 1, playtime: 100, releaseYear: 2001 });
+    seedGame(test.db, 20, { name: "Beta", installed: 0, playtime: 300, releaseYear: null });
+    seedGame(test.db, 30, { name: "alphabet", installed: 1, playtime: 200, releaseYear: 1999 });
+    seedGame(test.db, 40, { name: "Gamma", installed: null, playtime: 0, releaseYear: 2010 });
+    seedGame(test.db, 50, { name: "Alpha Two", installed: 0, playtime: 200, releaseYear: null });
+
+    const search = (await get(test.app, "/api/games?search=ALPHA")).json() as {
+      data: GameSummary[];
+    };
+    expect(search.data.map((game) => game.appId)).toEqual([10, 50, 30]);
+
+    const installed = (await get(test.app, "/api/games?installed=true")).json() as {
+      data: GameSummary[];
+    };
+    expect(installed.data.map((game) => game.appId)).toEqual([10, 30]);
+
+    const byPlaytime = (await get(test.app, "/api/games?sort=playtime&order=desc")).json() as {
+      data: GameSummary[];
+    };
+    // 200 ties break by appId ASC; zero is the lowest, not last.
+    expect(byPlaytime.data.map((game) => game.appId)).toEqual([20, 30, 50, 10, 40]);
+
+    const byYear = (await get(test.app, "/api/games?sort=releaseYear&order=desc")).json() as {
+      data: GameSummary[];
+    };
+    // Null release years sort last in either direction.
+    expect(byYear.data.map((game) => game.appId)).toEqual([40, 10, 30, 20, 50]);
+
+    const page = (await get(test.app, "/api/games?page=2&pageSize=2&sort=appId")).json() as {
+      data: GameSummary[];
+      pagination: Record<string, number>;
+    };
+    expect(page.pagination).toEqual({ page: 2, pageSize: 2, totalItems: 5, totalPages: 3 });
+    expect(page.data.map((game) => game.appId)).toEqual([30, 40]);
+
+    const lastPage = (await get(test.app, "/api/games?page=3&pageSize=2&sort=appId")).json() as {
+      data: GameSummary[];
+    };
+    expect(lastPage.data.map((game) => game.appId)).toEqual([50]);
+  });
+
+  it("returns an empty list with totalPages 0 for a fresh database", async () => {
+    const test = harness();
+    const response = await get(test.app, "/api/games");
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      data: GameSummary[];
+      pagination: Record<string, number>;
+      meta: { dataAsOf: string | null };
+    };
+    expect(body.data).toEqual([]);
+    expect(body.pagination.totalItems).toBe(0);
+    expect(body.pagination.totalPages).toBe(0);
+    expect(body.meta.dataAsOf).toBeNull();
+  });
+
+  it("validates pageSize, sort, order, installed, and page", async () => {
+    const test = harness();
+    for (const [url, field] of [
+      ["/api/games?pageSize=201", "pageSize"],
+      ["/api/games?pageSize=0", "pageSize"],
+      ["/api/games?page=0", "page"],
+      ["/api/games?sort=unknown", "sort"],
+      ["/api/games?order=sideways", "order"],
+      ["/api/games?installed=maybe", "installed"],
+    ] as const) {
+      const response = await get(test.app, url);
+      expect(response.statusCode, url).toBe(422);
+      const body = response.json() as { error: { code: string; details: { fieldErrors: object } } };
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.details.fieldErrors).toHaveProperty(field);
+    }
+  });
+});
+
+describe("GET /api/games/{appId}", () => {
+  it("returns the local GameDetail fields and 404 for an unknown Game", async () => {
+    const steam = fixture();
+    steam.writeManifest(steam.root, 620, { name: "Portal 2", sizeOnDisk: 13200000000 });
+    const test = harness(steam);
+    await post(test.app, "/api/refresh", { scope: "library" });
+
+    const response = await get(test.app, "/api/games/620");
+    expect(response.statusCode).toBe(200);
+    const detail = (response.json() as { data: GameDetail }).data;
+    expect(detail).toMatchObject({
+      appId: 620,
+      name: "Portal 2",
+      sizeOnDiskBytes: 13200000000,
+      releaseDateRaw: null,
+      developers: [],
+      publishers: [],
+      genres: [],
+      categories: [],
+      steamCollections: [],
+      tags: [],
+    });
+
+    const missing = await get(test.app, "/api/games/999");
+    expect(missing.statusCode).toBe(404);
+    expect((missing.json() as { error: { code: string } }).error.code).toBe("NOT_FOUND");
+
+    const invalid = await get(test.app, "/api/games/not-a-number");
+    expect(invalid.statusCode).toBe(404);
+  });
+});
+
+describe("GET /api/status with a Library", () => {
+  it("reports counts, last scan, source health, and the last Refresh run", async () => {
+    const steam = fixture();
+    steam.writeManifest(steam.root, 620, { name: "Portal 2" });
+    steam.writeManifest(steam.root, 730, { name: "CS:GO", stateFlags: 1026 });
+    steam.writeLocalConfig({});
+    const test = harness(steam);
+    const run = (await post(test.app, "/api/refresh", { scope: "library" })).json() as {
+      data: RefreshRun;
+    };
+
+    const response = await get(test.app, "/api/status");
+    const status = (response.json() as { data: Status }).data;
+
+    expect(status.library).toMatchObject({
+      gameCount: 2,
+      installedCount: 1,
+      lastScanStatus: "ok",
+    });
+    expect(status.library.lastScanAt).toMatch(/Z$/);
+    expect(status.sources).toHaveLength(5);
+    expect(status.sources[0]).toMatchObject({
+      name: "steam_local",
+      status: "ok",
+      lastError: null,
+    });
+    expect(status.sources[0]?.lastSuccessAt).toMatch(/Z$/);
+    expect(status.lastRefresh?.id).toBe(run.data.id);
+    expect(status.activeRefresh).toBeNull();
+  });
+
+  it("reports partial after an unreadable library", async () => {
+    const steam = fixture();
+    const second = steam.addLibrary("SecondLibrary");
+    steam.writeManifest(second, 730);
+    rmSync(second, { recursive: true, force: true });
+    const test = harness(steam);
+
+    const run = (await post(test.app, "/api/refresh", { scope: "library" })).json() as {
+      data: RefreshRun;
+    };
+    expect(run.data.status).toBe("partial");
+
+    const status = (await get(test.app, "/api/status")).json() as { data: Status };
+    expect(status.data.library.lastScanStatus).toBe("partial");
+    expect(status.data.sources[0]?.status).toBe("partial");
+  });
+});
