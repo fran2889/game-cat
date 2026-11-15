@@ -11,6 +11,7 @@ import { isStartupError, StartupError } from "./errors.ts";
 import { createHttpApp } from "./http/app.ts";
 import { GamesRepository } from "./library/games.ts";
 import { SteamCollectionsRepository } from "./library/collections.ts";
+import { TagsRepository } from "./library/tags.ts";
 import { createLogger, defaultLogPath, type AppLogger } from "./logging/logger.ts";
 import { acquireLock, type LockHandle } from "./lock.ts";
 import { openBrowserBestEffort } from "./open-browser.ts";
@@ -18,6 +19,7 @@ import { RefreshService } from "./refresh/service.ts";
 import type { MetadataSource } from "./refresh/sources.ts";
 import { assertNodeVersion } from "./node-version.ts";
 import { discoverSteam, type SteamDiscovery, type SteamDiscoveryFn } from "./steam/discovery.ts";
+import { createSteamSpySource } from "./steam/steamspy.ts";
 import { buildStatus } from "./status.ts";
 
 export interface ServerOptions {
@@ -184,12 +186,13 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
 
     const games = new GamesRepository(database.raw);
     const collections = new SteamCollectionsRepository(database.raw);
+    const tags = new TagsRepository(database.raw);
     const refresh = new RefreshService({
       db: database.raw,
       steamRoot: discovery.root ?? resolved.steamRoot,
       steamId64: discovery.account?.steamId64 ?? resolved.steamId64,
       steamApiKey: resolved.steamApiKey,
-      sources: options.metadataSources ?? [],
+      sources: options.metadataSources ?? [createSteamSpySource()],
       onWarn: (message, details) => logger.warn({ ...details, warning: message }, "scan warning"),
     });
 
@@ -199,7 +202,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       clientDir: options.clientDir === undefined ? defaultClientDir() : options.clientDir,
       logger,
       status: statusForRequest,
-      library: { games, collections, refresh },
+      library: { games, collections, tags, refresh },
     });
 
     try {
