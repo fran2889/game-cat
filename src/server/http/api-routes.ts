@@ -1,6 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { validatePreviewRequest } from "../../shared/rules.ts";
-import type { Status } from "../../shared/types.ts";
+import type {
+  Config,
+  ConfigPatchResponse,
+  Status,
+  SteamAccount,
+  SteamAccountsResponse,
+} from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
 import {
   parseSteamCollectionGamesQuery,
@@ -21,6 +27,31 @@ export interface ApiRoutesOptions {
   rulePreview: RulePreviewRepository;
   tags: TagsRepository;
   refresh: RefreshService;
+}
+
+/** The live settings and account-picker boundary. */
+export interface ConfigRoutes {
+  get(): Config;
+  patch(body: unknown): ConfigPatchResponse;
+  accounts(): SteamAccount[];
+}
+
+export function registerConfigRoutes(app: FastifyInstance, config: ConfigRoutes): void {
+  app.get("/api/config", async () => ({ data: config.get() }));
+
+  app.patch("/api/config", async (request) => config.patch(request.body));
+
+  app.get("/api/steam/accounts", async () => {
+    const accounts = config.accounts();
+    const pagination = {
+      page: 1,
+      pageSize: accounts.length === 0 ? 1 : accounts.length,
+      totalItems: accounts.length,
+      totalPages: accounts.length === 0 ? 0 : 1,
+    };
+    const response: SteamAccountsResponse = { data: accounts, pagination };
+    return response;
+  });
 }
 
 function currentStatus(status: Status | (() => Status)): Status {

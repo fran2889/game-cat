@@ -18,7 +18,7 @@ import type { RuleValuesRepository } from "../library/rule-values.ts";
 import type { TagsRepository } from "../library/tags.ts";
 import { redactUrl } from "../logging/logger.ts";
 import type { RefreshService } from "../refresh/service.ts";
-import { registerApiRoutes } from "./api-routes.ts";
+import { registerApiRoutes, registerConfigRoutes, type ConfigRoutes } from "./api-routes.ts";
 
 export const REQUEST_BODY_LIMIT = 256 * 1024;
 
@@ -55,6 +55,8 @@ export interface CreateHttpAppOptions {
     tags: TagsRepository;
     refresh: RefreshService;
   };
+  /** When present, `GET/PATCH /api/config` and the Account picker are registered. */
+  config?: ConfigRoutes;
 }
 
 /**
@@ -137,6 +139,10 @@ export function createHttpApp(options: CreateHttpAppOptions): FastifyInstance {
     app.get("/api/status", async () => ({
       data: typeof options.status === "function" ? options.status() : options.status,
     }));
+  }
+
+  if (options.config !== undefined) {
+    registerConfigRoutes(app, options.config);
   }
 
   if (clientDir !== null) {

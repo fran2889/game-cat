@@ -59,6 +59,19 @@ interface RefreshRequest {
   appIds: number[] | null;
 }
 
+/** The settings a run uses. A run keeps the snapshot it started with. */
+interface RunConfig {
+  steamRoot: string | null;
+  steamId64: string | null;
+  steamApiKey: string | null;
+}
+
+export interface RefreshConfigUpdate {
+  steamRoot?: string | null;
+  steamId64?: string | null;
+  steamApiKey?: string | null;
+}
+
 export interface RefreshStartResult {
   run: RefreshRun;
   deduplicated: boolean;
@@ -441,6 +454,9 @@ export class RefreshService {
   private readonly sources: MetadataSourceRegistry;
   private worker: Promise<void> | null = null;
   private stopping = false;
+  /** Live settings for the next run; an in-flight run uses its snapshot. */
+  private currentConfig: RunConfig;
+  private readonly runConfigs = new Map<number, RunConfig>();
 
   constructor(private readonly options: RefreshServiceOptions) {
     this.db = options.db;
@@ -453,6 +469,24 @@ export class RefreshService {
       options.sources instanceof MetadataSourceRegistry
         ? options.sources
         : new MetadataSourceRegistry(options.sources ?? []);
+    this.currentConfig = {
+      steamRoot: options.steamRoot,
+      steamId64: options.steamId64,
+      steamApiKey: options.steamApiKey ?? null,
+    };
+  }
+
+  /** Apply settings written through `PATCH /api/config` to the next run. */
+  applyConfig(update: RefreshConfigUpdate): void {
+    if (update.steamRoot !== undefined) {
+      this.currentConfig.steamRoot = update.steamRoot;
+    }
+    if (update.steamId64 !== undefined) {
+      this.currentConfig.steamId64 = update.steamId64;
+    }
+    if (update.steamApiKey !== undefined) {
+      this.currentConfig.steamApiKey = update.steamApiKey;
+    }
   }
 
   /** Validate and enqueue a documented run. Execution continues in the background. */
@@ -497,6 +531,7 @@ export class RefreshService {
         request.appIds === null ? null : JSON.stringify(request.appIds),
       );
     const id = Number(info.lastInsertRowid);
+    this.runConfigs.set(id, { ...this.currentConfig });
     this.enqueue();
     return { run: readRefreshRun(this.db, id)!, deduplicated: false };
   }
@@ -572,9 +607,12 @@ export class RefreshService {
       return bound;
     }
     if (scope === "all") {
-      return bound ?? (this.ownershipConfigured() ? this.options.steamId64 : null);
+      return (
+        bound ??
+        (this.ownershipConfigured(this.currentConfig) ? this.currentConfig.steamId64 : null)
+      );
     }
-    return bound ?? this.options.steamId64;
+    return bound ?? this.currentConfig.steamId64;
   }
 
   private readActiveRow(): RefreshRow | undefined {
@@ -640,33 +678,36 @@ export class RefreshService {
             },
           });
         }
+      } finally {
+        this.runConfigs.delete(row.id);
       }
     }
   }
 
   private async execute(row: RefreshRow): Promise<void> {
+    const config = this.runConfigs.get(row.id) ?? this.currentConfig;
     switch (row.scope) {
       case "library":
-        await this.executeLibrary(row);
+        await this.executeLibrary(row, config);
         return;
       case "ownership":
-        await this.executeOwnership(row);
+        await this.executeOwnership(row, config);
         return;
       case "metadata":
         await this.executeMetadata(row);
         return;
       case "all":
-        await this.executeAll(row);
+        await this.executeAll(row, config);
         return;
     }
   }
 
   private assertOwnershipConfigured(): void {
     const missing: string[] = [];
-    if (this.options.steamApiKey === null || this.options.steamApiKey === undefined) {
+    if (this.currentConfig.steamApiKey === null) {
       missing.push("webApiKey");
     }
-    if (this.options.steamId64 === null) {
+    if (this.currentConfig.steamId64 === null) {
       missing.push("steamId64");
     }
     if (missing.length > 0) {
@@ -679,16 +720,12 @@ export class RefreshService {
     }
   }
 
-  private ownershipConfigured(): boolean {
-    return (
-      this.options.steamApiKey !== null &&
-      this.options.steamApiKey !== undefined &&
-      this.options.steamId64 !== null
-    );
+  private ownershipConfigured(config: RunConfig): boolean {
+    return config.steamApiKey !== null && config.steamId64 !== null;
   }
 
-  private async executeLibrary(row: RefreshRow): Promise<void> {
-    const phase = this.performLibraryPhase();
+  private async executeLibrary(row: RefreshRow, config: RunConfig): Promise<void> {
+    const phase = this.performLibraryPhase(config);
     if (this.stopping) {
       return;
     }
@@ -704,14 +741,14 @@ export class RefreshService {
     });
   }
 
-  private performLibraryPhase(): LibraryPhaseResult {
+  private performLibraryPhase(config: RunConfig): LibraryPhaseResult {
     let result: LibraryScanResult;
     try {
       const scan = this.options.scan ?? scanLocalLibrary;
       result = scan({
         db: this.db,
-        steamRoot: this.options.steamRoot,
-        steamId64: this.options.steamId64,
+        steamRoot: config.steamRoot,
+        steamId64: config.steamId64,
         now: this.now,
       });
     } catch (error) {
@@ -762,8 +799,12 @@ export class RefreshService {
     };
   }
 
-  private async executeOwnership(row: RefreshRow): Promise<void> {
-    const phase = await this.performOwnershipPhase(row.id, true);
+  private async executeOwnership(row: RefreshRow, config: RunConfig): Promise<void> {
+    const phase = await this.performOwnershipPhase(
+      row.id,
+      this.ownershipConfigured(config),
+      config,
+    );
     if (this.stopping) {
       return;
     }
@@ -779,8 +820,9 @@ export class RefreshService {
   private async performOwnershipPhase(
     runId: number,
     configured: boolean,
+    config: RunConfig,
   ): Promise<OwnershipPhaseResult> {
-    if (!configured || this.options.steamId64 === null) {
+    if (!configured || config.steamId64 === null) {
       return {
         status: "skipped",
         total: null,
@@ -795,7 +837,7 @@ export class RefreshService {
       };
     }
 
-    const steamId64 = this.options.steamId64;
+    const steamId64 = config.steamId64;
     const bound = readBoundSteamId64(this.db);
     if (bound !== null && bound !== steamId64) {
       const error = {
@@ -808,8 +850,7 @@ export class RefreshService {
     }
 
     const source =
-      this.options.ownershipSource ??
-      createSteamOwnershipSource({ apiKey: this.options.steamApiKey! });
+      this.options.ownershipSource ?? createSteamOwnershipSource({ apiKey: config.steamApiKey! });
     let result: OwnershipFetchResult;
     try {
       result = await source.fetchOwnedGames(steamId64);
@@ -966,8 +1007,8 @@ export class RefreshService {
     });
   }
 
-  private async executeAll(row: RefreshRow): Promise<void> {
-    const library = this.performLibraryPhase();
+  private async executeAll(row: RefreshRow, config: RunConfig): Promise<void> {
+    const library = this.performLibraryPhase(config);
     if (library.fatal) {
       this.finishRun(row.id, {
         status: "failed",
@@ -984,7 +1025,11 @@ export class RefreshService {
 
     let partial = library.partial;
     let error = library.error;
-    const ownership = await this.performOwnershipPhase(row.id, this.ownershipConfigured());
+    const ownership = await this.performOwnershipPhase(
+      row.id,
+      this.ownershipConfigured(config),
+      config,
+    );
     if (ownership.fatal) {
       this.finishRun(row.id, {
         status: "failed",

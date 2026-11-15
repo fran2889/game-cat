@@ -6,7 +6,13 @@ import { APP_VERSION, MIN_NODE_MAJOR } from "../shared/app.ts";
 import type { Config, LogLevel, Status } from "../shared/types.ts";
 import { loadConfig, type ConfigOverrides, type ResolvedConfig } from "./config/load.ts";
 import { assertDataDirOutsideSteam, prepareDataDir } from "./config/data-dir.ts";
-import { openAppDatabase, type AppDatabase, type OpenDatabase } from "./db/database.ts";
+import { ConfigStore } from "./config/store.ts";
+import {
+  openAppDatabase,
+  readBoundSteamId64,
+  type AppDatabase,
+  type OpenDatabase,
+} from "./db/database.ts";
 import { isStartupError, StartupError } from "./errors.ts";
 import { createHttpApp } from "./http/app.ts";
 import { GamesRepository } from "./library/games.ts";
@@ -22,6 +28,7 @@ import { SteamReviewSource } from "./refresh/reviews.ts";
 import type { MetadataSource } from "./refresh/sources.ts";
 import { assertNodeVersion } from "./node-version.ts";
 import { discoverSteam, type SteamDiscovery, type SteamDiscoveryFn } from "./steam/discovery.ts";
+import type { SteamOwnershipSource } from "./steam/ownership.ts";
 import { createSteamSpySource } from "./steam/steamspy.ts";
 import { StorefrontSource } from "./steam/storefront.ts";
 import { buildStatus } from "./status.ts";
@@ -55,6 +62,8 @@ export interface ServerOptions {
   logKeepFiles?: number;
   /** Test seam and the future local-scan boundary (#23). */
   steamDiscovery?: SteamDiscoveryFn;
+  /** Injectable ownership adapter; tests use a fake and production builds one from the key. */
+  ownershipSource?: SteamOwnershipSource;
   /** Injectable database boundary. Defaults to the bundled migration runner. */
   database?: OpenDatabase;
   /**
@@ -178,15 +187,35 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       selectedSteamId64,
     });
 
-    const statusForRequest = (): Status =>
-      buildStatus({
-        discovery,
-        steamApiKey: resolved.steamApiKey,
-        configuredSteamId64: resolved.steamId64,
-        schemaVersion: database!.schemaVersion,
-        version: APP_VERSION,
-        db: database!.raw,
-      });
+    let refreshService: RefreshService | null = null;
+    const configStore = new ConfigStore({
+      resolved,
+      discovery,
+      port: resolved.port,
+      listeningUrl: `http://127.0.0.1:${resolved.port}/`,
+      platform,
+      env,
+      homedir: home,
+      setLogLevel: (level) => {
+        logger.level = level;
+      },
+      boundSteamId64: () => (database === null ? null : readBoundSteamId64(database.raw)),
+      onChange: (config, restartRequired) => {
+        refreshService?.applyConfig({
+          steamRoot: config.steamRoot,
+          steamId64: config.steamId64,
+          steamApiKey: configStore.steamApiKey,
+        });
+        logger.info(
+          {
+            restartRequired,
+            steamApiKeySet: config.steamApiKeySet,
+            steamApiKeySource: config.steamApiKeySource,
+          },
+          "configuration updated",
+        );
+      },
+    });
 
     const games = new GamesRepository(database.raw);
     const collections = new SteamCollectionsRepository(database.raw);
@@ -195,9 +224,12 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
     const tags = new TagsRepository(database.raw);
     const refresh = new RefreshService({
       db: database.raw,
-      steamRoot: discovery.root ?? resolved.steamRoot,
-      steamId64: discovery.account?.steamId64 ?? resolved.steamId64,
-      steamApiKey: resolved.steamApiKey,
+      steamRoot: configStore.steamRoot,
+      steamId64: configStore.steamId64,
+      steamApiKey: configStore.steamApiKey,
+      ...(options.ownershipSource === undefined
+        ? {}
+        : { ownershipSource: options.ownershipSource }),
       // Production registration point (#28-#30). Tests replace the set through
       // `metadataSources`; storefront and reviews share the store host.
       sources: options.metadataSources ?? [
@@ -207,6 +239,17 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       ],
       onWarn: (message, details) => logger.warn({ ...details, warning: message }, "scan warning"),
     });
+    refreshService = refresh;
+
+    const statusForRequest = (): Status =>
+      buildStatus({
+        discovery: configStore.discovery,
+        steamApiKey: configStore.steamApiKey,
+        configuredSteamId64: configStore.steamId64,
+        schemaVersion: database!.schemaVersion,
+        version: APP_VERSION,
+        db: database!.raw,
+      });
 
     const portRef = { value: resolved.port };
     app = createHttpApp({
@@ -215,6 +258,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       logger,
       status: statusForRequest,
       library: { games, collections, ruleValues, rulePreview, tags, refresh },
+      config: configStore,
     });
 
     try {
@@ -240,6 +284,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
     const actualPort = listeningPort(app, resolved.port);
     portRef.value = actualPort;
     const url = `http://127.0.0.1:${actualPort}/`;
+    configStore.setListening(actualPort, url);
 
     // §8.7: recover interrupted runs before the startup Fetch. A queued run
     // that never started and a running run both become INTERRUPTED.
@@ -262,7 +307,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
 
     // §8.7 startup trigger: one `all` + Fetch after listening, only when a Web
     // API key is configured. Without a key the server waits for onboarding.
-    if (resolved.steamApiKey !== null && options.startupRefresh !== false) {
+    if (configStore.steamApiKey !== null && options.startupRefresh !== false) {
       void refresh.start({ scope: "all", mode: "fetch" }).catch((error: unknown) => {
         logger.warn({ err: error }, "startup Refresh could not be queued");
       });
@@ -272,24 +317,16 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       openBrowserBestEffort(url, { platform, env, logger });
     }
 
-    const publicConfig: Config = {
-      dataDir: resolved.dataDir,
-      steamRoot: discovery.root ?? resolved.steamRoot,
-      steamId64: discovery.account?.steamId64 ?? resolved.steamId64,
-      port: actualPort,
-      listeningUrl: url,
-      openBrowser: resolved.openBrowser,
-      logLevel: resolved.logLevel,
-      steamApiKeySet: resolved.steamApiKey !== null,
-      steamApiKeySource: resolved.steamApiKeySource,
-    };
-
     let closed = false;
     const running: RunningServer = {
       app,
       logger: appLogger,
-      config: publicConfig,
-      discovery,
+      get config(): Config {
+        return configStore.get();
+      },
+      get discovery(): SteamDiscovery {
+        return configStore.discovery;
+      },
       database,
       port: actualPort,
       url,

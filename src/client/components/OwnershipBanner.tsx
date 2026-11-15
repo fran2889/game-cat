@@ -63,7 +63,7 @@ export function OwnershipBanner({ status, refreshing, onRetry }: OwnershipBanner
         </p>
       </div>
       <div className="banner-actions">
-        {state === "invalid_key" && (
+        {(state === "invalid_key" || state === "empty") && (
           <Link to="/onboarding" className="button">
             Fix API key
           </Link>
