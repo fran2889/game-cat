@@ -77,6 +77,11 @@ export interface GameTag {
   votes: number;
 }
 
+export interface TagSummary {
+  name: string;
+  gameCount: number;
+}
+
 export interface GamePlatforms {
   windows?: boolean;
   mac?: boolean;
@@ -167,6 +172,11 @@ export interface GamesResponse {
   data: GameSummary[];
   pagination: Pagination;
   meta: { dataAsOf: string | null };
+}
+
+export interface TagsResponse {
+  data: TagSummary[];
+  pagination: Pagination;
 }
 
 export interface GameDetailResponse {

@@ -12,14 +12,16 @@ import { createHttpApp } from "./http/app.ts";
 import { GamesRepository } from "./library/games.ts";
 import { SteamCollectionsRepository } from "./library/collections.ts";
 import { RuleValuesRepository } from "./library/rule-values.ts";
+import { TagsRepository } from "./library/tags.ts";
 import { createLogger, defaultLogPath, type AppLogger } from "./logging/logger.ts";
 import { acquireLock, type LockHandle } from "./lock.ts";
 import { openBrowserBestEffort } from "./open-browser.ts";
 import { RefreshService } from "./refresh/service.ts";
-import { StorefrontSource } from "./steam/storefront.ts";
 import type { MetadataSource } from "./refresh/sources.ts";
 import { assertNodeVersion } from "./node-version.ts";
 import { discoverSteam, type SteamDiscovery, type SteamDiscoveryFn } from "./steam/discovery.ts";
+import { createSteamSpySource } from "./steam/steamspy.ts";
+import { StorefrontSource } from "./steam/storefront.ts";
 import { buildStatus } from "./status.ts";
 
 export interface ServerOptions {
@@ -187,14 +189,15 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
     const games = new GamesRepository(database.raw);
     const collections = new SteamCollectionsRepository(database.raw);
     const ruleValues = new RuleValuesRepository(database.raw);
+    const tags = new TagsRepository(database.raw);
     const refresh = new RefreshService({
       db: database.raw,
       steamRoot: discovery.root ?? resolved.steamRoot,
       steamId64: discovery.account?.steamId64 ?? resolved.steamId64,
       steamApiKey: resolved.steamApiKey,
       // Production registration point (#28-#30). Tests replace the set through
-      // `metadataSources`; the storefront adapter is the canonical source.
-      sources: options.metadataSources ?? [new StorefrontSource()],
+      // `metadataSources`; storefront is the canonical store-host source.
+      sources: options.metadataSources ?? [createSteamSpySource(), new StorefrontSource()],
       onWarn: (message, details) => logger.warn({ ...details, warning: message }, "scan warning"),
     });
 
@@ -204,7 +207,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       clientDir: options.clientDir === undefined ? defaultClientDir() : options.clientDir,
       logger,
       status: statusForRequest,
-      library: { games, collections, ruleValues, refresh },
+      library: { games, collections, ruleValues, tags, refresh },
     });
 
     try {

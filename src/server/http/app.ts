@@ -14,6 +14,7 @@ import { HttpError } from "../errors.ts";
 import type { GamesRepository } from "../library/games.ts";
 import type { SteamCollectionsRepository } from "../library/collections.ts";
 import type { RuleValuesRepository } from "../library/rule-values.ts";
+import type { TagsRepository } from "../library/tags.ts";
 import { redactUrl } from "../logging/logger.ts";
 import type { RefreshService } from "../refresh/service.ts";
 import { registerApiRoutes } from "./api-routes.ts";
@@ -49,6 +50,7 @@ export interface CreateHttpAppOptions {
     games: GamesRepository;
     collections: SteamCollectionsRepository;
     ruleValues: RuleValuesRepository;
+    tags: TagsRepository;
     refresh: RefreshService;
   };
 }
@@ -125,6 +127,7 @@ export function createHttpApp(options: CreateHttpAppOptions): FastifyInstance {
       games: options.library.games,
       collections: options.library.collections,
       ruleValues: options.library.ruleValues,
+      tags: options.library.tags,
       refresh: options.library.refresh,
     });
   } else {
