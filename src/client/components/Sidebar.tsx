@@ -5,6 +5,7 @@ import { fetchSteamCollections } from "../api.ts";
 import { formatCount, formatRelativeTime } from "../format.ts";
 import { useRefresh } from "../refresh-context.tsx";
 import { dataAsOf, refreshCardTitle } from "../refresh.ts";
+import { useSmartCollections } from "../smart-collections-context.tsx";
 
 export interface SidebarProps {
   status: Status | null;
@@ -19,6 +20,12 @@ const navClass = ({ isActive }: { isActive: boolean }): string =>
 export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) {
   const location = useLocation();
   const { activeRun, isRunning, startFetch } = useRefresh();
+  const {
+    collections: smartCollections,
+    loading: smartLoading,
+    error: smartError,
+    reload: reloadSmartCollections,
+  } = useSmartCollections();
   const account = status?.steam.account ?? null;
   const gameCount = status?.library.gameCount ?? 0;
   const installedCount = status?.library.installedCount ?? 0;
@@ -94,13 +101,46 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
             +
           </NavLink>
         </div>
-        <p className="side-empty">
-          No Smart Collections yet.{" "}
-          <NavLink to="/smart/new" onClick={onClose}>
-            Create one
-          </NavLink>
-          .
-        </p>
+        {smartError !== null ? (
+          <p className="side-empty">
+            Smart Collections could not be loaded.{" "}
+            <button
+              type="button"
+              className="button button-small"
+              onClick={() => void reloadSmartCollections()}
+            >
+              Retry
+            </button>
+          </p>
+        ) : smartLoading && smartCollections.length === 0 ? (
+          <p className="side-empty">Loading Smart Collections…</p>
+        ) : smartCollections.length === 0 ? (
+          <p className="side-empty">
+            No Smart Collections yet.{" "}
+            <NavLink to="/smart/new" onClick={onClose}>
+              Create one
+            </NavLink>
+            .
+          </p>
+        ) : (
+          <div className="side-list" data-testid="smart-collection-list">
+            {smartCollections.map((collection) => (
+              <NavLink
+                key={collection.id}
+                to={`/smart/${encodeURIComponent(collection.id)}`}
+                className={navClass}
+                onClick={onClose}
+                title={collection.name}
+              >
+                <span className="side-icon" aria-hidden="true">
+                  ✦
+                </span>
+                <span className="label">{collection.name}</span>
+                <span className="count">{formatCount(collection.matchCount)}</span>
+              </NavLink>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="side-section" aria-labelledby="steam-heading">

@@ -31,8 +31,8 @@ test("the empty editor shows the global prefix copy and all-Games state", async 
   await expect(
     page.getByText("No rules. This matches all 130 games. Add a rule to narrow it."),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
-  await expect(page.getByText("Saving arrives next. Nothing is saved yet.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
+  await expect(page.getByText("Save creates the Smart Collection.")).toBeVisible();
   await expect(page.locator(".game-grid .game-card")).toHaveCount(60);
 });
 

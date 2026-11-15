@@ -11,8 +11,8 @@ import { ErrorsView } from "./views/ErrorsView.tsx";
 import { LibraryView } from "./views/LibraryView.tsx";
 import { NotFoundView } from "./views/NotFoundView.tsx";
 import { OnboardingView } from "./views/OnboardingView.tsx";
-import { PlaceholderView } from "./views/PlaceholderView.tsx";
 import { SettingsView } from "./views/SettingsView.tsx";
+import { SmartCollectionView } from "./views/SmartCollectionView.tsx";
 import { SmartNewView } from "./views/SmartNewView.tsx";
 import { SteamCollectionView } from "./views/SteamCollectionView.tsx";
 
@@ -144,7 +144,7 @@ export function App() {
             <Route index element={<LibraryView mode="all" />} />
             <Route path="installed" element={<LibraryView mode="installed" />} />
             <Route path="smart/new" element={<SmartNewView />} />
-            <Route path="smart/:id" element={<PlaceholderSmartView />} />
+            <Route path="smart/:id" element={<SmartCollectionView />} />
             <Route path="steam/:id" element={<SteamCollectionView />} />
             <Route path="errors" element={<ErrorsView />} />
             <Route path="onboarding" element={<OnboardingView />} />
@@ -157,15 +157,5 @@ export function App() {
         )}
       </BrowseProvider>
     </ToastProvider>
-  );
-}
-
-function PlaceholderSmartView() {
-  return (
-    <PlaceholderView
-      kicker="Smart collections"
-      title="Smart Collection"
-      description="Saved Smart Collections and their live match counts arrive with the Rule evaluator."
-    />
   );
 }

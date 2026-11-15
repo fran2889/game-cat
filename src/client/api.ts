@@ -19,6 +19,12 @@ import type {
   TagsResponse,
 } from "../shared/types.ts";
 import type { Rule } from "../shared/rules.ts";
+import type {
+  SmartCollection,
+  SmartCollectionGamesResponse,
+  SmartCollectionPatchBody,
+  SmartCollectionsResponse,
+} from "../shared/smart-collections.ts";
 
 export class ApiError extends Error {
   readonly status: number | null;
@@ -360,6 +366,104 @@ export async function fetchSteamCollectionGames(
     { headers: { accept: "application/json" }, signal },
   );
   return readJson<SteamCollectionGamesResponse>(response);
+}
+
+export interface FetchSmartCollectionsParams {
+  page?: number;
+  pageSize?: number;
+  sort?: "name" | "updatedAt";
+  order?: GameOrder;
+}
+
+export async function fetchSmartCollections(
+  params: FetchSmartCollectionsParams = {},
+  signal?: AbortSignal,
+): Promise<SmartCollectionsResponse> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      query.set(key, String(value));
+    }
+  }
+  const response = await fetch(`/api/smart-collections?${query.toString()}`, {
+    headers: { accept: "application/json" },
+    signal,
+  });
+  return readJson<SmartCollectionsResponse>(response);
+}
+
+export async function fetchSmartCollection(
+  id: string,
+  signal?: AbortSignal,
+): Promise<SmartCollection> {
+  const response = await fetch(`/api/smart-collections/${encodeURIComponent(id)}`, {
+    headers: { accept: "application/json" },
+    signal,
+  });
+  const body = await readJson<{ data: SmartCollection }>(response);
+  return body.data;
+}
+
+export async function createSmartCollection(body: {
+  name: string;
+  rules: Rule[];
+}): Promise<SmartCollection> {
+  const response = await fetch("/api/smart-collections", {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const result = await readJson<{ data: SmartCollection }>(response);
+  return result.data;
+}
+
+export async function patchSmartCollection(
+  id: string,
+  body: SmartCollectionPatchBody,
+): Promise<SmartCollection> {
+  const response = await fetch(`/api/smart-collections/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const result = await readJson<{ data: SmartCollection }>(response);
+  return result.data;
+}
+
+/** Delete a saved Smart Collection; callers treat 404 as already deleted (§7.4). */
+export async function deleteSmartCollection(id: string): Promise<void> {
+  const response = await fetch(`/api/smart-collections/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    await readJson<never>(response);
+  }
+}
+
+export interface FetchSmartCollectionGamesParams {
+  page?: number;
+  pageSize?: number;
+  sort?: GameSort;
+  order?: GameOrder;
+}
+
+export async function fetchSmartCollectionGames(
+  id: string,
+  params: FetchSmartCollectionGamesParams = {},
+  signal?: AbortSignal,
+): Promise<SmartCollectionGamesResponse> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      query.set(key, String(value));
+    }
+  }
+  const response = await fetch(
+    `/api/smart-collections/${encodeURIComponent(id)}/games?${query.toString()}`,
+    { headers: { accept: "application/json" }, signal },
+  );
+  return readJson<SmartCollectionGamesResponse>(response);
 }
 
 export async function startOwnershipRefresh(): Promise<RefreshRun> {
