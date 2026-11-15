@@ -106,7 +106,7 @@ A Refresh mode that requests only Metadata sources with no usable current data: 
 _Avoid_: sync, update
 
 **Pending**:
-A Metadata source state for a Game on the Refresh-errors view: no row, or `missing` with no `*_fetched_at`, so the source has not attempted it yet. Fetch also treats `stale` and `error` as pending work; on `/errors` those are Affected instead.
+A Metadata source state for a Game on the Refresh-errors view: no row, or `missing` with no `*_fetched_at`, so the source has not attempted it yet. This is narrower than Fetch's pending set: Fetch also treats `stale` and `error` as pending work, while `/errors` reports those as Affected instead.
 _Avoid_: failed, affected
 
 **Affected**:

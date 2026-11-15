@@ -2306,6 +2306,10 @@ A source is **pending** for a Game when:
 | `ok`                                                                          | no       |
 | `unavailable` (a successful answer with no usable summary)                    | no       |
 
+This is Fetch's pending set. The Refresh-errors view's **Pending** count is deliberately narrower: it
+counts only no-row and never-attempted `missing` Games and reports `stale` and `error` as Affected
+(§7.7).
+
 - `unavailable` is settled because the source answered: the storefront reported the Game as delisted
   or region-blocked, or reviews returned zero or an empty summary. Fetch does not re-request it; Full
   Refresh does, because availability can change.
@@ -2877,7 +2881,9 @@ A Game is **pending** for a source on `/errors` when it has no row or is `missin
 `*_fetched_at IS NULL`: the source has not attempted it yet. Pending is not affected, so a fresh
 Library shows `0 affected` even when all of its Games are pending. A settled miss (`missing` with
 `*_fetched_at` set) is neither pending nor affected, because the source answered successfully and
-Fetch does not retry it. The row shows both numbers as `N affected Games · N pending`, using the
+Fetch does not retry it. To re-request a settled miss, select the Games in the Library and use
+**Refresh selected**; Fetch alone never retries it. The row shows both numbers as
+`N affected Games · N pending`, using the
 singular `Game` when the affected count is one, and the copy never labels pending Games as failures.
 This is narrower than §6.2's Fetch-pending set, which also includes `stale` and `error` because Fetch
 retries them; `/errors` reports those as affected instead.
