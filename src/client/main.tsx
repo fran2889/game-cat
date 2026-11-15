@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { App } from "./App.tsx";
 import "./styles.css";
 
@@ -9,10 +9,12 @@ if (container === null) {
   throw new Error("Root element missing");
 }
 
+// A data router makes `useBlocker` available for the "save failed" navigation
+// confirmation in the Smart Collection editor. App still owns the route tree.
+const router = createBrowserRouter([{ path: "*", element: <App /> }]);
+
 createRoot(container).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <RouterProvider router={router} />
   </StrictMode>,
 );

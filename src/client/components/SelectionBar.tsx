@@ -13,11 +13,22 @@ import { useRefresh } from "../refresh-context.tsx";
 import { handoffFromSelection, SMART_COLLECTION_DRAFT_STATE } from "../smart-handoff.ts";
 import { useToast } from "./ToastProvider.tsx";
 
+export interface SelectionBarProps {
+  /** Saved Smart Collection editors add selected Games to their `game` Rule. */
+  onAddToRules?(): void;
+  addToRulesDisabled?: boolean;
+  addToRulesDisabledReason?: string;
+}
+
 /**
  * Selection actions shared by every Library-like view. The New from selection
  * handoff is router state so #31/#32 can open the editor without re-fetching.
  */
-export function SelectionBar() {
+export function SelectionBar({
+  onAddToRules,
+  addToRulesDisabled = false,
+  addToRulesDisabledReason,
+}: SelectionBarProps = {}) {
   const { selectedIds, selectedCount, clearSelection } = useBrowse();
   const { showToast } = useToast();
   const { isRunning, startRun } = useRefresh();
@@ -51,7 +62,12 @@ export function SelectionBar() {
     }
   };
 
-  const explanation = selectionLimitMessages(selectedCount).join(" ");
+  const explanation = [
+    ...selectionLimitMessages(selectedCount),
+    ...(addToRulesDisabled && addToRulesDisabledReason !== undefined
+      ? [addToRulesDisabledReason]
+      : []),
+  ].join(" ");
 
   return (
     <div className="selection-bar" role="region" aria-label="Selection actions">
@@ -96,6 +112,22 @@ export function SelectionBar() {
         >
           + New from selection
         </button>
+        {onAddToRules !== undefined && (
+          <button
+            type="button"
+            className="button"
+            onClick={onAddToRules}
+            disabled={addToRulesDisabled || selectedCount === 0}
+            title={
+              addToRulesDisabledReason ??
+              (selectedCount === 0
+                ? "Select at least one game to add to the current rules."
+                : undefined)
+            }
+          >
+            Add to current rules
+          </button>
+        )}
       </div>
     </div>
   );

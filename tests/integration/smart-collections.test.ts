@@ -453,6 +453,24 @@ describe("GET /api/smart-collections", () => {
     expect(response.json()).toEqual({
       data: [],
       pagination: { page: 1, pageSize: 60, totalItems: 0, totalPages: 0 },
+      meta: { dataAsOf: null },
+    });
+  });
+
+  it("returns meta.dataAsOf for the saved Collection list (AC-A23)", async () => {
+    const { db, app } = harness();
+    created(await create(app, { name: "Dated" }));
+    db.raw
+      .prepare(
+        `INSERT INTO refresh_runs (scope, mode, status, started_at, finished_at, done)
+         VALUES ('library', NULL, 'succeeded', 1_700_000_000, 1_700_000_100, 7)`,
+      )
+      .run();
+
+    const response = await get(app, "/api/smart-collections");
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as SmartCollectionsResponse).meta).toEqual({
+      dataAsOf: "2023-11-14T22:15:00Z",
     });
   });
 });
