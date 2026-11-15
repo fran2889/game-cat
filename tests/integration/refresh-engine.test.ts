@@ -589,9 +589,23 @@ describe("Metadata pacing", () => {
     expect(test.clock.sleeps).toEqual([1_000, 1_000]);
   });
 
-  it("shares one 1.5-second interval between storefront and reviews", async () => {
+  it("paces reviews on their own 1.5-second Web API interval", async () => {
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "web_api");
+    const test = harness({ sources: [reviews] });
+    for (const appId of [1, 2, 3]) {
+      seedGame(test.db, appId);
+    }
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+
+    expect(run.status).toBe("succeeded");
+    expect(reviews.times).toEqual([NOW, NOW + 1.5, NOW + 3]);
+    expect(test.clock.sleeps).toEqual([1_500, 1_500]);
+  });
+
+  it("does not delay the first request on separate store and Web API hosts", async () => {
     const storefront = new FakeSource("storefront", () => ({ kind: "ok" }), "store");
-    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "store");
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "web_api");
     const test = harness({ sources: [storefront, reviews] });
     seedGame(test.db, 1);
 
@@ -599,8 +613,8 @@ describe("Metadata pacing", () => {
 
     expect(run.status).toBe("succeeded");
     expect(storefront.times).toEqual([NOW]);
-    expect(reviews.times).toEqual([NOW + 1.5]);
-    expect(test.clock.sleeps).toEqual([1_500]);
+    expect(reviews.times).toEqual([NOW]);
+    expect(test.clock.sleeps).toEqual([]);
   });
 
   it("never delays the first request for a host", async () => {
@@ -809,7 +823,7 @@ describe("Metadata progress and failure", () => {
     });
   });
 
-  it("honours 429 Retry-After, 403 blocking, and shared store pauses", async () => {
+  it("honours 429 Retry-After and pauses only the affected host", async () => {
     const storefront = new FakeSource(
       "storefront",
       () => ({
@@ -819,7 +833,7 @@ describe("Metadata progress and failure", () => {
       }),
       "store",
     );
-    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "store");
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "web_api");
     const test = harness({ sources: [storefront, reviews] });
     for (const appId of [1, 2, 3]) {
       seedGame(test.db, appId);
@@ -828,27 +842,24 @@ describe("Metadata progress and failure", () => {
     const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
 
     expect(storefront.calls).toEqual([1]);
-    expect(reviews.calls).toEqual([]);
+    expect(reviews.calls).toEqual([1, 2, 3]);
     expect(run.status).toBe("partial");
     expect(run.stats?.sources.storefront.skipped).toBe(3);
-    expect(run.stats?.sources.steam_reviews.skipped).toBe(3);
+    expect(run.stats?.sources.steam_reviews.skipped).toBe(0);
     expect(sourceState(test.db, "storefront")).toMatchObject({
       status: "rate_limited",
       retry_after_at: NOW + 120,
     });
-    expect(sourceState(test.db, "steam_reviews")).toMatchObject({
-      status: "rate_limited",
-      retry_after_at: NOW + 120,
-    });
+    expect(sourceState(test.db, "steam_reviews")).toMatchObject({ status: "ok" });
   });
 
-  it("maps a pass skipped by a store-host 403 block to blocked, not rate_limited", async () => {
+  it("maps a pass skipped by a 403 block to blocked and leaves the other host running", async () => {
     const storefront = new FakeSource(
       "storefront",
       () => ({ kind: "blocked", message: "Challenge detected." }),
       "store",
     );
-    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "store");
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "web_api");
     const test = harness({ sources: [storefront, reviews] });
     for (const appId of [1, 2]) {
       seedGame(test.db, appId);
@@ -857,17 +868,15 @@ describe("Metadata progress and failure", () => {
     const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
 
     expect(storefront.calls).toEqual([1]);
-    expect(reviews.calls).toEqual([]);
+    expect(reviews.calls).toEqual([1, 2]);
     expect(run.status).toBe("partial");
     expect(sourceState(test.db, "storefront")).toMatchObject({
       status: "blocked",
       retry_after_at: NOW + 900,
     });
-    expect(sourceState(test.db, "steam_reviews")).toMatchObject({
-      status: "blocked",
-      retry_after_at: NOW + 900,
-    });
-    expect(run.stats?.sources.steam_reviews.skipped).toBe(2);
+    expect(sourceState(test.db, "steam_reviews")).toMatchObject({ status: "ok" });
+    expect(run.stats?.sources.storefront.skipped).toBe(2);
+    expect(run.stats?.sources.steam_reviews.skipped).toBe(0);
   });
 
   it("blocks a source for 15 minutes on a challenge", async () => {
@@ -954,7 +963,7 @@ describe("Metadata progress and failure", () => {
     expect(sourceState(test.db, "steamspy").status).toBe("ok");
   });
 
-  it("never runs storefront and reviews concurrently", async () => {
+  it("runs storefront and reviews concurrently on separate hosts", async () => {
     const gate = new Deferred();
     const events: string[] = [];
     const storefront = new FakeSource(
@@ -974,7 +983,7 @@ describe("Metadata progress and failure", () => {
         events.push("reviews:end");
         return { kind: "ok" };
       },
-      "store",
+      "web_api",
     );
     const test = harness({ sources: [storefront, reviews] });
     seedGame(test.db, 1);
@@ -982,13 +991,17 @@ describe("Metadata progress and failure", () => {
     const started = await post(test.app, { scope: "metadata", mode: "fetch" });
     expect(started.statusCode).toBe(202);
     await until(() => events.includes("storefront:start"));
-    await new Promise((resolve) => setImmediate(resolve));
-    expect(events).toEqual(["storefront:start"]);
-    expect(reviews.calls).toEqual([]);
+    await until(() => events.includes("reviews:end"));
+    expect(events).toContain("reviews:start");
+    expect(events).not.toContain("storefront:end");
+    expect(reviews.calls).toEqual([1]);
 
     gate.release();
     await test.refresh.waitForIdle();
-    expect(events).toEqual(["storefront:start", "storefront:end", "reviews:start", "reviews:end"]);
+    expect(events).toContain("storefront:start");
+    expect(events).toContain("storefront:end");
+    expect(events).toContain("reviews:start");
+    expect(events).toContain("reviews:end");
   });
 });
 
