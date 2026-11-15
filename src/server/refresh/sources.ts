@@ -13,6 +13,9 @@ export const METADATA_SOURCE_NAMES = ["steamspy", "storefront", "steam_reviews"]
 
 export type MetadataSourceName = (typeof METADATA_SOURCE_NAMES)[number];
 
+/** Host keys shared by Metadata sources that call the same upstream host. */
+export type MetadataHostKey = "steamspy" | "store" | "steam_web_api";
+
 export interface MetadataSourceGame {
   appId: number;
   name: string;
@@ -51,10 +54,10 @@ export interface MetadataSource {
   readonly name: MetadataSourceName;
   /**
    * Sources with the same host key never run concurrently and share a pause
-   * (`storefront` and `steam_reviews` use the store host). Omit for a source
-   * with its own host, such as SteamSpy.
+   * (`storefront` uses `store`; `steam_reviews` uses `steam_web_api`). Omit for
+   * a source with its own host, such as SteamSpy.
    */
-  readonly hostKey?: string;
+  readonly hostKey?: MetadataHostKey;
   /** Fetch one Game. Upstream failures are returned, never thrown. */
   fetch(context: MetadataSourceContext): Promise<MetadataSourceOutcome>;
 }

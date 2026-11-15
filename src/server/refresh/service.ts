@@ -158,13 +158,14 @@ const CIRCUIT_FAILURES = 5;
 const BLOCK_SECONDS = 15 * 60;
 const PROGRESS_INTERVAL = 25;
 /**
- * Serial request pacing from §6.1: SteamSpy is about one request/second, and
- * the storefront and reviews share 200 requests per 5 minutes (~1.5 seconds).
- * The first request for a host is never delayed.
+ * Serial request pacing from §6.1: SteamSpy is about one request/second.
+ * Storefront and reviews use separate hosts and each gets a 1.5-second
+ * interval. The first request for a host is never delayed.
  */
 const PACING_MS: Record<string, number> = {
   steamspy: 1_000,
   store: 1_500,
+  steam_web_api: 1_500,
 };
 
 const SOURCE_ROW_QUERIES: Record<MetadataSourceName, string> = {
