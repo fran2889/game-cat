@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
+import { validatePreviewRequest } from "../../shared/rules.ts";
 import type {
   Config,
   ConfigPatchResponse,
+  Status,
   SteamAccount,
   SteamAccountsResponse,
-  Status,
 } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
 import {
@@ -13,6 +14,7 @@ import {
   type SteamCollectionsRepository,
 } from "../library/collections.ts";
 import { GamesRepository, parseGamesQuery } from "../library/games.ts";
+import type { RulePreviewRepository } from "../library/rule-preview.ts";
 import { parseRuleValuesQuery, type RuleValuesRepository } from "../library/rule-values.ts";
 import { parseTagsQuery, type TagsRepository } from "../library/tags.ts";
 import type { RefreshService } from "../refresh/service.ts";
@@ -22,6 +24,7 @@ export interface ApiRoutesOptions {
   games: GamesRepository;
   collections: SteamCollectionsRepository;
   ruleValues: RuleValuesRepository;
+  rulePreview: RulePreviewRepository;
   tags: TagsRepository;
   refresh: RefreshService;
 }
@@ -139,6 +142,22 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
       throw notFound(id);
     }
     return games;
+  });
+
+  app.post("/api/rules/preview", async (request) => {
+    const validated = validatePreviewRequest(request.body);
+    if (Object.keys(validated.fieldErrors).length > 0) {
+      throw new HttpError(422, "VALIDATION_ERROR", "Request body is invalid", {
+        details: { fieldErrors: validated.fieldErrors },
+      });
+    }
+    return options.rulePreview.preview({
+      rules: validated.rules,
+      page: validated.page,
+      pageSize: validated.pageSize,
+      sort: validated.sort,
+      order: validated.order,
+    });
   });
 
   app.get("/api/refresh/:id", async (request) => {
