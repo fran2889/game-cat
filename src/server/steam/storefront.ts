@@ -1,6 +1,7 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { APP_NAME, APP_VERSION } from "../../shared/app.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
+import { parseAppId } from "../app-id.ts";
 import type {
   MetadataSource,
   MetadataSourceContext,
@@ -227,23 +228,12 @@ interface ParsedStorefront {
   raw: string;
 }
 
-/** Recognize an App ID as a positive integer or numeric string. */
-function recognizedAppId(value: unknown): number | null {
-  const number =
-    typeof value === "number"
-      ? value
-      : typeof value === "string" && /^\d+$/.test(value.trim())
-        ? Number(value.trim())
-        : null;
-  return number !== null && Number.isSafeInteger(number) && number > 0 ? number : null;
-}
-
 /**
  * A `success: true` payload keyed by a different App ID is not the requested
  * App's data. The outer key is the identity, so this is the only explicit
  * mismatch case; a canonical mapping keeps the requested outer key (spec §6.6).
  */
-function explicitMismatchKey(payload: unknown, appId: number): number | null {
+function mismatchedAppId(payload: unknown, appId: number): number | null {
   if (!isRecord(payload)) {
     return null;
   }
@@ -251,11 +241,12 @@ function explicitMismatchKey(payload: unknown, appId: number): number | null {
   if (keys.length !== 1) {
     return null;
   }
-  const returned = recognizedAppId(keys[0]);
+  const key = keys[0]!;
+  const returned = parseAppId(key);
   if (returned === null || returned === appId) {
     return null;
   }
-  const entry = payload[keys[0]!];
+  const entry = payload[key];
   return isRecord(entry) && entry.success === true ? returned : null;
 }
 
@@ -446,12 +437,12 @@ export class StorefrontSource implements MetadataSource {
 
     const entry = isRecord(payload) ? payload[String(appId)] : undefined;
     if (!isRecord(entry) || entry.success !== true) {
-      const returned = explicitMismatchKey(payload, appId);
+      const returned = mismatchedAppId(payload, appId);
       if (returned !== null) {
         // A safe diagnostic: both identities, never the raw payload.
         const message = `The storefront returned data for App ID ${returned}, not App ID ${appId}.`;
         recordFailure(db, appId, now, message);
-        return { kind: "error", message };
+        return { kind: "error", message, retryable: false };
       }
       recordUnavailable(db, appId, now);
       return { kind: "unavailable" };
@@ -463,10 +454,9 @@ export class StorefrontSource implements MetadataSource {
       return { kind: "unavailable" };
     }
 
-    // Steam canonicalizes some library aliases (live examples: 100 -> 80 and
-    // 870 -> 550) while keeping the requested App ID as the outer key. Store
-    // the response against the requested App ID; the canonical ID remains in
-    // `raw_store_json` and is documented in spec §6.6.
+    // Steam may canonicalize a library App ID while keeping the requested App
+    // ID as the outer key. Store the response against the requested App ID; the
+    // canonical ID remains in `raw_store_json` (spec §6.6).
     persistSuccess(db, appId, now, parseStorefrontData(data));
     return { kind: "ok" };
   }

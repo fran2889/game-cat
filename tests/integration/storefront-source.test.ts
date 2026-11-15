@@ -366,7 +366,7 @@ describe("StorefrontSource malformed and failed responses", () => {
     );
 
     const outcome = await fetchStorefront(db, storefront, 620);
-    expect(outcome).toMatchObject({ kind: "error" });
+    expect(outcome).toMatchObject({ kind: "error", retryable: false });
     expect(row(db, 620)).toMatchObject({
       type: null,
       developers_json: "[]",
@@ -655,5 +655,58 @@ describe("Refresh engine integration", () => {
         .get(),
     ).toEqual({ status: "error", retry_after_at: null });
     expect(row(db, 620)).toMatchObject({ store_status: "error", store_error: expect.any(String) });
+  });
+
+  it("records a mismatched App ID as a per-Game failure without pausing the source", async () => {
+    const db = database();
+    seedGame(db, 620);
+    seedGame(db, 621);
+    const now = { seconds: NOW };
+    let calls = 0;
+    const storefront = new StorefrontSource({
+      fetch: async (url) => {
+        calls += 1;
+        const requested = new URL(url).searchParams.get("appids");
+        return requested === "620"
+          ? json({ "999": { success: true, data: fullPayload({ steam_appid: 999 }) } })
+          : json(payload(621, fullPayload({ name: "Portal 2", steam_appid: 621 })));
+      },
+    });
+    const refresh = new RefreshService({
+      db: db.raw,
+      steamRoot: null,
+      steamId64: null,
+      now: () => now.seconds,
+      jitter: () => 0,
+      sleep: async (milliseconds) => {
+        now.seconds += milliseconds / 1_000;
+      },
+      sources: [storefront],
+    });
+
+    const started = await refresh.start({ scope: "metadata", mode: "full", appIds: [620, 621] });
+    await refresh.waitForIdle();
+    const run = readRefreshRun(db.raw, Number(started.run.id))!;
+
+    // A definitive different-key answer is not transient: fetch once, record
+    // the per-Game error, then continue with the next Game.
+    expect(calls).toBe(2);
+    expect(run.status).toBe("partial");
+    expect(run.stats?.sources.storefront).toEqual({
+      candidates: 2,
+      done: 1,
+      failed: 1,
+      skipped: 0,
+    });
+    expect(
+      db.raw
+        .prepare("SELECT status, retry_after_at FROM source_state WHERE name = 'storefront'")
+        .get(),
+    ).toEqual({ status: "partial", retry_after_at: null });
+    expect(row(db, 620)).toMatchObject({
+      store_status: "error",
+      store_error: expect.stringContaining("999"),
+    });
+    expect(row(db, 621)).toMatchObject({ store_status: "ok", store_error: null });
   });
 });

@@ -7,6 +7,7 @@ import type {
   SteamAccount,
   SteamAccountsResponse,
 } from "../../shared/types.ts";
+import { parseAppId } from "../app-id.ts";
 import { HttpError } from "../errors.ts";
 import {
   parseSteamCollectionGamesQuery,
@@ -83,14 +84,6 @@ function queryValues(query: unknown): Record<string, string | undefined> {
   return result;
 }
 
-function positiveInteger(value: string): number | null {
-  if (!/^\d+$/.test(value)) {
-    return null;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
 function notFound(identifier: string): HttpError {
   return new HttpError(404, "NOT_FOUND", "The requested resource was not found.", {
     details: { id: identifier },
@@ -108,7 +101,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
 
   app.get("/api/games/:appId", async (request) => {
     const { appId } = request.params as { appId: string };
-    const id = positiveInteger(appId);
+    const id = parseAppId(appId);
     if (id === null) {
       throw notFound(appId);
     }
@@ -208,7 +201,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
 
   app.get("/api/refresh/:id", async (request) => {
     const { id } = request.params as { id: string };
-    const parsed = positiveInteger(id);
+    const parsed = parseAppId(id);
     const run = parsed === null ? null : options.refresh.get(parsed);
     if (run === null) {
       throw notFound(id);
