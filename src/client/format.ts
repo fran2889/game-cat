@@ -99,6 +99,34 @@ export function formatCount(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
 }
 
+/**
+ * Relative time for status surfaces (§7.7). It is intentionally coarse: the
+ * card answers "how fresh is this?", not "exactly when?".
+ */
+export function formatRelativeTime(iso: string | null, now: number = Date.now()): string {
+  if (iso === null) {
+    return "no data yet";
+  }
+  const value = new Date(iso).getTime();
+  if (Number.isNaN(value)) {
+    return "no data yet";
+  }
+  const seconds = Math.max(0, Math.floor((now - value) / 1_000));
+  if (seconds < 60) {
+    return "just now";
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} min ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} h ago`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days} d ago`;
+}
+
 export function ownershipLabel(status: OwnershipStatus): string {
   switch (status) {
     case "local_only":

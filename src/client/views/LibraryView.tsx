@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import type { GamesResponse } from "../../shared/types.ts";
-import { ApiError, fetchGames, startLibraryScan, startOwnershipRefresh } from "../api.ts";
+import { ApiError, fetchGames, startLibraryScan } from "../api.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { GameResults } from "../components/GameResults.tsx";
 import { OwnershipBanner } from "../components/OwnershipBanner.tsx";
@@ -53,7 +53,6 @@ export function LibraryView({ mode }: LibraryViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [scanning, setScanning] = useState(false);
-  const [refreshingOwnership, setRefreshingOwnership] = useState(false);
 
   const installedFilter = mode === "installed" || installedOnly;
 
@@ -91,7 +90,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
     const controller = new AbortController();
     void load(controller.signal);
     return () => controller.abort();
-  }, [load]);
+  }, [load, status?.lastRefresh?.finishedAt]);
 
   const scan = async (): Promise<void> => {
     setScanning(true);
@@ -113,31 +112,6 @@ export function LibraryView({ mode }: LibraryViewProps) {
       );
     } finally {
       setScanning(false);
-    }
-  };
-
-  const retryOwnership = async (): Promise<void> => {
-    setRefreshingOwnership(true);
-    try {
-      const run = await startOwnershipRefresh();
-      if (run.status === "failed") {
-        showToast(run.error?.message ?? "The ownership refresh failed.");
-      } else if (run.status === "partial") {
-        showToast("Ownership refresh finished with some Steam data unavailable.");
-      } else {
-        showToast("Ownership roster refreshed.");
-      }
-      setPage(1);
-      await load();
-      reloadStatus();
-    } catch (ownershipError) {
-      showToast(
-        ownershipError instanceof ApiError
-          ? ownershipError.message
-          : "The ownership refresh could not start.",
-      );
-    } finally {
-      setRefreshingOwnership(false);
     }
   };
 
@@ -202,13 +176,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
     <>
       {error !== null && <DisconnectedBanner message={error} onRetry={() => void load()} />}
       {noAccount && <NoAccountBanner />}
-      {status !== null && (
-        <OwnershipBanner
-          status={status}
-          refreshing={refreshingOwnership}
-          onRetry={retryOwnership}
-        />
-      )}
+      {status !== null && <OwnershipBanner status={status} />}
     </>
   );
 

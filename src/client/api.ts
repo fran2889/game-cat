@@ -5,7 +5,9 @@ import type {
   GameOrder,
   GameSort,
   GamesResponse,
+  RefreshMode,
   RefreshRun,
+  RefreshScope,
   Status,
   SteamAccountsResponse,
   SteamAccount,
@@ -134,6 +136,26 @@ export interface FetchGamesParams {
   sort?: GameSort;
   order?: GameOrder;
   installed?: boolean;
+  tagsStatus?: string;
+  storeStatus?: string;
+  reviewStatus?: string;
+}
+
+export interface RefreshRequestBody {
+  scope: RefreshScope;
+  mode?: RefreshMode;
+  appIds?: number[];
+}
+
+/** Start any documented Refresh request. The run executes in the background. */
+export async function startRefresh(body: RefreshRequestBody): Promise<RefreshRun> {
+  const response = await fetch("/api/refresh", {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const result = await readJson<{ data: RefreshRun }>(response);
+  return result.data;
 }
 
 export async function fetchGames(
