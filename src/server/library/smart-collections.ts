@@ -326,6 +326,7 @@ export class SmartCollectionsRepository {
     return {
       data,
       pagination: pagination(query.page, query.pageSize, total),
+      meta: { dataAsOf: readDataAsOf(this.db) },
     };
   }
 

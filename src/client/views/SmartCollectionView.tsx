@@ -6,8 +6,8 @@ import { SmartEditor } from "../components/SmartEditor.tsx";
 import { useSmartCollections } from "../smart-collections-context.tsx";
 
 /**
- * `/smart/{id}`: the saved editor. #32 supports explicit PATCH saves for rename
- * and Rule edits; autosave arrives with #33.
+ * `/smart/{id}`: the saved editor. Name and Rule edits autosave after the
+ * explicit first save, and Delete returns to the Library.
  */
 export function SmartCollectionView() {
   const { id = "" } = useParams();

@@ -31,6 +31,7 @@ export interface SmartCollectionListItem {
 export interface SmartCollectionsResponse {
   data: SmartCollectionListItem[];
   pagination: Pagination;
+  meta: { dataAsOf: string | null };
 }
 
 export interface SmartCollectionResponse {

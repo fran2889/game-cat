@@ -26,8 +26,14 @@ test("the empty sidebar offers the Create CTA and an 80-code-point name field", 
     await page.getByRole("link", { name: "Create one" }).click();
     await expect(page).toHaveURL(/\/smart\/new$/);
     const name = page.getByRole("textbox", { name: "Name" });
-    await expect(name).toHaveAttribute("maxlength", "80");
+    // No UTF-16 `maxLength` cap: 80 astral characters are 160 code units.
+    await expect(name).not.toHaveAttribute("maxlength");
     await expect(name).toHaveValue("New Smart Collection");
+
+    await name.fill("😀".repeat(80));
+    await expect(page.getByText("The name must be 80 characters or fewer.")).toHaveCount(0);
+    await name.fill("😀".repeat(81));
+    await expect(page.getByText("The name must be 80 characters or fewer.")).toBeVisible();
   } finally {
     await empty.close();
   }

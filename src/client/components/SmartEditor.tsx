@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useBlocker } from "react-router-dom";
 import type {
   GameSummary,
   GamesResponse,
@@ -7,7 +7,7 @@ import type {
   SteamCollectionSummary,
   TagsResponse,
 } from "../../shared/types.ts";
-import { validateRules, type Rule, type RuleField } from "../../shared/rules.ts";
+import { MAX_GAME_RULE_IDS, validateRules, type Rule, type RuleField } from "../../shared/rules.ts";
 import type { SmartCollection } from "../../shared/smart-collections.ts";
 import {
   ApiError,
@@ -19,15 +19,25 @@ import {
   patchSmartCollection,
   previewRules,
 } from "../api.ts";
+import {
+  AutosaveController,
+  type AutosaveSnapshot,
+  type AutosaveState,
+  type AutosaveStatus,
+} from "../autosave.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { GameResults } from "./GameResults.tsx";
 import { Pagination } from "./Pagination.tsx";
 import { RuleRow } from "./RuleRow.tsx";
 import { EMPTY_SUGGESTIONS, type RuleSuggestions } from "./RuleValueControl.tsx";
+import { SelectionBar } from "./SelectionBar.tsx";
+import { useToast } from "./ToastProvider.tsx";
 import { formatRange } from "../browse.ts";
-import { formatTimestamp } from "../format.ts";
+import { formatCount, formatTimestamp } from "../format.ts";
 import {
+  addSelectionToGameRule,
   emptyRule,
+  mergedGameRuleIds,
   prefixCounts,
   togglePlatformRule,
   validateCollectionName,
@@ -50,6 +60,31 @@ const RULE_VALUE_FIELDS: readonly RuleValueField[] = [
   "publisher",
 ];
 
+const AUTOSAVE_LABELS: Partial<Record<AutosaveStatus, string>> = {
+  saved: "Saved",
+  saving: "Saving…",
+  unsaved: "Unsaved changes",
+  failed: "Save failed",
+};
+
+const EMPTY_AUTOSAVE_STATE: AutosaveState = {
+  status: "idle",
+  dirty: false,
+  retrying: false,
+  retryDelay: null,
+  retryAttempt: 0,
+  lastError: null,
+  canRetry: false,
+};
+
+/** A 409/422/404 needs the user to change something; transport and 500s retry. */
+function isRetryableSaveError(error: unknown): boolean {
+  return !(
+    error instanceof ApiError &&
+    (error.status === 409 || error.status === 422 || error.status === 404)
+  );
+}
+
 export interface SmartEditorProps {
   /** The saved Collection, or `null` for the explicit first save at `/smart/new`. */
   collection: SmartCollection | null;
@@ -67,9 +102,9 @@ interface Conflict {
 /**
  * The Smart Collection editor (§7.4).
  *
- * #32 implements the explicit first Save and explicit PATCH saves for a saved
- * Collection. Autosave, save retry states, Add to current rules, and selection
- * clearing belong to #33.
+ * A new Collection is created by the explicit first Save. After that the
+ * AutosaveController owns debounced name/Rule saves, the retry schedule, and
+ * the failure navigation guard; the preview remains a separate 300 ms debounce.
  */
 export function SmartEditor({
   collection,
@@ -78,7 +113,8 @@ export function SmartEditor({
   onSaved,
   onDeleted,
 }: SmartEditorProps) {
-  const { sort, order, selectedIds } = useBrowse();
+  const { sort, order, selectedIds, selectedCount } = useBrowse();
+  const { showToast } = useToast();
   const [name, setName] = useState(collection?.name ?? initialName ?? NEW_COLLECTION_NAME);
   const [rules, setRules] = useState<Rule[]>(collection?.rules ?? initialRules ?? []);
   const [page, setPage] = useState(1);
@@ -87,16 +123,73 @@ export function SmartEditor({
   const [pending, setPending] = useState(false);
   const [collections, setCollections] = useState<SteamCollectionSummary[]>([]);
   const [suggestions, setSuggestions] = useState<RuleSuggestions>(EMPTY_SUGGESTIONS);
-  const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveState, setSaveState] = useState<string | null>(null);
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [autosaveState, setAutosaveState] = useState<AutosaveState>(EMPTY_AUTOSAVE_STATE);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const savedId = collection?.id ?? null;
+  const savedIdRef = useRef(savedId);
+  savedIdRef.current = savedId;
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
+  const allowNavigationRef = useRef(false);
+  const saveFailed = autosaveState.status === "failed" || autosaveState.lastError !== null;
+  const failedRef = useRef(false);
+  failedRef.current = saveFailed;
+
+  function applySaveError(error: unknown): void {
+    if (error instanceof ApiError && error.code === "NAME_CONFLICT") {
+      const conflictingId = error.details?.conflictingId;
+      setConflict({
+        message: "A Smart Collection with this name already exists.",
+        id: typeof conflictingId === "string" ? conflictingId : null,
+      });
+      return;
+    }
+    if (error instanceof ApiError && error.status === 422) {
+      setServerFieldErrors(error.fieldErrors);
+      return;
+    }
+    if (isRetryableSaveError(error) && savedIdRef.current !== null) {
+      // The controller shows the retry/server-unavailable message for saved
+      // Collections; an explicit first save has no retry path.
+      return;
+    }
+    setSaveError(
+      error instanceof ApiError ? error.message : "The Smart Collection could not be saved.",
+    );
+  }
+
+  const autosaveRef = useRef<AutosaveController | null>(null);
+  if (autosaveRef.current === null) {
+    autosaveRef.current = new AutosaveController({
+      save: async (snapshot: AutosaveSnapshot) => {
+        const id = savedIdRef.current;
+        if (id === null) {
+          throw new Error("A new Smart Collection has no autosave target.");
+        }
+        setSaveError(null);
+        setServerFieldErrors({});
+        setConflict(null);
+        try {
+          const saved = await patchSmartCollection(id, snapshot);
+          onSavedRef.current?.(saved);
+          return { name: saved.name, rules: saved.rules };
+        } catch (error) {
+          applySaveError(error);
+          throw error;
+        }
+      },
+      isRetryable: isRetryableSaveError,
+      onChange: setAutosaveState,
+    });
+  }
+  const autosave = autosaveRef.current;
 
   useEffect(() => {
     setName(collection?.name ?? initialName ?? NEW_COLLECTION_NAME);
@@ -105,10 +198,19 @@ export function SmartEditor({
     setServerFieldErrors({});
     setConflict(null);
     setSaveError(null);
-    setSaveState(null);
     setConfirmingDelete(false);
     setDeleteError(null);
   }, [savedId]);
+
+  useEffect(() => {
+    autosave.reset(
+      savedId === null || collection === null
+        ? null
+        : { name: collection.name, rules: collection.rules },
+    );
+  }, [autosave, savedId]);
+
+  useEffect(() => () => autosave.dispose(), [autosave]);
 
   const validation = validateRules(rules);
   const clientFieldErrors = validation.fieldErrors;
@@ -122,7 +224,12 @@ export function SmartEditor({
   const previousSignature = useRef<string | null>(null);
   const localNameError = validateCollectionName(name);
   const nameError = localNameError ?? serverFieldErrors.name ?? conflict?.message ?? null;
+  const saving = savedId === null ? creating : autosaveState.status === "saving";
   const saveDisabled = saving || deleting || localNameError !== null || rulesInvalid;
+
+  useEffect(() => {
+    autosave.updateDraft({ name, rules }, localNameError === null && !rulesInvalid);
+  }, [autosave, name, rules, localNameError, rulesInvalid]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -194,64 +301,75 @@ export function SmartEditor({
     };
   }, [signature, page, sort, order, rulesInvalid]);
 
-  const updateRules = useCallback((next: Rule[]) => {
-    setRules(next);
-    setPage(1);
-    setServerFieldErrors({});
-    setConflict(null);
-    setSaveError(null);
-    setSaveState(null);
-  }, []);
+  const updateRules = useCallback(
+    (next: Rule[]) => {
+      const nextInvalid = Object.keys(validateRules(next).fieldErrors).length > 0;
+      autosave.updateDraft({ name, rules: next }, localNameError === null && !nextInvalid);
+      setRules(next);
+      setPage(1);
+      setServerFieldErrors({});
+      setConflict(null);
+      setSaveError(null);
+    },
+    [autosave, localNameError, name],
+  );
 
   const updateName = (next: string): void => {
+    autosave.updateDraft(
+      { name: next, rules },
+      validateCollectionName(next) === null && !rulesInvalid,
+    );
     setName(next);
     setServerFieldErrors({});
     setConflict(null);
     setSaveError(null);
-    setSaveState(null);
   };
 
   const addRules = (next: Rule[]): void => updateRules([...rules, ...next]);
 
-  const save = async (): Promise<void> => {
-    if (saving || deleting) {
+  const create = async (): Promise<void> => {
+    if (creating || deleting || localNameError !== null || rulesInvalid) {
       return;
     }
-    if (localNameError !== null || Object.keys(clientFieldErrors).length > 0) {
-      return;
-    }
-    setSaving(true);
+    setCreating(true);
     setSaveError(null);
     setServerFieldErrors({});
     setConflict(null);
-    setSaveState(null);
-
     try {
-      const saved =
-        savedId === null
-          ? await createSmartCollection({ name: name.trim(), rules: validRules })
-          : await patchSmartCollection(savedId, { name: name.trim(), rules: validRules });
+      const saved = await createSmartCollection({ name: name.trim(), rules: validRules });
+      autosave.markSaved({ name: saved.name, rules: saved.rules });
       setName(saved.name);
       setRules(saved.rules);
-      setSaveState("Saved");
       onSaved?.(saved);
     } catch (error) {
-      if (error instanceof ApiError && error.code === "NAME_CONFLICT") {
-        const conflictingId = error.details?.conflictingId;
-        setConflict({
-          message: "A Smart Collection with this name already exists.",
-          id: typeof conflictingId === "string" ? conflictingId : null,
-        });
-      } else if (error instanceof ApiError && error.status === 422) {
-        setServerFieldErrors(error.fieldErrors);
-      } else {
-        setSaveError(
-          error instanceof ApiError ? error.message : "The Smart Collection could not be saved.",
-        );
-      }
+      applySaveError(error);
     } finally {
-      setSaving(false);
+      setCreating(false);
     }
+  };
+
+  const save = (): void => {
+    if (saveDisabled) {
+      return;
+    }
+    if (savedId === null) {
+      void create();
+      return;
+    }
+    autosave.saveNow();
+  };
+
+  const discard = (): void => {
+    const snapshot = autosave.discard();
+    if (snapshot === null) {
+      return;
+    }
+    setName(snapshot.name);
+    setRules(snapshot.rules);
+    setPage(1);
+    setServerFieldErrors({});
+    setConflict(null);
+    setSaveError(null);
   };
 
   const remove = async (): Promise<void> => {
@@ -260,20 +378,77 @@ export function SmartEditor({
     }
     setDeleting(true);
     setDeleteError(null);
+    autosave.cancelPending();
     try {
       await deleteSmartCollection(savedId);
+      allowNavigationRef.current = true;
+      autosave.dispose();
       onDeleted?.();
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
+        allowNavigationRef.current = true;
+        autosave.dispose();
         onDeleted?.();
       } else {
         setDeleteError(
           error instanceof ApiError ? error.message : "The Smart Collection could not be deleted.",
         );
+        autosave.reschedule();
       }
     } finally {
       setDeleting(false);
     }
+  };
+
+  const saveActionRef = useRef<() => void>(() => undefined);
+  saveActionRef.current = save;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") {
+        return;
+      }
+      event.preventDefault();
+      saveActionRef.current();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      failedRef.current &&
+      !allowNavigationRef.current &&
+      currentLocation.pathname !== nextLocation.pathname,
+  );
+
+  useEffect(() => {
+    if (!saveFailed) {
+      return;
+    }
+    const onBeforeUnload = (event: BeforeUnloadEvent): void => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [saveFailed]);
+
+  const mergedGameIds = mergedGameRuleIds(rules, selectedIds);
+  const addToRulesTooLarge = mergedGameIds.length > MAX_GAME_RULE_IDS;
+  const addToRulesDisabledReason = addToRulesTooLarge
+    ? `Add to current rules supports up to ${formatCount(MAX_GAME_RULE_IDS)} Games in the game Rule.`
+    : undefined;
+
+  const addSelectionToRules = (): void => {
+    const next = addSelectionToGameRule(rules, selectedIds);
+    if (next === null) {
+      return;
+    }
+    updateRules(next);
+    showToast(
+      `${formatCount(selectedCount)} selected ${selectedCount === 1 ? "game" : "games"} added to the current game Rule.`,
+    );
   };
 
   const counts = prefixCounts(rules);
@@ -297,11 +472,20 @@ export function SmartEditor({
               id="collection-name"
               type="text"
               value={name}
-              maxLength={80}
               aria-invalid={nameError !== null || undefined}
               aria-describedby={nameError === null ? undefined : "collection-name-error"}
               onChange={(event) => updateName(event.target.value)}
             />
+            {savedId !== null && AUTOSAVE_LABELS[autosaveState.status] !== undefined && (
+              <p
+                className={`editor-save-state is-${autosaveState.status}`}
+                role="status"
+                aria-live="polite"
+                data-testid="save-state"
+              >
+                {AUTOSAVE_LABELS[autosaveState.status]}
+              </p>
+            )}
             {nameError !== null && (
               <p className="field-error" id="collection-name-error" role="alert">
                 {nameError}
@@ -322,16 +506,21 @@ export function SmartEditor({
               </p>
             )}
             <div className="editor-save">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => void save()}
-                disabled={saveDisabled}
-              >
-                {saving ? "Saving…" : "Save"}
+              <button type="button" className="primary" onClick={save} disabled={saveDisabled}>
+                Save
               </button>
-              {saveState !== null && <span className="editor-save-note">{saveState}</span>}
-              {saving && <span className="editor-save-note">Saving…</span>}
+              {savedId !== null &&
+                (autosaveState.dirty || autosaveState.status === "failed") &&
+                autosaveState.status !== "saving" && (
+                  <button
+                    type="button"
+                    className="button button-small"
+                    onClick={discard}
+                    disabled={deleting}
+                  >
+                    Discard
+                  </button>
+                )}
               {savedId !== null && !confirmingDelete && (
                 <button
                   type="button"
@@ -343,6 +532,23 @@ export function SmartEditor({
                 </button>
               )}
             </div>
+
+            {autosaveState.status === "failed" && autosaveState.canRetry && (
+              <div className="editor-save-failure" role="alert">
+                <p>
+                  {autosaveState.retrying && autosaveState.retryDelay !== null
+                    ? `Save failed. Retrying in ${Math.ceil(autosaveState.retryDelay / 1_000)} s…`
+                    : "Save failed. The server may be unavailable. Your changes are still here."}
+                </p>
+                <button
+                  type="button"
+                  className="button button-small"
+                  onClick={() => autosave.retryNow()}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             {confirmingDelete && (
               <div
@@ -382,12 +588,39 @@ export function SmartEditor({
                 {saveError}
               </p>
             )}
-            {saveState === null && saveError === null && (
-              <span className="editor-save-note">
-                {savedId === null
-                  ? "Save creates the Smart Collection."
-                  : "Save applies your name and Rule changes."}
-              </span>
+            {saveError === null && savedId === null && (
+              <span className="editor-save-note">Save creates the Smart Collection.</span>
+            )}
+            {saveError === null && savedId !== null && autosaveState.status === "saved" && (
+              <span className="editor-save-note">Changes save automatically.</span>
+            )}
+
+            {blocker.state === "blocked" && (
+              <div
+                className="editor-confirm"
+                role="alertdialog"
+                aria-label="Leave with a failed save"
+              >
+                <p>
+                  Your latest changes could not be saved. Leave this page and lose those changes?
+                </p>
+                <div className="editor-save">
+                  <button
+                    type="button"
+                    className="button button-small"
+                    onClick={() => blocker.proceed()}
+                  >
+                    Leave
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-small"
+                    onClick={() => blocker.reset()}
+                  >
+                    Stay
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
@@ -488,6 +721,14 @@ export function SmartEditor({
               <span className="preview-range">{formatRange(page, PAGE_SIZE, totalItems)}</span>
             )}
           </header>
+
+          {selectedCount > 0 && (
+            <SelectionBar
+              onAddToRules={savedId === null ? undefined : addSelectionToRules}
+              addToRulesDisabled={addToRulesTooLarge}
+              addToRulesDisabledReason={addToRulesDisabledReason}
+            />
+          )}
 
           {rulesInvalid && (
             <p className="preview-invalid" role="status">

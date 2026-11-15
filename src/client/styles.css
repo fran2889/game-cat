@@ -2064,6 +2064,38 @@ main {
   font-size: 11px;
 }
 
+.editor-save-state {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.editor-save-state.is-saved {
+  color: var(--green);
+}
+
+.editor-save-state.is-failed {
+  color: var(--red);
+}
+
+.editor-save-failure {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 9px 11px;
+  border: 1px solid var(--red);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--red);
+  font-size: 11.5px;
+}
+
+.editor-save-failure p {
+  margin: 0;
+}
+
 .editor-confirm {
   display: flex;
   flex-direction: column;
