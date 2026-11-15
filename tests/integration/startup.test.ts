@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
-import { createServer, type RunningServer } from "../../src/server/index.ts";
+import { createServer, startServer, type RunningServer } from "../../src/server/index.ts";
 import { StartupError } from "../../src/server/errors.ts";
 import { readLockFile } from "../../src/server/lock.ts";
 
@@ -166,11 +166,33 @@ describe("programmatic startup", () => {
 
     await server.close();
     await server.close();
+    expect(server.database.raw.open).toBe(false);
     expect(existsSync(join(dataDir, "game-cat.lock"))).toBe(false);
     await expect(fetch(`${url}api/status`)).rejects.toThrow();
 
     const restarted = await start(baseOptions(dataDir));
     expect((await fetch(`${restarted.url}api/status`)).status).toBe(200);
+  });
+
+  it("startServer removes its signal handlers when close() resolves", async () => {
+    const before = {
+      SIGINT: process.listenerCount("SIGINT"),
+      SIGTERM: process.listenerCount("SIGTERM"),
+      SIGHUP: process.listenerCount("SIGHUP"),
+    };
+    const server = await startServer(baseOptions(temp("game-cat-signals")));
+    running.push(server);
+    expect(process.listenerCount("SIGINT")).toBe(before.SIGINT + 1);
+    expect(process.listenerCount("SIGTERM")).toBe(before.SIGTERM + 1);
+    if (process.platform !== "win32") {
+      expect(process.listenerCount("SIGHUP")).toBe(before.SIGHUP + 1);
+    }
+
+    await server.close();
+    running.pop();
+    expect(process.listenerCount("SIGINT")).toBe(before.SIGINT);
+    expect(process.listenerCount("SIGTERM")).toBe(before.SIGTERM);
+    expect(process.listenerCount("SIGHUP")).toBe(before.SIGHUP);
   });
 });
 

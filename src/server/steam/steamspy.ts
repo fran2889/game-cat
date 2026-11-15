@@ -217,6 +217,10 @@ export function createSteamSpySource(options: SteamSpySourceOptions = {}): Metad
     async fetch(context: MetadataSourceContext): Promise<MetadataSourceOutcome> {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const signal =
+        context.signal === undefined
+          ? controller.signal
+          : AbortSignal.any([controller.signal, context.signal]);
       try {
         let response: Response;
         try {
@@ -226,15 +230,17 @@ export function createSteamSpySource(options: SteamSpySourceOptions = {}): Metad
               accept: "application/json",
               "user-agent": STEAMSPY_USER_AGENT,
             },
-            signal: controller.signal,
+            signal,
           });
         } catch {
           return failureOutcome(
             context.db,
             context,
-            controller.signal.aborted
-              ? "The SteamSpy request timed out."
-              : "SteamSpy could not be reached.",
+            context.signal?.aborted === true
+              ? "The SteamSpy request was interrupted by shutdown."
+              : controller.signal.aborted
+                ? "The SteamSpy request timed out."
+                : "SteamSpy could not be reached.",
           );
         }
 
