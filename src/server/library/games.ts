@@ -388,16 +388,15 @@ export class GamesRepository {
       where.push("review_status = ?");
       parameters.push(query.reviewStatus);
     }
-    if (query.tagsFetched !== null) {
-      where.push(query.tagsFetched ? "tags_fetched_at IS NOT NULL" : "tags_fetched_at IS NULL");
-    }
-    if (query.storeFetched !== null) {
-      where.push(query.storeFetched ? "store_fetched_at IS NOT NULL" : "store_fetched_at IS NULL");
-    }
-    if (query.reviewFetched !== null) {
-      where.push(
-        query.reviewFetched ? "review_fetched_at IS NOT NULL" : "review_fetched_at IS NULL",
-      );
+    const fetchedFilters: Array<[boolean | null, string]> = [
+      [query.tagsFetched, "tags_fetched_at"],
+      [query.storeFetched, "store_fetched_at"],
+      [query.reviewFetched, "review_fetched_at"],
+    ];
+    for (const [fetched, column] of fetchedFilters) {
+      if (fetched !== null) {
+        where.push(fetched ? `${column} IS NOT NULL` : `${column} IS NULL`);
+      }
     }
 
     const whereSql = where.length === 0 ? "" : `WHERE ${where.join(" AND ")}`;

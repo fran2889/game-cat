@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GamesResponse, RefreshRun, Status } from "../../src/shared/types.ts";
 import {
-  affectedStatuses,
+  AFFECTED_METADATA_STATUSES,
   dataAsOf,
   fetchAffectedAndPendingGames,
   refreshCardTitle,
@@ -164,10 +164,10 @@ describe("Source health helpers", () => {
     expect(sourceStatusTone("ok")).toBe("ok");
     expect(sourceStatusTone("rate_limited")).toBe("warning");
     expect(sourceStatusTone("invalid_key")).toBe("error");
-    expect(affectedStatuses()).toEqual(["stale", "error"]);
-    expect(affectedStatuses()).not.toContain("missing");
-    expect(affectedStatuses()).not.toContain("ok");
-    expect(affectedStatuses()).not.toContain("unavailable");
+    expect(AFFECTED_METADATA_STATUSES).toEqual(["stale", "error"]);
+    expect(AFFECTED_METADATA_STATUSES).not.toContain("missing");
+    expect(AFFECTED_METADATA_STATUSES).not.toContain("ok");
+    expect(AFFECTED_METADATA_STATUSES).not.toContain("unavailable");
   });
 });
 

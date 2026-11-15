@@ -496,8 +496,36 @@ test("a fresh Library shows pending Games as pending, never as affected", async 
   const app = await startTestApp({ games: 5, metadataSources: fakeSources() });
   try {
     await page.goto(`${app.url}errors`);
+    for (const source of ["steamspy", "storefront", "steam_reviews"]) {
+      const row = page.locator(`.error-row[data-source="${source}"]`);
+      await expect(row).toContainText("0 affected Games · 5 pending");
+      await expect(row.getByRole("button", { name: "Select affected" })).toBeDisabled();
+    }
+  } finally {
+    await app.close();
+  }
+});
+
+test("a fresh 1,300-Game Library shows 0 affected and 1,300 pending", async ({ page }) => {
+  const app = await startTestApp({ empty: true, metadataSources: fakeSources() });
+  try {
+    const db = app.server.database.raw;
+    db.prepare("DELETE FROM games").run();
+    const insert = db.prepare(
+      `INSERT INTO games (
+         app_id, name, name_key, name_source, ownership_status, installed,
+         playtime_minutes, source_mask, first_seen_at, last_seen_at
+       ) VALUES (?, ?, ?, 'local', 'owned', 0, 0, 1, 1, 1)`,
+    );
+    db.transaction(() => {
+      for (let appId = 1; appId <= 1_300; appId += 1) {
+        insert.run(appId, `Game ${appId}`, `game ${appId}`);
+      }
+    })();
+
+    await page.goto(`${app.url}errors`);
     const steamspy = page.locator('.error-row[data-source="steamspy"]');
-    await expect(steamspy).toContainText("0 affected Games · 5 pending");
+    await expect(steamspy).toContainText("0 affected Games · 1,300 pending");
     await expect(steamspy.getByRole("button", { name: "Select affected" })).toBeDisabled();
   } finally {
     await app.close();

@@ -84,7 +84,7 @@ export function ErrorsView() {
 
   const selectAffected = async (source: MetadataSource): Promise<void> => {
     const known = affected[source];
-    if (known === null || known.affectedIds.length === 0) {
+    if (known === null || known.affectedCount === 0) {
       return;
     }
     setSelecting(source);
@@ -142,7 +142,7 @@ export function ErrorsView() {
           const canSelect =
             metadataName !== null &&
             affectedEntry !== null &&
-            affectedEntry.affectedIds.length > 0 &&
+            affectedEntry.affectedCount > 0 &&
             !loadingAffected &&
             !affectedError;
           return (

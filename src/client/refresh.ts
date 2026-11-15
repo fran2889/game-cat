@@ -1,4 +1,5 @@
 import type {
+  MetadataSourceStatus,
   RefreshRun,
   RefreshStatus,
   SourceHealth,
@@ -19,24 +20,20 @@ export const METADATA_SOURCE_LABELS: Record<MetadataSource, string> = {
 };
 
 /** The per-Game statuses that mean the last attempt failed (§7.7): `stale` or `error`. */
-export const AFFECTED_METADATA_STATUSES = ["stale", "error"] as const;
+export const AFFECTED_METADATA_STATUSES: readonly MetadataSourceStatus[] = ["stale", "error"];
 
 /** The status a never-attempted source reads as, before it has a fetch timestamp. */
-const PENDING_METADATA_STATUS = "missing";
+const PENDING_METADATA_STATUS: MetadataSourceStatus = "missing";
 
-type MetadataStatusFilter = "tagsStatus" | "storeStatus" | "reviewStatus";
-type MetadataFetchedFilter = "tagsFetched" | "storeFetched" | "reviewFetched";
+interface MetadataFilters {
+  status: "tagsStatus" | "storeStatus" | "reviewStatus";
+  fetched: "tagsFetched" | "storeFetched" | "reviewFetched";
+}
 
-const METADATA_STATUS_FILTER: Record<MetadataSource, MetadataStatusFilter> = {
-  steamspy: "tagsStatus",
-  storefront: "storeStatus",
-  steam_reviews: "reviewStatus",
-};
-
-const METADATA_FETCHED_FILTER: Record<MetadataSource, MetadataFetchedFilter> = {
-  steamspy: "tagsFetched",
-  storefront: "storeFetched",
-  steam_reviews: "reviewFetched",
+const METADATA_FILTERS: Record<MetadataSource, MetadataFilters> = {
+  steamspy: { status: "tagsStatus", fetched: "tagsFetched" },
+  storefront: { status: "storeStatus", fetched: "storeFetched" },
+  steam_reviews: { status: "reviewStatus", fetched: "reviewFetched" },
 };
 
 /** Rebuild the request that produced a run, for a Retry with the same shape. */
@@ -189,15 +186,6 @@ export function isMetadataSource(name: SourceName): name is MetadataSource {
   return name === "steamspy" || name === "storefront" || name === "steam_reviews";
 }
 
-/**
- * Return the base name of the affected statuses. Kept as a small pure helper so
- * the `/errors` view and its tests agree that affected means a failed attempt:
- * `stale` or `error`, never `missing`, `ok`, or `unavailable`.
- */
-export function affectedStatuses(): readonly string[] {
-  return AFFECTED_METADATA_STATUSES;
-}
-
 export interface AffectedAndPendingGames {
   affectedIds: number[];
   affectedCount: number;
@@ -205,14 +193,18 @@ export interface AffectedAndPendingGames {
   pendingCount: number;
 }
 
-function statusQuery(
-  filter: MetadataStatusFilter,
-  status: string,
+function metadataQuery(
+  filters: MetadataFilters,
+  status: MetadataSourceStatus,
   page: number,
   pageSize: number,
+  fetched?: boolean,
 ): FetchGamesParams {
   const query: FetchGamesParams = { page, pageSize };
-  query[filter] = status;
+  query[filters.status] = status;
+  if (fetched !== undefined) {
+    query[filters.fetched] = fetched;
+  }
   return query;
 }
 
@@ -229,23 +221,22 @@ export async function fetchAffectedAndPendingGames(
   source: MetadataSource,
   signal?: AbortSignal,
 ): Promise<AffectedAndPendingGames> {
-  const filter = METADATA_STATUS_FILTER[source];
-  const fetchedFilter = METADATA_FETCHED_FILTER[source];
+  const filters = METADATA_FILTERS[source];
   const affectedIds = new Set<number>();
 
-  const pendingQuery: FetchGamesParams = { page: 1, pageSize: 1 };
-  pendingQuery[filter] = PENDING_METADATA_STATUS;
-  pendingQuery[fetchedFilter] = false;
-  const pending = await fetchGames(pendingQuery, signal);
+  const pending = await fetchGames(
+    metadataQuery(filters, PENDING_METADATA_STATUS, 1, 1, false),
+    signal,
+  );
   const pendingCount = pending.pagination.totalItems;
 
   for (const status of AFFECTED_METADATA_STATUSES) {
-    const first = await fetchGames(statusQuery(filter, status, 1, 200), signal);
+    const first = await fetchGames(metadataQuery(filters, status, 1, 200), signal);
     for (const game of first.data) {
       affectedIds.add(game.appId);
     }
     for (let page = 2; page <= first.pagination.totalPages; page += 1) {
-      const next = await fetchGames(statusQuery(filter, status, page, 200), signal);
+      const next = await fetchGames(metadataQuery(filters, status, page, 200), signal);
       for (const game of next.data) {
         affectedIds.add(game.appId);
       }
