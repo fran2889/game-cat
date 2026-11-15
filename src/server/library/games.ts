@@ -11,6 +11,7 @@ import {
   type Pagination,
 } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
+import { toIsoTimestamp as toIso } from "../timestamps.ts";
 
 export { GAME_SORTS };
 export type { GameOrder, GameSort };
@@ -189,13 +190,6 @@ export interface GamesRow {
   review_score: number | null;
 }
 
-function toIso(seconds: number | null | undefined): string | null {
-  if (seconds === null || seconds === undefined || seconds <= 0) {
-    return null;
-  }
-  return new Date(seconds * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
-}
-
 function parseJsonArray(raw: string | null): string[] {
   if (raw === null) {
     return [];
@@ -341,15 +335,13 @@ export function gameOrderSql(sort: GameSort, order: GameOrder): string {
 }
 
 export function readDataAsOf(db: BetterSqlite3.Database): string | null {
+  // Every phase of a direct scope or an `all` run records its success in
+  // `source_state`. The later of the local scan, ownership refresh, and
+  // Metadata completion is the documented `meta.dataAsOf`.
   const row = db
     .prepare(
-      `SELECT MAX(value) AS at FROM (
-         SELECT MAX(finished_at) AS value FROM refresh_runs
-           WHERE status = 'succeeded' AND scope IN ('library', 'ownership')
-         UNION ALL
-         SELECT MAX(last_success_at) FROM source_state
-           WHERE name IN ('steamspy', 'storefront', 'steam_reviews')
-       )`,
+      `SELECT MAX(last_success_at) AS at FROM source_state
+       WHERE name IN ('steam_local', 'steam_web_api', 'steamspy', 'storefront', 'steam_reviews')`,
     )
     .get() as { at: number | null };
   return toIso(row.at);
@@ -463,24 +455,22 @@ export class GamesRepository {
   }
 
   scanState(): LibraryScanState {
+    // A direct `library` run and the library phase of an `all` run both write
+    // `source_state.steam_local`; the latest attempt is the latest scan.
     const row = this.db
-      .prepare(
-        `SELECT status, finished_at FROM refresh_runs
-         WHERE scope = 'library' AND finished_at IS NOT NULL
-         ORDER BY id DESC LIMIT 1`,
-      )
-      .get() as { status: string; finished_at: number | null } | undefined;
-    if (row === undefined) {
+      .prepare("SELECT status, last_attempt_at FROM source_state WHERE name = 'steam_local'")
+      .get() as { status: string; last_attempt_at: number | null } | undefined;
+    if (row === undefined || row.status === "unknown" || row.last_attempt_at === null) {
       return { lastScanAt: null, lastScanStatus: "never" };
     }
     return {
-      lastScanAt: row.finished_at,
+      lastScanAt: row.last_attempt_at,
       lastScanStatus:
-        row.status === "succeeded"
+        row.status === "ok"
           ? "ok"
           : row.status === "partial"
             ? "partial"
-            : row.status === "failed"
+            : row.status === "error"
               ? "failed"
               : "never",
     };

@@ -30,7 +30,7 @@ function run(overrides: Partial<RefreshRun> = {}): RefreshRun {
 function status(overrides: Partial<Status> = {}): Status {
   const base: Status = {
     app: { version: "1.0.0", dbSchemaVersion: 1 },
-    steam: { state: "ready", root: "/steam", account: null },
+    steam: { state: "ready", root: "/steam", ambiguous: false, account: null },
     ownership: {
       state: "ok",
       gameCount: 0,

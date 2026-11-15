@@ -49,6 +49,7 @@ const discovery: SteamDiscovery = {
     accountId: "39734272",
     personaName: "Player One",
   },
+  ambiguous: false,
   error: null,
 };
 

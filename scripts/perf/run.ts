@@ -91,6 +91,8 @@ async function startServer(dataDir: string, tempRoot: string, clientDir: string 
     logToStderr: false,
     logFilePath: null,
     startupRefresh: false,
+    // Pacing must not contribute to the measured scheduler overhead.
+    sleep: async () => {},
   });
 }
 
@@ -434,6 +436,7 @@ async function main(): Promise<void> {
               steamRoot: null,
               steamId64: null,
               now: () => 1_700_000_000,
+              sleep: async () => {},
               sources: [
                 fakeMetadataSource("steamspy"),
                 fakeMetadataSource("storefront"),

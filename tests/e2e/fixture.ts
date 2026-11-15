@@ -1,12 +1,12 @@
 import type { BrowserContext } from "@playwright/test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { RunningServer } from "../../src/server/index.ts";
 import { createServer } from "../../src/server/index.ts";
 import type { MetadataSource } from "../../src/server/refresh/sources.ts";
 import type { SteamOwnershipSource } from "../../src/server/steam/ownership.ts";
-import { SteamFixture } from "../helpers/steam-fixture.ts";
+import { SteamFixture, TEST_STEAM_ID64 } from "../helpers/steam-fixture.ts";
 
 export interface TestGame {
   appId: number;
@@ -24,6 +24,8 @@ export interface StartAppOptions {
   steamCollection?: boolean;
   /** Start without a Steam Web API key so the client routes to onboarding. */
   noKey?: boolean;
+  /** Write two Accounts with ambiguous MostRecent so the picker warning appears. */
+  ambiguousAccount?: boolean;
   /** No-network Metadata adapters; defaults to the real adapters outside tests. */
   metadataSources?: readonly MetadataSource[];
   /** Inject an ownership adapter instead of the default empty roster. */
@@ -105,7 +107,17 @@ export async function startTestApp(options: StartAppOptions = {}): Promise<TestA
 
   if (options.steamMissing !== true) {
     if (options.account !== false) {
-      steam.writeLoginUsers();
+      if (options.ambiguousAccount === true) {
+        writeFileSync(
+          join(steam.root, "config", "loginusers.vdf"),
+          `"users"\n{\n` +
+            `  "${TEST_STEAM_ID64}"\n  {\n    "AccountName" "test-account"\n    "PersonaName" "First Player"\n    "MostRecent" "1"\n    "Timestamp" "1663423108"\n  }\n` +
+            `  "76561198000000001"\n  {\n    "AccountName" "fixture-account"\n    "PersonaName" "Second Player"\n    "MostRecent" "1"\n    "Timestamp" "1663423107"\n  }\n` +
+            `}\n`,
+        );
+      } else {
+        steam.writeLoginUsers();
+      }
     }
     steam.writeLocalConfig(
       Object.fromEntries(
@@ -151,6 +163,8 @@ export async function startTestApp(options: StartAppOptions = {}): Promise<TestA
     logLevel: "error",
     logToStderr: false,
     startupRefresh: false,
+    // Pacing and backoff never wait in the E2E loop.
+    sleep: async () => {},
     ...(options.metadataSources === undefined ? {} : { metadataSources: options.metadataSources }),
     ownershipSource: options.ownershipSource ?? {
       async fetchOwnedGames() {

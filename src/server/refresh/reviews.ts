@@ -1,5 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { APP_NAME, APP_VERSION } from "../../shared/app.ts";
+import { parseRetryAfter } from "../steam/retry-after.ts";
 import type { MetadataSource, MetadataSourceContext, MetadataSourceOutcome } from "./sources.ts";
 
 /**
@@ -22,19 +23,6 @@ export interface SteamReviewSourceOptions {
 
 function reviewsUrl(appId: number): string {
   return `https://${REVIEWS_HOST}/appreviews/${appId}?json=1&language=all&purchase_type=all&num_per_page=0&l=english`;
-}
-
-/** Parse Retry-After as delta-seconds or an HTTP date; anything else is unknown. */
-function parseRetryAfter(value: string | null, now: number): number | null {
-  if (value === null) {
-    return null;
-  }
-  const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) {
-    return now + Number.parseInt(trimmed, 10);
-  }
-  const parsed = Date.parse(trimmed);
-  return Number.isNaN(parsed) ? null : Math.floor(parsed / 1000);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

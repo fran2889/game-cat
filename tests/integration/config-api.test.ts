@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { createServer, type RunningServer } from "../../src/server/index.ts";
-import type { Config, SteamAccount } from "../../src/shared/types.ts";
+import type { Config, Status, SteamAccount } from "../../src/shared/types.ts";
 import { SteamFixture, TEST_STEAM_ID64 } from "../helpers/steam-fixture.ts";
 
 const CLIENT_DIR = join(import.meta.dirname, "..", "fixtures", "client");
@@ -371,6 +371,34 @@ describe("GET /api/steam/accounts", () => {
         totalItems: 1,
         totalPages: 1,
       });
+    } finally {
+      steam.dispose();
+    }
+  });
+
+  it("reports an ambiguous multi-Account selection in status", async () => {
+    const steam = new SteamFixture();
+    writeFileSync(
+      join(steam.root, "config", "loginusers.vdf"),
+      `"users"\n{\n` +
+        `  "${TEST_STEAM_ID64}"\n  {\n    "AccountName" "first"\n    "PersonaName" "First"\n    "MostRecent" "1"\n    "Timestamp" "1663423108"\n  }\n` +
+        `  "76561198000000001"\n  {\n    "AccountName" "second"\n    "PersonaName" "Second"\n    "MostRecent" "1"\n    "Timestamp" "1663423107"\n  }\n` +
+        `}\n`,
+    );
+    const dataDir = temp("game-cat-accounts-ambiguous");
+    const server = await start(baseOptions(dataDir, steam.root));
+
+    try {
+      const status = (await (await fetch(`${server.url}api/status`)).json()) as {
+        data: Status;
+      };
+      expect(status.data.steam.state).toBe("ready");
+      expect(status.data.steam.ambiguous).toBe(true);
+      expect(status.data.steam.account?.steamId64).toBe(TEST_STEAM_ID64);
+      const json = JSON.stringify(status);
+      expect(json).not.toContain("AccountName");
+      expect(json).not.toContain("first");
+      expect(json).not.toContain("second");
     } finally {
       steam.dispose();
     }

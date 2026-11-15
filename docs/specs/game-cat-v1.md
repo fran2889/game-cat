@@ -212,7 +212,7 @@ files and owned-Games roster game-cat reads.
 
 - The selected Account comes from `config.steamId64`, the single local account, the unique
   `MostRecent` account, or the newest `Timestamp` with a visible warning and the picker, in that
-  order.
+  order. The ambiguity is exposed as `Status.steam.ambiguous` (§4.2).
 - The database binds to a SteamID64 before the first `library`, `ownership`, or `all` run that
   writes. A `metadata` run does not bind an Account.
 - If the selected Account differs from `account_state.steam_id64`, startup exits
@@ -1219,6 +1219,7 @@ errors (`RefreshRun.error` and `Status.ownership.error`) use the same shape but 
   "steam": {
     "state": "ready",
     "root": "/home/<user>/.local/share/Steam",
+    "ambiguous": false,
     "account": {
       "steamId64": "76561198000000000",
       "accountId": "39734272",
@@ -1228,6 +1229,7 @@ errors (`RefreshRun.error` and `Status.ownership.error`) use the same shape but 
   "ownership": {
     "state": "ok",
     "gameCount": 1234,
+    "counts": { "owned": 1234, "localOnly": 50, "unknown": 16 },
     "lastSuccessAt": "2026-11-13T18:00:00Z",
     "lastAttemptAt": "2026-11-13T18:00:00Z",
     "error": null
@@ -1250,6 +1252,38 @@ errors (`RefreshRun.error` and `Status.ownership.error`) use the same shape but 
       "status": "ok",
       "lastSuccessAt": "2026-11-13T18:01:00Z",
       "lastAttemptAt": "2026-11-13T18:01:00Z",
+      "retryAfterAt": null,
+      "lastError": null
+    },
+    {
+      "name": "steam_web_api",
+      "status": "ok",
+      "lastSuccessAt": "2026-11-13T18:00:00Z",
+      "lastAttemptAt": "2026-11-13T18:00:00Z",
+      "retryAfterAt": null,
+      "lastError": null
+    },
+    {
+      "name": "steamspy",
+      "status": "ok",
+      "lastSuccessAt": "2026-11-13T18:20:00Z",
+      "lastAttemptAt": "2026-11-13T18:20:00Z",
+      "retryAfterAt": null,
+      "lastError": null
+    },
+    {
+      "name": "storefront",
+      "status": "ok",
+      "lastSuccessAt": "2026-11-13T18:20:00Z",
+      "lastAttemptAt": "2026-11-13T18:20:00Z",
+      "retryAfterAt": null,
+      "lastError": null
+    },
+    {
+      "name": "steam_reviews",
+      "status": "ok",
+      "lastSuccessAt": "2026-11-13T18:20:00Z",
+      "lastAttemptAt": "2026-11-13T18:20:00Z",
       "retryAfterAt": null,
       "lastError": null
     }
@@ -1279,19 +1313,30 @@ errors (`RefreshRun.error` and `Status.ownership.error`) use the same shape but 
 
 - `steam.state`: `ready`, `not_found`, `no_account`, or `error`.
 - `steam.account` is `null` when no Account is selected. `AccountName` is never exposed.
+- `steam.ambiguous` is `true` when several local Accounts exist, no `steamId64` is configured, and
+  no single Account has `MostRecent`. The selection falls back to the newest `Timestamp`; the UI
+  shows a visible warning and the Account picker (§2.2, §7.2, §8.6). It is `false` otherwise.
 - `ownership.state`: `ok`, `partial`, `empty`, `not_configured`, `invalid_key`, `rate_limited`, or
   `error`. `unknown` is used before the first attempt. `partial` means the response was shorter than
   `game_count`, so absent Games were not reconciled. `empty` means a successful response with zero
   Games; if local evidence exists, the UI warns that the profile may be private.
-- `ownership.error` is an `ErrorDetail` or `null`, describing the last ownership failure; it may omit
-  `details` and `requestId`.
-- `library.lastScanStatus`: `never`, `ok`, `partial`, or `failed`. `never` maps to `steam_local.status = "unknown"` before the first scan; `failed` maps to `steam_local.status = "error"`; `partial` maps to `partial`.
+- `ownership.gameCount` is the number of `owned` Games. `ownership.counts` classifies every Library
+  Game by its Ownership flag: `owned` (in the latest conclusive roster), `localOnly` (local evidence
+  but absent from that roster), and `unknown` (Collection-only before a conclusive refresh). The
+  three counts sum to `library.gameCount`; `gameCount` remains the owned count, not the Library size.
+- `ownership.error` is an `ErrorDetail` or `null`, describing the last ownership failure from either
+  an `ownership` run or the ownership phase of an `all` run; it may omit `details` and `requestId`.
+- `library.lastScanAt` and `library.lastScanStatus` come from the latest local scan, whether it ran as
+  a `library` run or as the library phase of an `all` run.
+- `library.lastScanStatus`: `never`, `ok`, `partial`, or `failed`. `never` maps to
+  `steam_local.status = "unknown"` before the first scan; `failed` maps to `steam_local.status =
+"error"`; `partial` maps to `partial`.
 - `metadata` count objects classify every Game; a Game with no row counts as `missing` for that
   source. `lastSuccessAt` is the latest successful completion across the three Metadata sources, or
   `null`.
 - `sources` is an ordered `SourceHealth[]` (see below) in the order `steam_local`, `steam_web_api`,
-  `steamspy`, `storefront`, `steam_reviews`. The array always contains all five; the example shows one
-  for brevity. `lastError` is a safe message string, not an `ErrorDetail`.
+  `steamspy`, `storefront`, `steam_reviews`. The array always contains all five. `lastError` is a safe
+  message string, not an `ErrorDetail`.
 - `activeRefresh` and `lastRefresh` use the `RefreshRun` shape. `activeRefresh` is `null` when no run
   is active; `lastRefresh` is `null` before the first run.
 
@@ -2364,7 +2409,10 @@ Rules:
 
 Do not parallelize within a source. One in-flight request per host is enough at these budgets. A
 source in backoff is skipped by Fetch until `retry_after_at`; the run is `partial` and records the
-skipped count.
+skipped count. SteamSpy is paced at about one request per second; the storefront and reviews share
+one 1.5-second interval and never overlap. When a shared host is paused, a later source pass skipped
+by that pause reports the pause reason: `blocked` after a `403` or challenge, `rate_limited` after a
+`429`.
 
 ### 6.9 No TTL and the Fetch distinction
 
@@ -2508,6 +2556,7 @@ The UI is a single-page React application served by the same process. Routes are
 | `/errors`       | Refresh-errors view linked from the Refresh banner                                |
 | `/games/:appId` | Game detail dialog over the current view; closing returns to the underlying route |
 | `/onboarding`   | First-run setup when no Steam Web API key is configured                           |
+| `/settings`     | Configuration, Account picker, and server settings                                |
 
 The shell has:
 
@@ -2518,7 +2567,9 @@ The shell has:
 - A content area with an optional banner, the selection bar, and the results.
 - A modal dialog for Game detail and a toast region with `aria-live="polite"`.
 
-The selected Account is shown as `PersonaName` and SteamID64. `AccountName` never appears.
+The selected Account is shown as `PersonaName` and SteamID64. `AccountName` never appears. When
+`steam.ambiguous` is `true`, the sidebar account surface also warns and links to the `/settings`
+picker.
 
 ### 7.2 First run and onboarding
 
@@ -2530,6 +2581,9 @@ The app fetches `GET /api/status` and `GET /api/config` on load.
   server was able to start it.
 - If Steam is missing or no Account is selected, the Library remains usable with the degraded state
   in [§7.8](#78-states-and-copy); onboarding is still reachable from the status card.
+- When `status.steam.ambiguous` is `true`, the onboarding Account step shows a visible warning and
+  the Account picker action. The newest `Timestamp` is preselected but the user must confirm it.
+  `AccountName` is never shown.
 
 The onboarding flow is:
 
@@ -2551,6 +2605,11 @@ The onboarding flow is:
 The onboarding footer states that game-cat reads local Steam files and never writes to Steam. Closing
 the browser before saving the key returns to onboarding on the next start. Closing it after starting
 the first Fetch is safe; the run continues server-side and the Library shows progress on return.
+
+The `/settings` route exposes the same non-secret configuration as `GET /api/config`, the Account
+picker, write-only API key replacement, port, log level, and open-browser settings. A port change
+reports that a restart is required; an Account change is rejected with `ACCOUNT_BOUND` once the
+database is bound. `AccountName` never appears here either.
 
 If the key is invalid, `ownership.state = "invalid_key"` and a banner offers **Fix API key** (opens
 onboarding at the key step) and **Retry**. If the roster is empty while local evidence exists, warn
@@ -2798,6 +2857,7 @@ and `pagination.totalItems`. Per-Game error text is not exposed; the view uses s
 | First run, no key             | Onboarding, key required                                                                                     | Save key and scan                       |
 | Steam not found               | Empty Library with the configured path, install/start guidance, Change Steam folder                          | Change folder, Scan again               |
 | No Account selected           | Library still shows local data; `no_account` warning                                                         | Open account picker                     |
+| Ambiguous Account selection   | Warning: several Accounts found; newest `Timestamp` preselected                                              | Choose Account                          |
 | Empty Library                 | `No games found.` Explanation of moved libraries, Flatpak paths, or a fresh install; Steam root path         | Scan again, Change Steam folder         |
 | No search results             | `No games match "<query>". Search looks at game names only. Tags, genres, and playtime belong in Rules.`     | Clear search                            |
 | No Rule matches               | `No games match these rules. An OR rule widens the result; a NOT rule removes games.`                        | Remove last rule, Add an OR tag rule    |

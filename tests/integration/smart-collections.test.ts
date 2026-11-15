@@ -167,6 +167,19 @@ describe("POST /api/smart-collections", () => {
     expect(collection.rules).toEqual([]);
   });
 
+  it("rejects an explicit null Rules value while allowing omitted rules", async () => {
+    const { app } = harness();
+    const nullRules = await create(app, { name: "Null rules", rules: null });
+    expect(nullRules.statusCode).toBe(422);
+    expect(
+      (nullRules.json() as { error: { details: { fieldErrors: Record<string, string> } } }).error
+        .details.fieldErrors,
+    ).toHaveProperty("rules");
+
+    const omitted = await create(app, { name: "Omitted rules" });
+    expect(omitted.statusCode).toBe(201);
+  });
+
   it("rejects missing, blank, over-long, and control-bearing names", async () => {
     const { app } = harness();
     for (const body of [
@@ -354,6 +367,17 @@ describe("PATCH /api/smart-collections/{id}", () => {
     ).toHaveProperty("body");
   });
 
+  it("rejects an explicit null Rules value on PATCH", async () => {
+    const { app } = harness();
+    const collection = created(await create(app, { name: "Thing" }));
+    const response = await patch(app, collection.id, { rules: null });
+    expect(response.statusCode).toBe(422);
+    expect(
+      (response.json() as { error: { details: { fieldErrors: Record<string, string> } } }).error
+        .details.fieldErrors,
+    ).toHaveProperty("rules");
+  });
+
   it("returns 404 for an unknown id", async () => {
     const { app } = harness();
     const response = await patch(app, "00000000-0000-4000-8000-000000000000", {
@@ -462,8 +486,8 @@ describe("GET /api/smart-collections", () => {
     created(await create(app, { name: "Dated" }));
     db.raw
       .prepare(
-        `INSERT INTO refresh_runs (scope, mode, status, started_at, finished_at, done)
-         VALUES ('library', NULL, 'succeeded', 1_700_000_000, 1_700_000_100, 7)`,
+        `UPDATE source_state SET status = 'ok', last_success_at = 1_700_000_100
+         WHERE name = 'steam_local'`,
       )
       .run();
 
@@ -520,8 +544,8 @@ describe("GET /api/smart-collections/{id}/games", () => {
     const collection = created(await create(app, { name: "All", rules: [] }));
     db.raw
       .prepare(
-        `INSERT INTO refresh_runs (scope, mode, status, started_at, finished_at, done)
-         VALUES ('library', NULL, 'succeeded', 1_700_000_000, 1_700_000_100, 7)`,
+        `UPDATE source_state SET status = 'ok', last_success_at = 1_700_000_100
+         WHERE name = 'steam_local'`,
       )
       .run();
 

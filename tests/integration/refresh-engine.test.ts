@@ -43,6 +43,7 @@ const discovery: SteamDiscovery = {
     accountId: "39734272",
     personaName: "Player One",
   },
+  ambiguous: false,
   error: null,
 };
 
@@ -72,6 +73,8 @@ class FakeClock {
 
   now = (): number => this.seconds;
 
+  nowMs = (): number => this.seconds * 1_000;
+
   sleep = async (milliseconds: number): Promise<void> => {
     this.sleeps.push(milliseconds);
     this.seconds += milliseconds / 1_000;
@@ -85,6 +88,7 @@ type Responder = (
 
 class FakeSource implements MetadataSource {
   readonly calls: number[] = [];
+  readonly times: number[] = [];
   readonly started: string[] = [];
   readonly finished: string[] = [];
 
@@ -96,6 +100,7 @@ class FakeSource implements MetadataSource {
 
   async fetch(context: MetadataSourceContext): Promise<MetadataSourceOutcome> {
     this.calls.push(context.game.appId);
+    this.times.push(context.now);
     this.started.push(`${this.name}:start:${context.game.appId}`);
     const outcome = await this.responder(context, this.calls.length - 1);
     this.finished.push(`${this.name}:end:${context.game.appId}`);
@@ -163,6 +168,7 @@ function harness(options: HarnessOptions = {}): Harness {
     steamId64,
     steamApiKey,
     now: clock.now,
+    nowMs: clock.nowMs,
     jitter: () => options.jitter ?? 0,
     sleep: clock.sleep,
     sources: options.sources ?? [],
@@ -294,10 +300,15 @@ describe("POST /api/refresh validation", () => {
     { payload: { scope: "metadata", mode: "fetch", appIds: [1] }, field: "appIds" },
     { payload: { scope: "all", mode: "full" }, field: "mode" },
     { payload: { scope: "library", mode: "fetch" }, field: "mode" },
+    { payload: { scope: "library", mode: null }, field: "mode" },
     { payload: { scope: "ownership", mode: "full" }, field: "mode" },
+    { payload: { scope: "ownership", mode: null }, field: "mode" },
     { payload: { scope: "library", appIds: [1] }, field: "appIds" },
+    { payload: { scope: "library", appIds: null }, field: "appIds" },
     { payload: { scope: "ownership", appIds: [1] }, field: "appIds" },
     { payload: { scope: "all", mode: "fetch", appIds: [1] }, field: "appIds" },
+    { payload: { scope: "all", mode: "fetch", appIds: null }, field: "appIds" },
+    { payload: { scope: "metadata", mode: "fetch", appIds: null }, field: "appIds" },
     { payload: { scope: "metadata", mode: "full", appIds: [] }, field: "appIds" },
     { payload: { scope: "metadata", mode: "full", appIds: [1, 1] }, field: "appIds" },
     { payload: { scope: "metadata", mode: "full", appIds: [1, "2"] }, field: "appIds" },
@@ -563,6 +574,49 @@ describe("Refresh worker and run API", () => {
   });
 });
 
+describe("Metadata pacing", () => {
+  it("paces SteamSpy serially at about one request per second without delaying the first", async () => {
+    const steamspy = new FakeSource("steamspy");
+    const test = harness({ sources: [steamspy] });
+    for (const appId of [1, 2, 3]) {
+      seedGame(test.db, appId);
+    }
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+
+    expect(run.status).toBe("succeeded");
+    expect(steamspy.times).toEqual([NOW, NOW + 1, NOW + 2]);
+    expect(test.clock.sleeps).toEqual([1_000, 1_000]);
+  });
+
+  it("shares one 1.5-second interval between storefront and reviews", async () => {
+    const storefront = new FakeSource("storefront", () => ({ kind: "ok" }), "store");
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "store");
+    const test = harness({ sources: [storefront, reviews] });
+    seedGame(test.db, 1);
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+
+    expect(run.status).toBe("succeeded");
+    expect(storefront.times).toEqual([NOW]);
+    expect(reviews.times).toEqual([NOW + 1.5]);
+    expect(test.clock.sleeps).toEqual([1_500]);
+  });
+
+  it("never delays the first request for a host", async () => {
+    const steamspy = new FakeSource("steamspy");
+    const storefront = new FakeSource("storefront", () => ({ kind: "ok" }), "store");
+    const test = harness({ sources: [steamspy, storefront] });
+    seedGame(test.db, 1);
+
+    await startAndWait(test, { scope: "metadata", mode: "fetch" });
+
+    expect(steamspy.times).toEqual([NOW]);
+    expect(storefront.times).toEqual([NOW]);
+    expect(test.clock.sleeps).toEqual([]);
+  });
+});
+
 describe("Metadata Fetch selection", () => {
   it("selects pending sources per Game and skips ok, unavailable, and settled missing", async () => {
     const steamspy = new FakeSource("steamspy");
@@ -783,8 +837,37 @@ describe("Metadata progress and failure", () => {
       retry_after_at: NOW + 120,
     });
     expect(sourceState(test.db, "steam_reviews")).toMatchObject({
+      status: "rate_limited",
       retry_after_at: NOW + 120,
     });
+  });
+
+  it("maps a pass skipped by a store-host 403 block to blocked, not rate_limited", async () => {
+    const storefront = new FakeSource(
+      "storefront",
+      () => ({ kind: "blocked", message: "Challenge detected." }),
+      "store",
+    );
+    const reviews = new FakeSource("steam_reviews", () => ({ kind: "ok" }), "store");
+    const test = harness({ sources: [storefront, reviews] });
+    for (const appId of [1, 2]) {
+      seedGame(test.db, appId);
+    }
+
+    const { run } = await startAndWait(test, { scope: "metadata", mode: "fetch" });
+
+    expect(storefront.calls).toEqual([1]);
+    expect(reviews.calls).toEqual([]);
+    expect(run.status).toBe("partial");
+    expect(sourceState(test.db, "storefront")).toMatchObject({
+      status: "blocked",
+      retry_after_at: NOW + 900,
+    });
+    expect(sourceState(test.db, "steam_reviews")).toMatchObject({
+      status: "blocked",
+      retry_after_at: NOW + 900,
+    });
+    expect(run.stats?.sources.steam_reviews.skipped).toBe(2);
   });
 
   it("blocks a source for 15 minutes on a challenge", async () => {
@@ -989,34 +1072,184 @@ describe("Run recovery and progress timestamps", () => {
     });
   });
 
-  it("uses the latest finished library run for lastScanAt and lastScanStatus", () => {
+  it("uses the latest local scan source state for lastScanAt and lastScanStatus", () => {
     const test = harness();
-    test.db.raw
-      .prepare(
-        `INSERT INTO refresh_runs (scope, mode, status, started_at, finished_at, done)
-         VALUES ('library', NULL, 'succeeded', 10, 100, 1)`,
-      )
-      .run();
-    test.db.raw
-      .prepare(
-        `INSERT INTO refresh_runs (scope, mode, status, started_at, done)
-         VALUES ('library', NULL, 'queued', 200, 0)`,
-      )
-      .run();
-
-    const scanState = new GamesRepository(test.db.raw).scanState();
-    expect(scanState).toEqual({ lastScanAt: 100, lastScanStatus: "ok" });
+    expect(new GamesRepository(test.db.raw).scanState()).toEqual({
+      lastScanAt: null,
+      lastScanStatus: "never",
+    });
 
     test.db.raw
       .prepare(
-        `INSERT INTO refresh_runs (scope, mode, status, started_at, finished_at, done)
-         VALUES ('library', NULL, 'partial', 300, 400, 1)`,
+        `UPDATE source_state SET status = 'ok', last_attempt_at = 100
+         WHERE name = 'steam_local'`,
+      )
+      .run();
+    expect(new GamesRepository(test.db.raw).scanState()).toEqual({
+      lastScanAt: 100,
+      lastScanStatus: "ok",
+    });
+
+    test.db.raw
+      .prepare(
+        `UPDATE source_state SET status = 'partial', last_attempt_at = 400
+         WHERE name = 'steam_local'`,
       )
       .run();
     expect(new GamesRepository(test.db.raw).scanState()).toEqual({
       lastScanAt: 400,
       lastScanStatus: "partial",
     });
+
+    test.db.raw
+      .prepare(
+        `UPDATE source_state SET status = 'error', last_attempt_at = 500
+         WHERE name = 'steam_local'`,
+      )
+      .run();
+    expect(new GamesRepository(test.db.raw).scanState()).toEqual({
+      lastScanAt: 500,
+      lastScanStatus: "failed",
+    });
+  });
+});
+
+describe("all-run phase evidence", () => {
+  function allHarness(options: {
+    scan?: typeof scanLocalLibrary;
+    ownershipSource?: SteamOwnershipSource;
+    sources?: MetadataSource[];
+  }): Harness {
+    return harness(options);
+  }
+
+  it("feeds library, ownership, and Metadata status from an all run", async () => {
+    const source = new FakeSource("steamspy");
+    const test = allHarness({
+      sources: [source],
+      scan: () =>
+        scanResult({
+          stats: {
+            libraries: 1,
+            manifests: 1,
+            localconfigApps: 1,
+            upserted: 1,
+            deleted: 0,
+            warnings: { negativePlaytime: 2 },
+          },
+        }),
+      ownershipSource: {
+        async fetchOwnedGames() {
+          return {
+            kind: "complete",
+            gameCount: 1,
+            games: [
+              {
+                appId: 42,
+                name: "Game 42",
+                playtimeForeverMinutes: 0,
+                playtime2WeeksMinutes: null,
+              },
+            ],
+          };
+        },
+      },
+    });
+    seedGame(test.db, 42);
+
+    const { run } = await startAndWait(test, { scope: "all", mode: "fetch" });
+    expect(run.status).toBe("succeeded");
+
+    const status = buildStatus({
+      discovery,
+      steamApiKey: "SECRET_KEY",
+      configuredSteamId64: TEST_STEAM_ID64,
+      schemaVersion: test.db.schemaVersion,
+      db: test.db.raw,
+    });
+    const isoNow = new Date(NOW * 1000).toISOString().replace(".000Z", "Z");
+    expect(status.library).toMatchObject({
+      lastScanAt: isoNow,
+      lastScanStatus: "ok",
+    });
+    expect(status.ownership.error).toBeNull();
+    expect(status.metadata.lastSuccessAt).toBe(isoNow);
+    expect((await get(test.app, "/api/games")).json()).toMatchObject({
+      meta: { dataAsOf: isoNow },
+    });
+
+    const row = test.db.raw
+      .prepare("SELECT stats_json FROM refresh_runs WHERE id = ?")
+      .get(run.id) as { stats_json: string };
+    expect(JSON.parse(row.stats_json)).toMatchObject({
+      warnings: { negativePlaytime: 2 },
+    });
+    // AC-L9 stays internal: the API exposes only the documented counters.
+    expect(run.stats).not.toHaveProperty("warnings");
+  });
+
+  it("reports the last ownership failure from an all run", async () => {
+    const test = allHarness({
+      sources: [],
+      scan: () => scanResult(),
+      ownershipSource: {
+        async fetchOwnedGames() {
+          return {
+            kind: "rate_limited",
+            retryAfterAt: NOW + 120,
+            message: "The Steam Web API is rate limiting this Account.",
+          };
+        },
+      },
+    });
+    seedGame(test.db, 1);
+
+    const { run } = await startAndWait(test, { scope: "all", mode: "fetch" });
+    expect(run).toMatchObject({ status: "partial", error: { code: "RATE_LIMITED" } });
+
+    const status = buildStatus({
+      discovery,
+      steamApiKey: "SECRET_KEY",
+      configuredSteamId64: TEST_STEAM_ID64,
+      schemaVersion: test.db.schemaVersion,
+      db: test.db.raw,
+    });
+    expect(status.ownership.state).toBe("rate_limited");
+    expect(status.ownership.error).toEqual({
+      code: "RATE_LIMITED",
+      message: "The Steam Web API is rate limiting this Account.",
+    });
+  });
+
+  it("reports a partial local scan from an all run", async () => {
+    const test = allHarness({
+      sources: [],
+      scan: () =>
+        scanResult({
+          status: "partial",
+          error: { code: "SCAN_PARTIAL", message: "One library could not be read." },
+        }),
+      ownershipSource: {
+        async fetchOwnedGames() {
+          return { kind: "empty", gameCount: 0, games: [] };
+        },
+      },
+    });
+
+    const { run } = await startAndWait(test, { scope: "all", mode: "fetch" });
+    expect(run.status).toBe("partial");
+
+    const status = buildStatus({
+      discovery,
+      steamApiKey: "SECRET_KEY",
+      configuredSteamId64: TEST_STEAM_ID64,
+      schemaVersion: test.db.schemaVersion,
+      db: test.db.raw,
+    });
+    expect(status.library.lastScanStatus).toBe("partial");
+    expect(status.library.lastScanAt).toBe(
+      new Date(NOW * 1000).toISOString().replace(".000Z", "Z"),
+    );
   });
 });
 

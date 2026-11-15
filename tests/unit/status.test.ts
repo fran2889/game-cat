@@ -18,6 +18,7 @@ const discovery: SteamDiscovery = {
     accountId: "39734272",
     personaName: "Fran",
   },
+  ambiguous: false,
   error: null,
 };
 
@@ -83,6 +84,7 @@ describe("Status document", () => {
         state: "not_found",
         accounts: [],
         account: null,
+        ambiguous: false,
         error: null,
       },
       steamApiKey: null,

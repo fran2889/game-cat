@@ -18,6 +18,8 @@ export interface SteamDiscovery {
   state: SteamState;
   accounts: SteamAccount[];
   account: SteamAccount | null;
+  /** True when several Accounts exist and no unique MostRecent breaks the tie. */
+  ambiguous: boolean;
   /** A short, user-safe message. Never raw VDF text or AccountName. */
   error: string | null;
 }
@@ -115,31 +117,40 @@ function parseLoginUsers(text: string): ParsedAccount[] {
   return accounts.sort((left, right) => left.steamId64.localeCompare(right.steamId64));
 }
 
+interface AccountSelection {
+  account: ParsedAccount | null;
+  ambiguous: boolean;
+}
+
 function selectAccount(
   accounts: ParsedAccount[],
   pinnedSteamId64: string | null,
-): ParsedAccount | null {
+): AccountSelection {
   if (pinnedSteamId64 !== null) {
-    return accounts.find((account) => account.steamId64 === pinnedSteamId64) ?? null;
+    return {
+      account: accounts.find((account) => account.steamId64 === pinnedSteamId64) ?? null,
+      ambiguous: false,
+    };
   }
   if (accounts.length === 0) {
-    return null;
+    return { account: null, ambiguous: false };
   }
 
   const mostRecent = accounts.filter((account) => account.mostRecent);
   if (mostRecent.length === 1) {
-    return mostRecent[0] ?? null;
+    return { account: mostRecent[0] ?? null, ambiguous: false };
   }
 
   // Ambiguous or absent MostRecent: newest Timestamp wins, with the stable
-  // SteamID64 order as the final tiebreaker.
+  // SteamID64 order as the final tiebreaker. More than one local Account means
+  // the UI must show the warning and the picker (§2.2, §8.6).
   let newest = accounts[0] ?? null;
   for (const account of accounts) {
     if (newest === null || account.timestamp > newest.timestamp) {
       newest = account;
     }
   }
-  return newest;
+  return { account: newest, ambiguous: accounts.length > 1 };
 }
 
 /**
@@ -159,12 +170,26 @@ export const discoverSteam: SteamDiscoveryFn = (options) => {
     // Steam installation.
     root = options.steamRoot;
     if (!isDirectory(root)) {
-      return { root, state: "not_found", accounts: [], account: null, error: null };
+      return {
+        root,
+        state: "not_found",
+        accounts: [],
+        account: null,
+        ambiguous: false,
+        error: null,
+      };
     }
   } else {
     root = steamRootCandidates(platform, env, home).find(isDirectory) ?? null;
     if (root === null) {
-      return { root: null, state: "not_found", accounts: [], account: null, error: null };
+      return {
+        root: null,
+        state: "not_found",
+        accounts: [],
+        account: null,
+        ambiguous: false,
+        error: null,
+      };
     }
   }
 
@@ -173,13 +198,21 @@ export const discoverSteam: SteamDiscoveryFn = (options) => {
     text = readFileSync(join(root, "config", "loginusers.vdf"), "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { root, state: "no_account", accounts: [], account: null, error: null };
+      return {
+        root,
+        state: "no_account",
+        accounts: [],
+        account: null,
+        ambiguous: false,
+        error: null,
+      };
     }
     return {
       root,
       state: "error",
       accounts: [],
       account: null,
+      ambiguous: false,
       error: `Could not read Steam accounts: ${(error as Error).message}`,
     };
   }
@@ -193,6 +226,7 @@ export const discoverSteam: SteamDiscoveryFn = (options) => {
       state: "error",
       accounts: [],
       account: null,
+      ambiguous: false,
       error: `Could not parse Steam accounts: ${(error as Error).message}`,
     };
   }
@@ -200,9 +234,10 @@ export const discoverSteam: SteamDiscoveryFn = (options) => {
   const selected = selectAccount(accounts, options.steamId64);
   return {
     root,
-    state: selected === null ? "no_account" : "ready",
+    state: selected.account === null ? "no_account" : "ready",
     accounts: accounts.map(toAccount),
-    account: selected === null ? null : toAccount(selected),
+    account: selected.account === null ? null : toAccount(selected.account),
+    ambiguous: selected.ambiguous,
     error: null,
   };
 };
