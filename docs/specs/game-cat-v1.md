@@ -960,7 +960,9 @@ forward compatibility. No v1 read path depends on their contents beyond the docu
   new app major and a new path.
 - Requests and responses are `application/json; charset=utf-8`. POST/PATCH bodies must be JSON; other
   content types return `415`.
-- Response fields are camelCase. Database columns are snake_case.
+- Response fields are camelCase. Database columns are snake_case. Map keys that are
+  `source_state.name` values stay snake_case (for example `stats.sources.steam_reviews`); they are
+  enum keys, not field names.
 - Timestamps are ISO-8601 UTC strings with `Z` (for example `2026-11-13T17:48:04Z`). Unix seconds are
   converted at the API boundary. `null` means unknown, not epoch zero.
 - Durations are integer minutes (`playtimeMinutes`). The UI formats hours; the API never returns float
