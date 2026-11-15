@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import type { Status } from "../../shared/types.ts";
+import { useBrowse } from "../browse-context.tsx";
+import { GAME_SORT_OPTIONS } from "../browse.ts";
 
 export interface TopBarProps {
   status: Status | null;
@@ -40,12 +42,36 @@ export function breadcrumbFor(pathname: string): { kicker: string; title: string
 export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: TopBarProps) {
   const location = useLocation();
   const breadcrumb = breadcrumbFor(location.pathname);
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("name");
-  const [descending, setDescending] = useState(false);
-  const [installedOnly, setInstalledOnly] = useState(false);
-  const [layout, setLayout] = useState<"grid" | "table">("grid");
+  const {
+    viewKind,
+    layout,
+    setLayout,
+    search,
+    setSearch,
+    clearSearch,
+    sort,
+    setSort,
+    order,
+    toggleOrder,
+    installedOnly,
+    setInstalledOnly,
+  } = useBrowse();
+  const [draft, setDraft] = useState(search);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDraft(search);
+  }, [search]);
+
+  useEffect(() => {
+    if (draft === search) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setSearch(draft);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [draft, search, setSearch]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -63,6 +89,8 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  const installedPressed = viewKind === "installed" || installedOnly;
 
   return (
     <header className="topbar">
@@ -95,19 +123,22 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
           <input
             ref={searchRef}
             type="search"
-            value={search}
+            value={draft}
             placeholder="Search game names"
             aria-label="Search game names"
             autoComplete="off"
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => setDraft(event.target.value)}
           />
           <kbd aria-hidden="true">/</kbd>
-          {search !== "" && (
+          {draft !== "" && (
             <button
               type="button"
               className="search-clear"
               aria-label="Clear search"
-              onClick={() => setSearch("")}
+              onClick={() => {
+                setDraft("");
+                clearSearch();
+              }}
             >
               ×
             </button>
@@ -119,32 +150,37 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
           <select
             aria-label="Sort by"
             value={sort}
-            onChange={(event) => setSort(event.target.value)}
+            onChange={(event) => setSort(event.target.value as typeof sort)}
           >
-            <option value="name">Name</option>
-            <option value="playtime">Playtime</option>
-            <option value="lastPlayed">Last played</option>
-            <option value="releaseYear">Release year</option>
-            <option value="metacritic">Metacritic</option>
-            <option value="appId">App ID</option>
+            {GAME_SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
 
         <button
           type="button"
           className="icon-button"
-          aria-label={descending ? "Sort descending" : "Sort ascending"}
-          aria-pressed={descending}
-          onClick={() => setDescending((current) => !current)}
+          aria-label={order === "desc" ? "Sort descending" : "Sort ascending"}
+          aria-pressed={order === "desc"}
+          onClick={toggleOrder}
         >
-          {descending ? "↓" : "↑"}
+          {order === "desc" ? "↓" : "↑"}
         </button>
 
         <button
           type="button"
           className="toggle-button"
-          aria-pressed={installedOnly}
-          onClick={() => setInstalledOnly((current) => !current)}
+          aria-pressed={installedPressed}
+          disabled={viewKind === "installed"}
+          title={
+            viewKind === "installed"
+              ? "This view already shows installed Games only."
+              : "Show installed Games only"
+          }
+          onClick={() => setInstalledOnly(!installedOnly)}
         >
           ✓ Installed
         </button>

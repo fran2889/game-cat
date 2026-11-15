@@ -74,13 +74,6 @@ export function AppShell({ status, error, reloadStatus }: AppShellProps) {
           <Outlet context={context} />
         </main>
       </div>
-
-      {/*
-        Modal dialog slot for Game detail and later dialogs. It is present from
-        the shell so focus trapping and route-over-dialog behavior have a stable
-        home. It stays closed until a view opens it.
-      */}
-      <dialog className="dialog-slot" aria-label="Game detail" />
     </div>
   );
 }
