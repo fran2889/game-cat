@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { Agent as HttpAgent, get as httpGet } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -172,6 +173,26 @@ describe("programmatic startup", () => {
 
     const restarted = await start(baseOptions(dataDir));
     expect((await fetch(`${restarted.url}api/status`)).status).toBe(200);
+  });
+
+  it("close() does not wait for an idle keep-alive HTTP connection", async () => {
+    const server = await start(baseOptions(temp("game-cat-keepalive")));
+    const agent = new HttpAgent({ keepAlive: true, maxSockets: 1 });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const request = httpGet(`${server.url}api/status`, { agent }, (response) => {
+          response.resume();
+          response.on("end", () => resolve());
+        });
+        request.on("error", reject);
+      });
+
+      const startedAt = Date.now();
+      await server.close();
+      expect(Date.now() - startedAt).toBeLessThan(2_000);
+    } finally {
+      agent.destroy();
+    }
   });
 
   it("startServer removes its signal handlers when close() resolves", async () => {
