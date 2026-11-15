@@ -174,7 +174,9 @@ function sourceRow(db: AppDatabase): Record<string, unknown> {
 }
 
 async function runOwnership(harnessValue: Harness): Promise<RefreshRun> {
-  return harnessValue.refresh.start({ scope: "ownership" });
+  const started = await harnessValue.refresh.start({ scope: "ownership" });
+  await harnessValue.refresh.waitForIdle();
+  return harnessValue.refresh.get(Number(started.run.id))!;
 }
 
 describe("ownership refresh: complete response", () => {
@@ -523,12 +525,13 @@ describe("ownership refresh: Account binding", () => {
       payload: { scope: "metadata", mode: "fetch" },
     });
 
-    expect(response.statusCode).toBe(422);
+    expect(response.statusCode).toBe(202);
+    await test.refresh.waitForIdle();
     expect(test.db.raw.prepare("SELECT COUNT(*) AS count FROM account_state").get()).toEqual({
       count: 0,
     });
     expect(test.db.raw.prepare("SELECT COUNT(*) AS count FROM refresh_runs").get()).toEqual({
-      count: 0,
+      count: 1,
     });
   });
 });
