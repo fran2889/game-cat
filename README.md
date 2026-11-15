@@ -6,10 +6,56 @@ Steam-only for now. Later phases add How Long To Beat times, writing Smart Colle
 
 ## Status
 
-Early implementation. The v1 contract is merged and authoritative:
-[docs/specs/game-cat-v1.md](docs/specs/game-cat-v1.md). The bootable server, configuration, data
-directory, lock, logging, HTTP boundary, and React shell are in place; the SQLite schema, local
-Steam scan, Metadata Refresh, and Smart Collection editor land in later slices.
+The v1 contract is merged and authoritative:
+[docs/specs/game-cat-v1.md](docs/specs/game-cat-v1.md). The server, configuration, data directory,
+lock, logging, SQLite schema, local Steam scan, ownership and Metadata Refresh, Library browser, Rule
+evaluator, Smart Collections, onboarding, and packaging/lifecycle seams are implemented.
+
+## Install
+
+Node 24 or newer and npm with the committed lockfile are required. The supported install is a pinned
+Git tag or commit; a floating branch can change the data contract.
+
+```sh
+npm install -g github:fran2889/game-cat#<tag-or-commit>
+game-cat
+```
+
+The install runs the package's `prepare` build, installs the `game-cat` binary, and does not require
+a source checkout. Contributors use the development path below.
+
+```sh
+game-cat --help       # documented flags
+game-cat --version    # app version and bundled database schema version
+```
+
+The server binds `127.0.0.1:4780` by default. `--port 0` asks the OS for a port; the resolved URL is
+printed. The data directory defaults to the OS per-user location and can be set with `--data-dir` or
+`GAME_CAT_DATA_DIR`. See [§8.3](docs/specs/game-cat-v1.md#83-data-directory-and-configuration) for
+the layout, permissions, and configuration precedence.
+
+## Run
+
+- `--data-dir <path>` overrides `GAME_CAT_DATA_DIR` and the OS default.
+- `--port <number>` overrides `GAME_CAT_PORT` and `config.json`.
+- `--no-open` disables the browser; a missing TTY or browser is never a startup error.
+- `--log-level <level>` overrides `GAME_CAT_LOG_LEVEL` and `config.json`.
+
+The app creates the data directory, applies migrations, prints the URL, opens the browser, and then
+shows onboarding or starts the automatic Fetch. One process owns one data directory. A second start
+exits `ALREADY_RUNNING` with the owning PID and never opens, migrates, or deletes the lock.
+
+## Lifecycle and logs
+
+`game-cat` is a foreground process. SIGINT, SIGTERM, and SIGHUP stop accepting connections, abort
+in-flight upstream requests, finish the short database transaction, mark the active run
+`INTERRUPTED` (or finish it), close SQLite, release the lock, and exit 0. Cleanup still running after
+5 seconds logs a warning; at 10 seconds the process exits non-zero. A second signal exits
+immediately. A hard kill leaves committed SQLite data intact; the next start reconciles the stale run.
+
+Logs are JSON lines in `<data-dir>/logs/game-cat.log`, rotating at 10 MB and keeping three files.
+stderr is human-readable on a TTY and JSON otherwise. The Steam Web API key, `AccountName`, raw
+upstream payloads, and launch options are never logged.
 
 ## Development
 
@@ -18,10 +64,12 @@ Requires Node 24 or newer and npm with the committed lockfile.
 ```sh
 npm ci
 npm run dev        # API on 4780, Vite UI on http://127.0.0.1:5173/
-npm test           # unit and HTTP integration tests
+npm test           # unit, integration, contract, and packaging metadata
 npm run check      # formatting, Markdown, links, and typecheck
 npm run build      # server and static client in dist/
 npm start          # production-shaped single process
+npm run test:e2e   # Playwright with headless Chromium
+npm run test:package # pack, global-install, and smoke-test the tarball
 npm run test:perf  # fixed 20,000-Game / 1,300-Game performance budgets
 ```
 
@@ -33,6 +81,26 @@ Use a separate data directory while developing:
 ```sh
 GAME_CAT_DATA_DIR="$PWD/.data" npm run dev
 ```
+
+The library entry point for a desktop wrapper is `dist/server/index.js`:
+
+```js
+import { createServer } from "game-cat";
+
+const server = await createServer({
+  port: 0,
+  openBrowser: false,
+  logSink: process.stderr,
+  secretStore, // optional: OS keychain instead of config.json
+});
+console.log(server.url); // readiness: GET /api/status returns 200
+await server.close(); // resolves after SQLite closes
+```
+
+CI runs `npm run check`, `npm run build`, and `npm test` on Node 24 and 26 (Linux), E2E on Node 24
+with Chromium, and the package smoke test on Node 24. Performance budgets run in the nightly/manual
+`perf` workflow (Node 24 with Chromium), not on every pull request. See
+[§10.7](docs/specs/game-cat-v1.md#107-ci-and-commands).
 
 ## Planning
 

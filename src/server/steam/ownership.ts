@@ -45,8 +45,11 @@ export type OwnershipFetchResult =
   OwnershipSuccess | OwnershipInvalidKey | OwnershipRateLimited | OwnershipError;
 
 export interface SteamOwnershipSource {
-  /** Fetch the roster for one SteamID64. Never throws for an upstream failure. */
-  fetchOwnedGames(steamId64: string): Promise<OwnershipFetchResult>;
+  /**
+   * Fetch the roster for one SteamID64. Never throws for an upstream failure.
+   * `signal` is aborted when the server shuts down.
+   */
+  fetchOwnedGames(steamId64: string, signal?: AbortSignal): Promise<OwnershipFetchResult>;
 }
 
 export interface SteamOwnershipSourceOptions {
@@ -171,9 +174,11 @@ export function createSteamOwnershipSource(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   return {
-    async fetchOwnedGames(steamId64: string): Promise<OwnershipFetchResult> {
+    async fetchOwnedGames(steamId64: string, signal?: AbortSignal): Promise<OwnershipFetchResult> {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const combined =
+        signal === undefined ? controller.signal : AbortSignal.any([controller.signal, signal]);
       try {
         let response: Response;
         try {
@@ -183,15 +188,18 @@ export function createSteamOwnershipSource(
               accept: "application/json",
               "user-agent": OWNERSHIP_USER_AGENT,
             },
-            signal: controller.signal,
+            signal: combined,
           });
         } catch {
           // Deliberately generic: a thrown URL or cause may contain the key.
           return {
             kind: "error",
-            message: controller.signal.aborted
-              ? "The Steam Web API request timed out."
-              : "The Steam Web API could not be reached.",
+            message:
+              signal?.aborted === true
+                ? "The Steam Web API request was interrupted by shutdown."
+                : controller.signal.aborted
+                  ? "The Steam Web API request timed out."
+                  : "The Steam Web API could not be reached.",
           };
         }
 

@@ -93,14 +93,36 @@ describe("logging", () => {
     const appLogger = createLogger({
       level: "info",
       tty: true,
-      stderr: false,
-      stream: sink,
+      stderr: true,
+      stderrStream: sink,
       filePath: null,
     });
     appLogger.logger.info({ requestId: "rid-tty" }, "hello tty");
     await appLogger.close();
     expect(output).toContain("hello tty");
     expect(output.trimStart().startsWith("{")).toBe(false);
+  });
+
+  it("keeps the injectable sink as JSON lines even on a TTY", async () => {
+    const stderrSink = new PassThrough();
+    const wrapperSink = new PassThrough();
+    let output = "";
+    wrapperSink.on("data", (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+    const appLogger = createLogger({
+      level: "info",
+      tty: true,
+      stderr: true,
+      stderrStream: stderrSink,
+      stream: wrapperSink,
+      filePath: null,
+    });
+    appLogger.logger.info({ requestId: "rid-wrapper" }, "hello wrapper");
+    await appLogger.close();
+    const line = JSON.parse(output.trim()) as Record<string, unknown>;
+    expect(line.msg).toBe("hello wrapper");
+    expect(line.requestId).toBe("rid-wrapper");
   });
 
   it("rotates the log file at the configured size, keeping three files", async () => {
