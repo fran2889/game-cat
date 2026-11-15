@@ -252,8 +252,10 @@ test("selection is scoped per view and New from selection hands off a prefilled 
 
   await page.getByRole("button", { name: "+ New from selection" }).click();
   await expect(page).toHaveURL(/\/smart\/new$/);
-  await expect(page.getByText("Prefilled from selection: 2 games.")).toBeVisible();
-  await expect(page.getByText(/AND game in \[\.\.\.\]/)).toBeVisible();
+  await expect(page.getByTestId("prefix-counts")).toHaveText("1 AND · 0 OR · 0 NOT");
+  await expect(page.getByTestId("match-count")).toHaveText("2 matches");
+  await expect(page.locator('[data-rule-index="0"] .picker-chips .chip')).toHaveCount(2);
+  await expect(page.locator('[data-rule-index="0"] .rule-field select')).toHaveValue("game");
 
   await page.getByRole("link", { name: "All games" }).click();
   await expect(page.locator(".selection-count")).toHaveText("0 selected");

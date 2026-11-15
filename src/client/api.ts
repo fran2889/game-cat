@@ -4,11 +4,15 @@ import type {
   GameSort,
   GamesResponse,
   RefreshRun,
+  RuleValueField,
+  RuleValuesResponse,
   Status,
   SteamCollectionGamesResponse,
   SteamCollectionSummary,
   SteamCollectionsResponse,
+  TagsResponse,
 } from "../shared/types.ts";
+import type { Rule } from "../shared/rules.ts";
 
 export class ApiError extends Error {
   readonly status: number | null;
@@ -83,6 +87,83 @@ export async function fetchGames(
     throw new ApiError((error as Error).message, null);
   }
   return readJson<GamesResponse>(response);
+}
+
+export interface PreviewRulesBody {
+  rules: Rule[];
+  page?: number;
+  pageSize?: number;
+  sort?: GameSort;
+  order?: GameOrder;
+}
+
+/** Evaluate an unsaved Rules array; the server never persists it (§4.3). */
+export async function previewRules(
+  body: PreviewRulesBody,
+  signal?: AbortSignal,
+): Promise<GamesResponse> {
+  let response: Response;
+  try {
+    response = await fetch("/api/rules/preview", {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (error) {
+    if ((error as Error).name === "AbortError") {
+      throw error;
+    }
+    throw new ApiError((error as Error).message, null);
+  }
+  return readJson<GamesResponse>(response);
+}
+
+export interface FetchTagsParams {
+  query?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function fetchTags(
+  params: FetchTagsParams = {},
+  signal?: AbortSignal,
+): Promise<TagsResponse> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      query.set(key, String(value));
+    }
+  }
+  const response = await fetch(`/api/tags?${query.toString()}`, {
+    headers: { accept: "application/json" },
+    signal,
+  });
+  return readJson<TagsResponse>(response);
+}
+
+export interface FetchRuleValuesParams {
+  field: RuleValueField;
+  query?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function fetchRuleValues(
+  params: FetchRuleValuesParams,
+  signal?: AbortSignal,
+): Promise<RuleValuesResponse> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      query.set(key, String(value));
+    }
+  }
+  const response = await fetch(`/api/rule-values?${query.toString()}`, {
+    headers: { accept: "application/json" },
+    signal,
+  });
+  return readJson<RuleValuesResponse>(response);
 }
 
 export async function fetchGameDetail(
