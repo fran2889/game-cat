@@ -51,7 +51,15 @@ export type LibraryScanStatus = "never" | "ok" | "partial" | "failed";
 export type OwnershipStatus = "owned" | "local_only" | "unknown";
 
 /** The documented `GET /api/games` sort whitelist. */
-export type GameSort = "name" | "playtime" | "lastPlayed" | "releaseYear" | "metacritic" | "appId";
+export const GAME_SORTS = [
+  "name",
+  "playtime",
+  "lastPlayed",
+  "releaseYear",
+  "metacritic",
+  "appId",
+] as const;
+export type GameSort = (typeof GAME_SORTS)[number];
 export type GameOrder = "asc" | "desc";
 
 /** The four client view kinds that own a layout and a selection. */

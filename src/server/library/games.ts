@@ -1,25 +1,19 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { normalizeNameKey } from "../../shared/names.ts";
-import type {
-  GameDetail,
-  GamePlatforms,
-  GameSummary,
-  GameTag,
-  Pagination,
+import {
+  GAME_SORTS,
+  type GameDetail,
+  type GameOrder,
+  type GamePlatforms,
+  type GameSort,
+  type GameSummary,
+  type GameTag,
+  type Pagination,
 } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
 
-export const GAME_SORTS = [
-  "name",
-  "playtime",
-  "lastPlayed",
-  "releaseYear",
-  "metacritic",
-  "appId",
-] as const;
-export type GameSort = (typeof GAME_SORTS)[number];
-
-export type GameOrder = "asc" | "desc";
+export { GAME_SORTS };
+export type { GameOrder, GameSort };
 
 export interface GamesQuery {
   search: string | null;
