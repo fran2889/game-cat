@@ -17,7 +17,7 @@ The Steam account whose local Steam files and owned-games roster game-cat reads.
 _Avoid_: user, login
 
 **Ownership**:
-A Game's relationship to the Steam account: `owned` when the Steam Web API roster confirms it, `local_only` when only local Steam evidence exists, or `unknown` when neither is conclusive. Ownership is one property of a Library Game, not the definition of the Library.
+A Game's relationship to the Steam account: `owned` when the Steam Web API roster confirms it, `local_only` when an install or `localconfig` entry exists but the roster does not confirm it, or `unknown` when the only evidence is Steam Collection membership and no conclusive roster has completed. After a conclusive roster, a Collection-only Game absent from it is `local_only`. Ownership is one property of a Library Game, not the definition of the Library.
 _Avoid_: license, entitlement
 
 **Steam Collection**:
@@ -68,6 +68,26 @@ _Avoid_: category, Steam category, collection
 The storefront's product type for a Game, such as `game`, `dlc`, or `demo`. The Rule Field is
 `storefrontType`; null means unknown.
 _Avoid_: bare type as a Rule Field
+
+**Release Year**:
+The storefront's release year for a Game. A v1 Field; null means unknown.
+_Avoid_: release date
+
+**Metacritic Score**:
+The storefront's Metacritic score for a Game, 0-100. A v1 Field; null means unknown.
+_Avoid_: rating, review score
+
+**Platform**:
+A storefront-supported platform for a Game, such as Windows, macOS, or Linux. A v1 multi-valued Field.
+_Avoid_: OS
+
+**Developer**:
+A storefront-listed developer for a Game. A v1 multi-valued Field.
+_Avoid_: studio
+
+**Publisher**:
+A storefront-listed publisher for a Game. A v1 multi-valued Field.
+_Avoid_: studio
 
 **Metadata**:
 Game attributes fetched from external sources and cached by game-cat, such as Tags, Genres, storefront details, and review summaries. Missing Metadata never hides a Game. Fetched at runtime and never redistributed.
