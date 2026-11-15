@@ -7,12 +7,14 @@ import {
   type SteamCollectionsRepository,
 } from "../library/collections.ts";
 import { GamesRepository, parseGamesQuery } from "../library/games.ts";
+import { parseTagsQuery, type TagsRepository } from "../library/tags.ts";
 import type { RefreshService } from "../refresh/service.ts";
 
 export interface ApiRoutesOptions {
   status: Status | (() => Status);
   games: GamesRepository;
   collections: SteamCollectionsRepository;
+  tags: TagsRepository;
   refresh: RefreshService;
 }
 
@@ -74,6 +76,10 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     }
     return { data: game };
   });
+
+  app.get("/api/tags", async (request) =>
+    options.tags.list(parseTagsQuery(queryValues(request.query))),
+  );
 
   app.get("/api/steam-collections", async (request) =>
     options.collections.list(parseSteamCollectionsQuery(queryValues(request.query))),
