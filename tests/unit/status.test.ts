@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildStatus } from "../../src/server/status.ts";
 import type { SteamDiscovery } from "../../src/server/steam/discovery.ts";
+import { APP_VERSION } from "../../src/shared/app.ts";
 
 const discovery: SteamDiscovery = {
   root: "/home/tester/.local/share/Steam",
@@ -27,10 +28,10 @@ describe("Status document", () => {
       steamApiKey: "secret",
       configuredSteamId64: null,
       schemaVersion: 0,
-      version: "0.1.0",
+      version: APP_VERSION,
     });
 
-    expect(status.app).toEqual({ version: "0.1.0", dbSchemaVersion: 0 });
+    expect(status.app).toEqual({ version: APP_VERSION, dbSchemaVersion: 0 });
     expect(status.steam.state).toBe("ready");
     expect(status.steam.account?.personaName).toBe("Fran");
     expect(status.ownership.state).toBe("unknown");
@@ -66,7 +67,7 @@ describe("Status document", () => {
       steamApiKey: null,
       configuredSteamId64: null,
       schemaVersion: 0,
-      version: "0.1.0",
+      version: APP_VERSION,
     });
     expect(status.ownership.state).toBe("not_configured");
     expect(status.steam.account).toBeNull();
@@ -87,7 +88,7 @@ describe("Status document", () => {
       steamApiKey: null,
       configuredSteamId64: null,
       schemaVersion: 0,
-      version: "0.1.0",
+      version: APP_VERSION,
     });
     expect(status.steam.state).toBe("not_found");
     expect(status.steam.root).toBeNull();

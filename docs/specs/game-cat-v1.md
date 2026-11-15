@@ -3770,7 +3770,9 @@ budget. The 1,300-Game UI budget assumes server pagination; a full-Library rende
 
 ### 10.6 Manual release checklist
 
-Run on a real Linux install first, then record macOS and Windows results.
+Run on a real Linux install first, then record macOS and Windows results. The results recorded for the v1
+release candidate, including the items that could only be verified with synthetic fixtures and the ones
+that remain **not verified**, are in [docs/release/v1-checklist.md](../release/v1-checklist.md).
 
 - [ ] Install from a pinned Git tag on Node 24 and launch with `game-cat`.
 - [ ] Verify the data directory, permissions, lock, logs, backups, and config file.
@@ -3837,3 +3839,11 @@ No item below blocks implementation. Each has a mitigation or a release gate.
 | No authentication                     | Any process on the machine can reach the loopback API; a malicious page could try cross-origin writes.                                                                                  | Loopback bind, `Host`/`Origin` checks, JSON content type, same-origin CORS, CSP, and no wildcard. This is the v1 trust boundary; LAN and auth are out of scope.                            |
 | Localized release dates               | `release_date.date` is display text and its format follows `cc`/`l`.                                                                                                                    | Pin `cc=us&l=english`, store the raw string, parse a year defensively, and never sort on the raw string.                                                                                   |
 | HLTB, v3 export, v4 wrapper           | The seams must not be broken by v1 choices.                                                                                                                                             | Keep the source adapters and evaluator replaceable; v3 exports membership, not `filterSpec`; v4 uses the library entry in [§8.10](#810-v4-wrapper-constraints).                            |
+
+**Release verification status (2026-11-15).** The v1 release candidate has recorded results in
+[docs/release/v1-checklist.md](../release/v1-checklist.md). The Linux checklist was executed with the
+built and packaged app and synthetic Steam fixtures; items that need a real Steam client, a real Steam
+Web API key, or a real network path remain **not verified** there. macOS and Windows were not available
+in the verification environment, so both platforms remain **not verified**: default paths, lock and
+permission semantics, the `better-sqlite3` prebuild, console-close handling, Git install, and the full
+E2E suite are the remaining items. These are release gates, not claimed passes.

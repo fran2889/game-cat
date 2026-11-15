@@ -10,6 +10,7 @@ import {
   type SteamReviewSourceOptions,
 } from "../../src/server/refresh/reviews.ts";
 import type { MetadataSourceContext } from "../../src/server/refresh/sources.ts";
+import { APP_NAME, APP_VERSION } from "../../src/shared/app.ts";
 
 const NOW = 1_700_000_000;
 const APP_ID = 620;
@@ -113,7 +114,7 @@ describe("SteamReviewSource request contract", () => {
     expect((calls[0]?.init?.headers as Record<string, string>)["user-agent"]).toBe(
       REVIEWS_USER_AGENT,
     );
-    expect(REVIEWS_USER_AGENT).toBe("game-cat/0.1.0 (local Steam library app)");
+    expect(REVIEWS_USER_AGENT).toBe(`${APP_NAME}/${APP_VERSION} (local Steam library app)`);
     expect(reviews.name).toBe("steam_reviews");
     expect(reviews.hostKey).toBe("store");
   });

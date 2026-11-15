@@ -11,13 +11,17 @@ The v1 contract is merged and authoritative:
 lock, logging, SQLite schema, local Steam scan, ownership and Metadata Refresh, Library browser, Rule
 evaluator, Smart Collections, onboarding, and packaging/lifecycle seams are implemented.
 
+The recorded v1 release verification, including the Linux results and the items that still need a real
+Steam client or a macOS/Windows host, is in
+[docs/release/v1-checklist.md](docs/release/v1-checklist.md).
+
 ## Install
 
 Node 24 or newer and npm with the committed lockfile are required. The supported install is a pinned
 Git tag or commit; a floating branch can change the data contract.
 
 ```sh
-npm install -g github:fran2889/game-cat#<tag-or-commit>
+npm install -g github:fran2889/game-cat#v1.0.0
 game-cat
 ```
 
@@ -71,6 +75,8 @@ npm start          # production-shaped single process
 npm run test:e2e   # Playwright with headless Chromium
 npm run test:package # pack, global-install, and smoke-test the tarball
 npm run test:perf  # fixed 20,000-Game / 1,300-Game performance budgets
+npm run audit:tests # fail on focused or skipped acceptance tests
+npm run audit:secrets # fail on a real key, AccountName, or raw Steam user path
 ```
 
 `test:perf` builds first, measures p50/p95, and exits non-zero on a missed budget. See
@@ -97,15 +103,18 @@ console.log(server.url); // readiness: GET /api/status returns 200
 await server.close(); // resolves after SQLite closes
 ```
 
-CI runs `npm run check`, `npm run build`, and `npm test` on Node 24 and 26 (Linux), E2E on Node 24
-with Chromium, and the package smoke test on Node 24. Performance budgets run in the nightly/manual
-`perf` workflow (Node 24 with Chromium), not on every pull request. See
-[§10.7](docs/specs/game-cat-v1.md#107-ci-and-commands).
+`npm run check` runs Prettier, Markdownlint, link validation, typecheck, `audit:tests`, and
+`audit:secrets`. CI runs `npm run check`, `npm run build`, and `npm test` on Node 24 and 26 (Linux),
+E2E on Node 24 with Chromium, and the package smoke test on Node 24. Performance budgets run in the
+nightly/manual `perf` workflow (Node 24 with Chromium), not on every pull request. See
+[§10.7](docs/specs/game-cat-v1.md#107-ci-and-commands) and the recorded
+[release checklist](docs/release/v1-checklist.md).
 
 ## Planning
 
 - [GLOSSARY.md](GLOSSARY.md) - the project's vocabulary.
 - [docs/specs/game-cat-v1.md](docs/specs/game-cat-v1.md) - the merged, authoritative v1 contract.
+- [docs/release/v1-checklist.md](docs/release/v1-checklist.md) - recorded v1 release results and gaps.
 - [docs/adr/](docs/adr/) - architecture decisions.
 - [docs/research/](docs/research/) - research notes, one file per question, each on its own `research/<slug>` branch.
 

@@ -22,8 +22,12 @@ TypeScript end to end: a Fastify server and a React/Vite client in one Node proc
   human-readable on a TTY; the key and `AccountName` are never logged.
 - Secret storage goes through `SecretStore`; v1 uses `config.json`, and a wrapper can inject another
   store without changing Refresh or the API.
-- Checks: `npm ci && npm run check && npm test`; CI also builds on Node 24 and 26, runs E2E on Node
-  24 with Chromium, runs the package smoke test, and keeps performance in the nightly/manual workflow.
+- Checks: `npm ci && npm run check && npm test`; `npm run check` includes `audit:tests` (no focused or
+  skipped tests) and `audit:secrets` (no real key, `AccountName`, or raw Steam user path). CI also
+  builds on Node 24 and 26, runs E2E on Node 24 with Chromium, runs the package smoke test, and keeps
+  performance in the nightly/manual workflow.
+- Release evidence: [docs/release/v1-checklist.md](docs/release/v1-checklist.md) records the Linux
+  results and the macOS/Windows and real-Steam gaps.
 - ADRs: [docs/adr/](docs/adr/).
 - Vocabulary: [GLOSSARY.md](GLOSSARY.md) is canonical.
 - Research notes: `git show research/<slug>:docs/research/<slug>.md`; stable summaries in issues #2, #5, and #14.
