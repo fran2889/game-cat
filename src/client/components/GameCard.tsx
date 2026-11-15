@@ -1,6 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
 import type { GameSummary } from "../../shared/types.ts";
-import { formatPlaytime, ownershipLabel, reviewPillLabel, reviewTone } from "../format.ts";
+import {
+  formatPlaytime,
+  ownershipLabel,
+  reviewCardLabel,
+  reviewPillLabel,
+  reviewTone,
+} from "../format.ts";
 import { GameCover } from "./GameCover.tsx";
 
 export interface GameCardProps {
@@ -20,6 +26,7 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
   const location = useLocation();
   const flag = ownershipFlag(game);
   const review = reviewPillLabel(game.reviewScore);
+  const reviewLabel = reviewCardLabel(game.reviewTier, game.reviewCount);
   const tags = game.tags.slice(0, 2).map((tag) => tag.name);
 
   return (
@@ -64,6 +71,7 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
             <span>{formatPlaytime(game.playtimeMinutes)}</span>
             {flag !== null && <span className="ownership-flag">{flag}</span>}
           </p>
+          <p className={`game-review review-text ${reviewTone(game.reviewScore)}`}>{reviewLabel}</p>
           <p className="game-tags">{tags.length > 0 ? tags.join(" · ") : "No tags yet"}</p>
           <span
             className={`tag-status is-${game.metadata.tagsStatus}`}
