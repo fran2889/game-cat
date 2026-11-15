@@ -5,6 +5,7 @@ import pino from "pino";
 import { afterEach, describe, expect, it } from "vitest";
 import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.ts";
 import { createHttpApp } from "../../src/server/http/app.ts";
+import { SteamCollectionsRepository } from "../../src/server/library/collections.ts";
 import { GamesRepository } from "../../src/server/library/games.ts";
 import { RefreshService } from "../../src/server/refresh/service.ts";
 import { buildStatus } from "../../src/server/status.ts";
@@ -66,6 +67,7 @@ function harness(steam = fixture()): Harness {
   const db = openAppDatabase({ dataDir: dir, steamWebApiConfigured: false });
   databases.push(db);
   const games = new GamesRepository(db.raw);
+  const collections = new SteamCollectionsRepository(db.raw);
   const refresh = new RefreshService({
     db: db.raw,
     steamRoot: steam.root,
@@ -84,7 +86,7 @@ function harness(steam = fixture()): Harness {
         schemaVersion: db.schemaVersion,
         db: db.raw,
       }),
-    library: { games, refresh },
+    library: { games, collections, refresh },
   });
   apps.push(app);
   return { db, steam, app, refresh };
@@ -221,7 +223,11 @@ describe("POST /api/refresh (library)", () => {
       clientDir: null,
       logger: pino({ level: "silent" }),
       status: () => ({}) as Status,
-      library: { games: new GamesRepository(test.db.raw), refresh },
+      library: {
+        games: new GamesRepository(test.db.raw),
+        collections: new SteamCollectionsRepository(test.db.raw),
+        refresh,
+      },
     });
 
     const response = await post(app, "/api/refresh", { scope: "library" });
@@ -410,6 +416,182 @@ describe("GET /api/games/{appId}", () => {
 
     const invalid = await get(test.app, "/api/games/not-a-number");
     expect(invalid.statusCode).toBe(404);
+  });
+});
+
+describe("Steam Collection API", () => {
+  async function collectionHarness() {
+    const steam = fixture();
+    steam.writeLocalConfig({});
+    const filterSpec = { nFormatVersion: 2, filterGroups: [] };
+    steam.writeCloudStorage([
+      {
+        key: "user-collections.favorite",
+        value: JSON.stringify({ name: "Favorites", added: [620], removed: [] }),
+      },
+      {
+        key: "user-collections.uc-beta",
+        value: JSON.stringify({ name: "Beta", added: [10, 20], removed: [] }),
+      },
+      {
+        key: "user-collections.uc-alpha",
+        value: JSON.stringify({ name: "Alpha", added: [30], removed: [] }),
+      },
+      {
+        key: "user-collections.uc-alpha2",
+        value: JSON.stringify({ name: "Alpha", added: [620], removed: [] }),
+      },
+      {
+        key: "user-collections.uc-dynamic",
+        value: JSON.stringify({
+          name: "Dynamic",
+          added: [620],
+          removed: [],
+          filterSpec,
+        }),
+      },
+      {
+        key: "user-collections.uc-empty",
+        value: JSON.stringify({ name: "Empty", added: [], removed: [] }),
+      },
+    ]);
+    const test = harness(steam);
+    await post(test.app, "/api/refresh", { scope: "library" });
+    return test;
+  }
+
+  it("lists summaries ordered by name then id with documented pagination", async () => {
+    const test = await collectionHarness();
+
+    const response = await get(test.app, "/api/steam-collections?pageSize=2");
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      data: Array<{
+        id: string;
+        name: string;
+        kind: string;
+        isDynamic: boolean;
+        gameCount: number | null;
+      }>;
+      pagination: Record<string, number>;
+    };
+
+    expect(body.pagination).toEqual({ page: 1, pageSize: 2, totalItems: 6, totalPages: 3 });
+    expect(body.data).toEqual([
+      { id: "uc-alpha", name: "Alpha", kind: "user", isDynamic: false, gameCount: 1 },
+      { id: "uc-alpha2", name: "Alpha", kind: "user", isDynamic: false, gameCount: 1 },
+    ]);
+
+    const lastPage = (await get(test.app, "/api/steam-collections?page=3&pageSize=2")).json() as {
+      data: Array<{ id: string; name: string }>;
+      pagination: Record<string, number>;
+    };
+    expect(lastPage.pagination.totalPages).toBe(3);
+    expect(lastPage.data.map((collection) => collection.id)).toEqual(["uc-empty", "favorite"]);
+
+    const dynamic = (await get(test.app, "/api/steam-collections/uc-dynamic")).json() as {
+      data: { gameCount: number | null; isDynamic: boolean };
+    };
+    expect(dynamic.data).toMatchObject({ gameCount: null, isDynamic: true });
+  });
+
+  it("returns one summary or 404 and never exposes the filterSpec or raw payload", async () => {
+    const test = await collectionHarness();
+
+    const response = await get(test.app, "/api/steam-collections/favorite");
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as { data: unknown }).data).toEqual({
+      id: "favorite",
+      name: "Favorites",
+      kind: "favorite",
+      isDynamic: false,
+      gameCount: 1,
+    });
+    expect(response.body).not.toContain("filter");
+    expect(response.body).not.toContain("raw");
+
+    const dynamic = await get(test.app, "/api/steam-collections/uc-dynamic");
+    expect(dynamic.body).not.toContain("nFormatVersion");
+
+    const missing = await get(test.app, "/api/steam-collections/uc-missing");
+    expect(missing.statusCode).toBe(404);
+    expect((missing.json() as { error: { code: string } }).error.code).toBe("NOT_FOUND");
+  });
+
+  it("pages static members with sorting and reports meta.dynamic false", async () => {
+    const test = await collectionHarness();
+
+    const response = await get(
+      test.app,
+      "/api/steam-collections/uc-beta/games?page=2&pageSize=1&sort=appId&order=desc",
+    );
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      data: Array<{ appId: number }>;
+      pagination: Record<string, number>;
+      meta: { dataAsOf: string | null; dynamic: boolean };
+    };
+    expect(body.data.map((game) => game.appId)).toEqual([10]);
+    expect(body.pagination).toEqual({ page: 2, pageSize: 1, totalItems: 2, totalPages: 2 });
+    expect(body.meta.dynamic).toBe(false);
+    expect(body.meta.dataAsOf).toMatch(/Z$/);
+  });
+
+  it("returns 200 [] for an empty static Collection and a dynamic Collection", async () => {
+    const test = await collectionHarness();
+
+    const empty = await get(test.app, "/api/steam-collections/uc-empty/games");
+    expect(empty.statusCode).toBe(200);
+    expect(empty.json()).toMatchObject({
+      data: [],
+      pagination: { page: 1, pageSize: 60, totalItems: 0, totalPages: 0 },
+      meta: { dynamic: false },
+    });
+
+    const dynamic = await get(test.app, "/api/steam-collections/uc-dynamic/games");
+    expect(dynamic.statusCode).toBe(200);
+    expect(dynamic.json()).toMatchObject({
+      data: [],
+      pagination: { totalItems: 0 },
+      meta: { dynamic: true },
+    });
+
+    const missing = await get(test.app, "/api/steam-collections/uc-missing/games");
+    expect(missing.statusCode).toBe(404);
+  });
+
+  it("includes only static Collections in GameDetail", async () => {
+    const test = await collectionHarness();
+
+    const response = await get(test.app, "/api/games/620");
+    const detail = (response.json() as { data: GameDetail }).data;
+
+    expect(detail.steamCollections).toEqual([
+      { id: "uc-alpha2", name: "Alpha", kind: "user" },
+      { id: "favorite", name: "Favorites", kind: "favorite" },
+    ]);
+    expect(detail).not.toHaveProperty("filterSpec");
+    expect(detail).not.toHaveProperty("rawValueJson");
+  });
+
+  it("validates page and pageSize", async () => {
+    const test = await collectionHarness();
+
+    for (const [url, field] of [
+      ["/api/steam-collections?pageSize=201", "pageSize"],
+      ["/api/steam-collections?page=0", "page"],
+      ["/api/steam-collections/favorite/games?pageSize=0", "pageSize"],
+      ["/api/steam-collections/favorite/games?sort=nope", "sort"],
+      ["/api/steam-collections/favorite/games?order=sideways", "order"],
+    ] as const) {
+      const response = await get(test.app, url);
+      expect(response.statusCode, url).toBe(422);
+      const body = response.json() as {
+        error: { code: string; details: { fieldErrors: Record<string, string> } };
+      };
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.details.fieldErrors).toHaveProperty(field);
+    }
   });
 });
 

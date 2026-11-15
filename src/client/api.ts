@@ -1,4 +1,11 @@
-import type { GamesResponse, RefreshRun, Status } from "../shared/types.ts";
+import type {
+  GamesResponse,
+  RefreshRun,
+  Status,
+  SteamCollectionGamesResponse,
+  SteamCollectionSummary,
+  SteamCollectionsResponse,
+} from "../shared/types.ts";
 
 export class ApiError extends Error {
   readonly status: number | null;
@@ -83,6 +90,63 @@ export async function startLibraryScan(): Promise<RefreshRun> {
   });
   const body = await readJson<{ data: RefreshRun }>(response);
   return body.data;
+}
+
+export interface FetchSteamCollectionsParams {
+  page?: number;
+  pageSize?: number;
+}
+
+export async function fetchSteamCollections(
+  params: FetchSteamCollectionsParams = {},
+  signal?: AbortSignal,
+): Promise<SteamCollectionsResponse> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      query.set(key, String(value));
+    }
+  }
+  const response = await fetch(`/api/steam-collections?${query.toString()}`, {
+    headers: { accept: "application/json" },
+    signal,
+  });
+  return readJson<SteamCollectionsResponse>(response);
+}
+
+export async function fetchSteamCollection(
+  id: string,
+  signal?: AbortSignal,
+): Promise<SteamCollectionSummary> {
+  const response = await fetch(`/api/steam-collections/${encodeURIComponent(id)}`, {
+    headers: { accept: "application/json" },
+    signal,
+  });
+  const body = await readJson<{ data: SteamCollectionSummary }>(response);
+  return body.data;
+}
+
+export interface FetchSteamCollectionGamesParams extends FetchSteamCollectionsParams {
+  sort?: "name" | "playtime" | "lastPlayed" | "releaseYear" | "metacritic" | "appId";
+  order?: "asc" | "desc";
+}
+
+export async function fetchSteamCollectionGames(
+  id: string,
+  params: FetchSteamCollectionGamesParams = {},
+  signal?: AbortSignal,
+): Promise<SteamCollectionGamesResponse> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      query.set(key, String(value));
+    }
+  }
+  const response = await fetch(
+    `/api/steam-collections/${encodeURIComponent(id)}/games?${query.toString()}`,
+    { headers: { accept: "application/json" }, signal },
+  );
+  return readJson<SteamCollectionGamesResponse>(response);
 }
 
 export async function startOwnershipRefresh(): Promise<RefreshRun> {

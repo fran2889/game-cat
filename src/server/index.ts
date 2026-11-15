@@ -10,6 +10,7 @@ import { openAppDatabase, type AppDatabase, type OpenDatabase } from "./db/datab
 import { isStartupError, StartupError } from "./errors.ts";
 import { createHttpApp } from "./http/app.ts";
 import { GamesRepository } from "./library/games.ts";
+import { SteamCollectionsRepository } from "./library/collections.ts";
 import { createLogger, defaultLogPath, type AppLogger } from "./logging/logger.ts";
 import { acquireLock, type LockHandle } from "./lock.ts";
 import { openBrowserBestEffort } from "./open-browser.ts";
@@ -171,6 +172,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       });
 
     const games = new GamesRepository(database.raw);
+    const collections = new SteamCollectionsRepository(database.raw);
     const refresh = new RefreshService({
       db: database.raw,
       steamRoot: discovery.root ?? resolved.steamRoot,
@@ -185,7 +187,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Running
       clientDir: options.clientDir === undefined ? defaultClientDir() : options.clientDir,
       logger,
       status: statusForRequest,
-      library: { games, refresh },
+      library: { games, collections, refresh },
     });
 
     try {

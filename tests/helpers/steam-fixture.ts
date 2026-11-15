@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export const TEST_STEAM_ID64 = "76561198000000000";
 export const TEST_ACCOUNT_ID = "39734272";
@@ -21,6 +21,20 @@ export interface LocalConfigApp {
   playtime?: number | string | null;
   playtime2wks?: number | string | null;
   lastPlayed?: number | string | null;
+}
+
+export interface CloudStorageEntry {
+  key: string;
+  /** The cloud-storage `value` field. Already a JSON string in real files. */
+  value?: unknown;
+  isDeleted?: boolean;
+  timestamp?: number;
+  version?: string;
+}
+
+export interface WriteCloudStorageOptions {
+  overlay?: boolean;
+  accountId?: string;
 }
 
 function q(value: string): string {
@@ -162,6 +176,43 @@ export class SteamFixture {
         personaName,
       )}\n    "MostRecent" "1"\n    "Timestamp" "1663423107"\n  }\n}\n`,
     );
+    return path;
+  }
+
+  cloudStoragePath(overlay = false, accountId: string = TEST_ACCOUNT_ID): string {
+    return join(
+      this.root,
+      "userdata",
+      accountId,
+      "config",
+      "cloudstorage",
+      overlay ? "cloud-storage-namespace-1.modified.json" : "cloud-storage-namespace-1.json",
+    );
+  }
+
+  /** Write the cloud-storage array-of-pairs shape used by Steam Collections. */
+  writeCloudStorage(entries: CloudStorageEntry[], options: WriteCloudStorageOptions = {}): string {
+    const pairs = entries.map((entry) => {
+      const body: Record<string, unknown> = {
+        key: entry.key,
+        timestamp: entry.timestamp ?? 1,
+        version: entry.version ?? "1",
+      };
+      if (entry.value !== undefined) {
+        body.value = typeof entry.value === "string" ? entry.value : JSON.stringify(entry.value);
+      }
+      if (entry.isDeleted === true) {
+        body.is_deleted = true;
+      }
+      return [entry.key, body];
+    });
+    return this.writeRawCloudStorage(JSON.stringify(pairs), options);
+  }
+
+  writeRawCloudStorage(content: string, options: WriteCloudStorageOptions = {}): string {
+    const path = this.cloudStoragePath(options.overlay === true, options.accountId);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, content);
     return path;
   }
 

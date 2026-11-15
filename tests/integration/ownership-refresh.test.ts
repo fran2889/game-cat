@@ -5,6 +5,7 @@ import pino from "pino";
 import { afterEach, describe, expect, it } from "vitest";
 import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.ts";
 import { createHttpApp } from "../../src/server/http/app.ts";
+import { SteamCollectionsRepository } from "../../src/server/library/collections.ts";
 import { GamesRepository } from "../../src/server/library/games.ts";
 import { RefreshService } from "../../src/server/refresh/service.ts";
 import { buildStatus } from "../../src/server/status.ts";
@@ -105,7 +106,11 @@ function harness(
         schemaVersion: db.schemaVersion,
         db: db.raw,
       }),
-    library: { games: new GamesRepository(db.raw), refresh },
+    library: {
+      games: new GamesRepository(db.raw),
+      collections: new SteamCollectionsRepository(db.raw),
+      refresh,
+    },
   });
   apps.push(app);
   return { db, refresh, source, app };
