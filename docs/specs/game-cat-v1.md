@@ -155,6 +155,7 @@ These were left open by earlier tickets. They are normative for v1.
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Library layout default    | Grid. The user can switch to table from the toolbar or table header controls.                                                                                                                                                                               |
 | Layout persistence        | The choice is stored in browser `localStorage` per view kind (`library`, `installed`, `smart`, `steam`) under `game-cat.layout.v1.<viewKind>`. It is a client preference, not server state.                                                                 |
+| Selection scope           | Selection is per view kind (`library`, `installed`, `smart`, `steam`). Each view keeps its own set for the session; switching views never merges sets.                                                                                                      |
 | Large Library rendering   | Server-side pagination at 60 Games per page. The client does not virtualize or render the full Library. Page controls replace infinite scrolling.                                                                                                           |
 | Autosave                  | A new Smart Collection is created by an explicit Save. After that, name and Rule edits autosave 600 ms after the last change. One save is in flight at a time; newer edits coalesce into the next save. No undo in v1.                                      |
 | Autosave failure          | Retry after 2 s, 5 s, and 15 s. Keep local edits, show `Save failed`, and offer Retry. Block navigation with a confirmation while the save is failed.                                                                                                       |
@@ -2574,10 +2575,14 @@ Review, Released, Tags.
 
 - A Game can be selected from the grid or table. The results header offers Select shown and Clear
   selection. The selection bar shows `N selected`, Clear, and New from selection.
-- Selection is session-wide across Library, Installed, Smart Collection, and Steam Collection views so
-  a user can gather Games from several views. It is cleared by Clear, after a Smart Collection is
-  created from it, or on a full page reload.
-- New from selection is disabled with an explanation when the selection is empty or over 1,000.
+- Selection is scoped to the active view kind: `library`, `installed`, `smart`, or `steam`. Each view
+  keeps its own set for the session; switching views shows that view's set and never merges sets.
+  Clear and creating a Smart Collection from the selection clear the active view's set; a full page
+  reload clears every view's set.
+- Actions that consume the selection (New from selection, Add to current rules, and Refresh selected)
+  use the active view's set.
+- New from selection is disabled with an explanation when the active view's selection is empty or over
+  1,000.
 - In an existing Smart Collection editor, the selection bar also offers Add to current rules, which
   adds a `game` Rule or appends to the existing `game` Rule value without creating a second one. It is
   disabled when the resulting `game` Rule would exceed 1,000 App IDs.
@@ -3553,6 +3558,7 @@ issues, PRs, and test names.
 - [ ] `AC-U5` Search is debounced, name-only, reflected in `?q=`, and shows the documented no-results
       copy; clearing restores the list.
 - [ ] `AC-U6` Selection shows the count, Select shown, Clear, New from selection, and Refresh selected;
+      selection is scoped per view and switching views shows that view's own set without merging;
       New from selection is disabled for an empty or over-1,000 selection; Add to current rules extends
       the `game` Rule and is disabled above 1,000; Refresh selected sends `metadata` + `full` and is
       disabled above 5,000.
