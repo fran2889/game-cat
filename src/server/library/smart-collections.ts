@@ -18,7 +18,7 @@ import type { GameOrder } from "../../shared/types.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { GAME_SORTS } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
-import { asRecord, notFound, parseInteger, validationError, type RawQuery } from "../request.ts";
+import { notFound } from "../request.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 import { readDataAsOf } from "./games.ts";
 import {
@@ -28,9 +28,6 @@ import {
   pagination,
   readLibrary,
 } from "./rule-library.ts";
-
-const DEFAULT_PAGE_SIZE = 60;
-const MAX_PAGE_SIZE = 200;
 
 export interface SmartCollectionsQuery {
   page: number;
@@ -69,56 +66,6 @@ function nameConflict(conflictingId: string): HttpError {
   });
 }
 
-export function parseSmartCollectionsQuery(raw: RawQuery): SmartCollectionsQuery {
-  const fieldErrors: Record<string, string> = {};
-  const page = parseInteger(raw.page, 1, "page", 1, Number.MAX_SAFE_INTEGER, fieldErrors);
-  const pageSize = parseInteger(
-    raw.pageSize,
-    DEFAULT_PAGE_SIZE,
-    "pageSize",
-    1,
-    MAX_PAGE_SIZE,
-    fieldErrors,
-  );
-  const sort = (raw.sort ?? "name") as SmartCollectionSort;
-  if (sort !== "name" && sort !== "updatedAt") {
-    fieldErrors.sort = "must be one of name, updatedAt";
-  }
-  const order = (raw.order ?? "asc") as GameOrder;
-  if (order !== "asc" && order !== "desc") {
-    fieldErrors.order = "must be asc or desc";
-  }
-  if (Object.keys(fieldErrors).length > 0) {
-    throw validationError(fieldErrors);
-  }
-  return { page, pageSize, sort, order };
-}
-
-export function parseSmartCollectionGamesQuery(raw: RawQuery): SmartCollectionGamesQuery {
-  const fieldErrors: Record<string, string> = {};
-  const page = parseInteger(raw.page, 1, "page", 1, Number.MAX_SAFE_INTEGER, fieldErrors);
-  const pageSize = parseInteger(
-    raw.pageSize,
-    DEFAULT_PAGE_SIZE,
-    "pageSize",
-    1,
-    MAX_PAGE_SIZE,
-    fieldErrors,
-  );
-  const sort = (raw.sort ?? "name") as (typeof GAME_SORTS)[number];
-  if (!GAME_SORTS.includes(sort)) {
-    fieldErrors.sort = `must be one of ${GAME_SORTS.join(", ")}`;
-  }
-  const order = (raw.order ?? "asc") as GameOrder;
-  if (order !== "asc" && order !== "desc") {
-    fieldErrors.order = "must be asc or desc";
-  }
-  if (Object.keys(fieldErrors).length > 0) {
-    throw validationError(fieldErrors);
-  }
-  return { page, pageSize, sort, order };
-}
-
 /** Validate and normalize one Smart Collection name (§2.5, §4.4). */
 export function validateSmartCollectionName(
   value: unknown,
@@ -141,85 +88,9 @@ export function validateSmartCollectionName(
   return name;
 }
 
-function validateRulesField(value: unknown, fieldErrors: Record<string, string>): Rule[] | null {
-  if (value === undefined) {
-    return null;
-  }
-  if (!Array.isArray(value)) {
-    fieldErrors.rules = "must be an array";
-    return null;
-  }
-  const validated = validateRules(value);
-  Object.assign(fieldErrors, validated.fieldErrors);
-  if (validated.rules.length !== value.length) {
-    return null;
-  }
-  return validated.rules;
-}
-
-export interface ValidatedCreate {
-  name: string;
-  rules: Rule[];
-  fieldErrors: Record<string, string>;
-}
-
 /** Validate `POST /api/smart-collections`; `rules` defaults to `[]`. */
-export function validateSmartCollectionCreate(input: unknown): ValidatedCreate {
-  const fieldErrors: Record<string, string> = {};
-  const body = asRecord(input);
-  if (body === null) {
-    fieldErrors.body = "must be an object";
-    return { name: "", rules: [], fieldErrors };
-  }
-  const name = validateSmartCollectionName(body.name, fieldErrors);
-  const rules = validateRulesField(body.rules, fieldErrors) ?? [];
-  return { name: name ?? "", rules, fieldErrors };
-}
-
-export interface ValidatedPatch {
-  name?: string;
-  rules?: Rule[];
-  fieldErrors: Record<string, string>;
-}
 
 /** Validate `PATCH /api/smart-collections/{id}`; at least one field is required. */
-export function validateSmartCollectionPatch(input: unknown): ValidatedPatch {
-  const fieldErrors: Record<string, string> = {};
-  const body = asRecord(input);
-  if (body === null) {
-    fieldErrors.body = "must be an object";
-    return { fieldErrors };
-  }
-
-  const hasName = Object.hasOwn(body, "name");
-  const hasRules = Object.hasOwn(body, "rules");
-  if (!hasName && !hasRules) {
-    fieldErrors.body = "must contain name or rules";
-    return { fieldErrors };
-  }
-
-  let name: string | undefined;
-  if (hasName) {
-    const validated = validateSmartCollectionName(body.name, fieldErrors);
-    if (validated !== null) {
-      name = validated;
-    }
-  }
-
-  let rules: Rule[] | undefined;
-  if (hasRules) {
-    const validated = validateRulesField(body.rules, fieldErrors);
-    if (validated !== null) {
-      rules = validated;
-    }
-  }
-
-  return {
-    ...(name === undefined ? {} : { name }),
-    ...(rules === undefined ? {} : { rules }),
-    fieldErrors,
-  };
-}
 
 function parseRuleValue(raw: string): Rule["value"] {
   try {
@@ -293,34 +164,24 @@ export class SmartCollectionsRepository {
     return this.toSmartCollection(row, this.readRules([id]).get(id) ?? []);
   }
 
-  create(input: unknown): SmartCollection {
-    const validated = validateSmartCollectionCreate(input);
-    if (Object.keys(validated.fieldErrors).length > 0) {
-      throw validationError(validated.fieldErrors, "body");
-    }
-
+  create(input: { name: string; rules: Rule[] }): SmartCollection {
     const id = randomUUID();
     const now = this.now();
     this.db.transaction(() => {
-      this.assertNameAvailable(validated.name, null);
+      this.assertNameAvailable(input.name, null);
       this.db
         .prepare(
           `INSERT INTO smart_collections (id, name, name_key, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(id, validated.name, normalizeNameKey(validated.name), now, now);
-      this.insertRules(id, validated.rules);
+        .run(id, input.name, normalizeNameKey(input.name), now, now);
+      this.insertRules(id, input.rules);
     })();
 
     return this.get(id)!;
   }
 
-  update(id: string, input: unknown): SmartCollection {
-    const validated = validateSmartCollectionPatch(input);
-    if (Object.keys(validated.fieldErrors).length > 0) {
-      throw validationError(validated.fieldErrors, "body");
-    }
-
+  update(id: string, input: { name?: string; rules?: Rule[] }): SmartCollection {
     this.db.transaction(() => {
       const existing = this.db.prepare("SELECT id FROM smart_collections WHERE id = ?").get(id) as
         { id: string } | undefined;
@@ -328,16 +189,16 @@ export class SmartCollectionsRepository {
         throw notFound(id, "Smart Collection");
       }
 
-      if (validated.name !== undefined) {
-        this.assertNameAvailable(validated.name, id);
+      if (input.name !== undefined) {
+        this.assertNameAvailable(input.name, id);
         this.db
           .prepare("UPDATE smart_collections SET name = ?, name_key = ? WHERE id = ?")
-          .run(validated.name, normalizeNameKey(validated.name), id);
+          .run(input.name, normalizeNameKey(input.name), id);
       }
 
-      if (validated.rules !== undefined) {
+      if (input.rules !== undefined) {
         this.db.prepare("DELETE FROM rules WHERE smart_collection_id = ?").run(id);
-        this.insertRules(id, validated.rules);
+        this.insertRules(id, input.rules);
       }
 
       this.db
