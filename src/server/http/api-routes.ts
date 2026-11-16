@@ -21,10 +21,12 @@ import { type RuleValuesRepository } from "../library/rule-values.ts";
 import { type TagsRepository } from "../library/tags.ts";
 import type { RefreshService } from "../refresh/service.ts";
 import {
+  configPatchBodySchema,
   gameDetailResponseSchema,
   gameIdParamsSchema,
   gamesListQuerySchema,
   gamesResponseSchema,
+  refreshBodySchema,
   rejectRepeatedQueryValues,
   ruleValuesListQuerySchema,
   ruleValuesResponseSchema,
@@ -42,8 +44,10 @@ import {
   steamCollectionsResponseSchema,
   tagsListQuerySchema,
   tagsResponseSchema,
+  type ConfigPatchBody,
   type GamesListQuery,
   type PageQuery,
+  type RefreshBody,
   type RuleValuesListQuery,
   type SmartCollectionCreateBody,
   type SmartCollectionGamesParams,
@@ -56,6 +60,65 @@ import {
 /** An empty page value takes the route's documented default. */
 function pageValue(value: number | "", fallback: number): number {
   return value === "" ? fallback : value;
+}
+
+/**
+ * Config values arrive typed from JSON; Fastify would otherwise coerce a
+ * string port or a string flag into a valid-looking value. Check the parsed
+ * body before validation so the documented 422s survive.
+ */
+async function rejectCoercedConfigFields(request: FastifyRequest): Promise<void> {
+  const body = request.body;
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return;
+  }
+  const record = body as Record<string, unknown>;
+  const fieldErrors: Record<string, string> = {};
+  for (const field of ["steamApiKey", "steamRoot", "steamId64", "logLevel"]) {
+    if (field in record && typeof record[field] !== "string") {
+      fieldErrors[field] = "must be a string";
+    }
+  }
+  if ("port" in record && (typeof record.port !== "number" || !Number.isInteger(record.port))) {
+    fieldErrors.port = "must be an integer between 0 and 65535";
+  }
+  if ("openBrowser" in record && typeof record.openBrowser !== "boolean") {
+    fieldErrors.openBrowser = "must be a boolean";
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    throw validationError(fieldErrors, "body");
+  }
+}
+
+/** The Refresh envelope types, checked before ajv can coerce them. */
+async function rejectCoercedRefreshFields(request: FastifyRequest): Promise<void> {
+  const body = request.body;
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return;
+  }
+  const record = body as Record<string, unknown>;
+  const fieldErrors: Record<string, string> = {};
+  if ("scope" in record && typeof record.scope !== "string") {
+    fieldErrors.scope = "must be a string";
+  }
+  if ("mode" in record && typeof record.mode !== "string") {
+    fieldErrors.mode = "must be a string";
+  }
+  if ("appIds" in record) {
+    const appIds = record.appIds;
+    if (!Array.isArray(appIds)) {
+      fieldErrors.appIds = "must be an array of App IDs";
+    } else if (
+      appIds.some(
+        (entry) => typeof entry !== "number" || !Number.isSafeInteger(entry) || entry <= 0,
+      )
+    ) {
+      fieldErrors.appIds = "must be positive integers";
+    }
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    throw validationError(fieldErrors, "body");
+  }
 }
 
 /** Rule semantics stay with the shared validator; this only collects its errors. */
@@ -109,7 +172,11 @@ export interface ConfigRoutes {
 export function registerConfigRoutes(app: FastifyInstance, config: ConfigRoutes): void {
   app.get("/api/config", async () => ({ data: config.get() }));
 
-  app.patch("/api/config", async (request) => config.patch(request.body));
+  app.patch<{ Body: ConfigPatchBody }>(
+    "/api/config",
+    { schema: { body: configPatchBodySchema }, preValidation: rejectCoercedConfigFields },
+    async (request) => config.patch(request.body),
+  );
 
   app.get("/api/steam/accounts", async () => {
     const accounts = config.accounts();
@@ -416,12 +483,16 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     return { data: run };
   });
 
-  app.post("/api/refresh", async (request, reply) => {
-    const result = await options.refresh.start(request.body);
-    reply.header("location", `/api/refresh/${result.run.id}`);
-    const body = result.deduplicated
-      ? { data: result.run, meta: { deduplicated: true } }
-      : { data: result.run };
-    return reply.code(202).send(body);
-  });
+  app.post<{ Body: RefreshBody }>(
+    "/api/refresh",
+    { schema: { body: refreshBodySchema }, preValidation: rejectCoercedRefreshFields },
+    async (request, reply) => {
+      const result = await options.refresh.start(request.body);
+      reply.header("location", `/api/refresh/${result.run.id}`);
+      const body = result.deduplicated
+        ? { data: result.run, meta: { deduplicated: true } }
+        : { data: result.run };
+      return reply.code(202).send(body);
+    },
+  );
 }

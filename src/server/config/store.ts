@@ -1,6 +1,6 @@
 import { LOG_LEVELS, type Config, type LogLevel, type SteamAccount } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
-import { asRecord, validationError } from "../request.ts";
+import { validationError } from "../request.ts";
 import { discoverSteam, type SteamDiscovery, type SteamDiscoveryFn } from "../steam/discovery.ts";
 import type { FileConfig, ResolvedConfig } from "./load.ts";
 import { expandHome, isAbsolutePath } from "./paths.ts";
@@ -186,7 +186,14 @@ export class ConfigStore {
    * Validate and persist any subset of the editable settings. The file write is
    * atomic and 0600; a rejected request writes nothing.
    */
-  patch(body: unknown): ConfigPatchResult {
+  patch(body: {
+    steamApiKey?: string;
+    steamRoot?: string;
+    steamId64?: string;
+    port?: number;
+    openBrowser?: boolean;
+    logLevel?: LogLevel;
+  }): ConfigPatchResult {
     const record = this.patchRecord(body);
     const before = this.get();
     const restartRequired =
@@ -288,11 +295,14 @@ export class ConfigStore {
     return { data: after, meta: { restartRequired } };
   }
 
-  private patchRecord(body: unknown): Record<string, unknown> {
-    const record = asRecord(body);
-    if (record === null) {
-      throw validationError({ body: "must be an object" }, "body");
-    }
+  private patchRecord(record: {
+    steamApiKey?: string;
+    steamRoot?: string;
+    steamId64?: string;
+    port?: number;
+    openBrowser?: boolean;
+    logLevel?: LogLevel;
+  }): Record<string, unknown> {
     const fieldErrors: Record<string, string> = {};
     const present: Record<string, unknown> = {};
 
@@ -303,64 +313,32 @@ export class ConfigStore {
     }
 
     if (record.steamApiKey !== undefined) {
-      if (typeof record.steamApiKey !== "string" || record.steamApiKey.trim() === "") {
-        fieldErrors.steamApiKey = "must be a non-empty string";
-      } else {
-        present.steamApiKey = record.steamApiKey;
-      }
+      present.steamApiKey = record.steamApiKey;
     }
 
     if (record.steamRoot !== undefined) {
-      if (typeof record.steamRoot !== "string" || record.steamRoot.trim() === "") {
-        fieldErrors.steamRoot = "must be a non-empty absolute path";
+      const expanded = expandHome(record.steamRoot, this.homedir);
+      if (!isAbsolutePath(expanded)) {
+        fieldErrors.steamRoot = "must be an absolute path";
       } else {
-        const expanded = expandHome(record.steamRoot, this.homedir);
-        if (!isAbsolutePath(expanded)) {
-          fieldErrors.steamRoot = "must be an absolute path";
-        } else {
-          present.steamRoot = expanded;
-        }
+        present.steamRoot = expanded;
       }
     }
 
     if (record.steamId64 !== undefined) {
-      if (typeof record.steamId64 !== "string" || !/^\d{17}$/.test(record.steamId64)) {
-        fieldErrors.steamId64 = "must be a 17-digit SteamID64";
-      } else {
-        present.steamId64 = record.steamId64;
-      }
+      present.steamId64 = record.steamId64;
     }
 
     if (record.port !== undefined) {
-      if (
-        typeof record.port !== "number" ||
-        !Number.isInteger(record.port) ||
-        record.port < 0 ||
-        record.port > 65535
-      ) {
-        fieldErrors.port = "must be an integer between 0 and 65535";
-      } else {
-        present.port = record.port;
-      }
+      present.port = record.port;
     }
 
     if (record.openBrowser !== undefined) {
-      if (typeof record.openBrowser !== "boolean") {
-        fieldErrors.openBrowser = "must be a boolean";
-      } else {
-        present.openBrowser = record.openBrowser;
-      }
+      present.openBrowser = record.openBrowser;
     }
 
     if (record.logLevel !== undefined) {
-      if (
-        typeof record.logLevel !== "string" ||
-        !(LOG_LEVELS as readonly string[]).includes(record.logLevel)
-      ) {
-        fieldErrors.logLevel = `must be one of ${LOG_LEVELS.join(", ")}`;
-      } else {
-        present.logLevel = record.logLevel;
-      }
+      present.logLevel = record.logLevel;
     }
 
     if (Object.keys(fieldErrors).length > 0) {
