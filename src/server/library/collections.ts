@@ -7,9 +7,7 @@ import type {
   SteamCollectionSummary,
   SteamCollectionsResponse,
 } from "../../shared/types.ts";
-import { parseInteger, validationError, type RawQuery } from "../request.ts";
 import {
-  GAME_SORTS,
   gameOrderSql,
   readDataAsOf,
   readTagsForGames,
@@ -23,9 +21,6 @@ import {
  * Read-only queries over the mirrored Steam Collections (spec §4.3, §7.5).
  * Nothing here writes, and `filter_spec_json` never reaches a response.
  */
-
-const DEFAULT_PAGE_SIZE = 60;
-const MAX_PAGE_SIZE = 200;
 
 interface CollectionRow {
   id: string;
@@ -43,50 +38,6 @@ export interface SteamCollectionsQuery {
 export interface SteamCollectionGamesQuery extends SteamCollectionsQuery {
   sort: GameSort;
   order: GameOrder;
-}
-
-export function parseSteamCollectionsQuery(raw: RawQuery): SteamCollectionsQuery {
-  const fieldErrors: Record<string, string> = {};
-  const page = parseInteger(raw.page, 1, "page", 1, Number.MAX_SAFE_INTEGER, fieldErrors);
-  const pageSize = parseInteger(
-    raw.pageSize,
-    DEFAULT_PAGE_SIZE,
-    "pageSize",
-    1,
-    MAX_PAGE_SIZE,
-    fieldErrors,
-  );
-  if (Object.keys(fieldErrors).length > 0) {
-    throw validationError(fieldErrors);
-  }
-  return { page, pageSize };
-}
-
-export function parseSteamCollectionGamesQuery(raw: RawQuery): SteamCollectionGamesQuery {
-  const fieldErrors: Record<string, string> = {};
-  const page = parseInteger(raw.page, 1, "page", 1, Number.MAX_SAFE_INTEGER, fieldErrors);
-  const pageSize = parseInteger(
-    raw.pageSize,
-    DEFAULT_PAGE_SIZE,
-    "pageSize",
-    1,
-    MAX_PAGE_SIZE,
-    fieldErrors,
-  );
-
-  const sort = (raw.sort ?? "name") as GameSort;
-  if (!GAME_SORTS.includes(sort)) {
-    fieldErrors.sort = `must be one of ${GAME_SORTS.join(", ")}`;
-  }
-  const order = (raw.order ?? "asc") as GameOrder;
-  if (order !== "asc" && order !== "desc") {
-    fieldErrors.order = "must be asc or desc";
-  }
-
-  if (Object.keys(fieldErrors).length > 0) {
-    throw validationError(fieldErrors);
-  }
-  return { page, pageSize, sort, order };
 }
 
 function toSummary(row: CollectionRow): SteamCollectionSummary {
