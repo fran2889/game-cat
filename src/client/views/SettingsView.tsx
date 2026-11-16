@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
-import type { SteamAccount } from "../../shared/types.ts";
-import { ApiError, fetchSteamAccounts, patchConfig, type ConfigPatch } from "../api.ts";
+import { ApiError, patchConfig, steamAccountsQueryOptions, type ConfigPatch } from "../api.ts";
 import { useToast } from "../components/ToastProvider.tsx";
 import { LOG_LEVELS } from "../../shared/types.ts";
 import type { ShellContext } from "../shell-context.ts";
@@ -26,7 +26,9 @@ export function SettingsView() {
 
   const [steamRoot, setSteamRoot] = useState("");
   const [steamId64, setSteamId64] = useState("");
-  const [accounts, setAccounts] = useState<SteamAccount[]>([]);
+  const accountsQuery = useQuery(steamAccountsQueryOptions);
+  const accounts = accountsQuery.data ?? [];
+  const saveMutation = useMutation({ mutationFn: patchConfig });
   const [apiKey, setApiKey] = useState("");
   const [port, setPort] = useState("");
   const [openBrowser, setOpenBrowser] = useState(true);
@@ -46,16 +48,6 @@ export function SettingsView() {
     setOpenBrowser(config.openBrowser);
     setLogLevel(config.logLevel);
   }, [config]);
-
-  const loadAccounts = useCallback(() => {
-    const controller = new AbortController();
-    void fetchSteamAccounts(controller.signal)
-      .then((next) => setAccounts(next))
-      .catch(() => setAccounts([]));
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => loadAccounts(), [loadAccounts]);
 
   if (config === null) {
     return (
@@ -118,7 +110,7 @@ export function SettingsView() {
 
     setSaving(true);
     try {
-      const result = await patchConfig(patch);
+      const result = await saveMutation.mutateAsync(patch);
       setApiKey("");
       setRestartRequired(result.meta.restartRequired);
       applyConfig(result.data);

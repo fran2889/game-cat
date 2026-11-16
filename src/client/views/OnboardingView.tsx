@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useOutletContext } from "react-router-dom";
-import type { SteamAccount } from "../../shared/types.ts";
 import {
   ApiError,
-  fetchSteamAccounts,
   patchConfig,
   startAllFetch,
+  steamAccountsQueryOptions,
   type ConfigPatch,
 } from "../api.ts";
 import type { ShellContext } from "../shell-context.ts";
@@ -24,8 +24,12 @@ export function OnboardingView() {
   const [steamRoot, setSteamRoot] = useState("");
   const [editingRoot, setEditingRoot] = useState(false);
   const [selectedSteamId64, setSelectedSteamId64] = useState("");
-  const [accounts, setAccounts] = useState<SteamAccount[]>([]);
-  const [accountsError, setAccountsError] = useState<string | null>(null);
+  const accountsQuery = useQuery(steamAccountsQueryOptions);
+  const accounts = accountsQuery.data ?? [];
+  const accountsError =
+    accountsQuery.error === null ? null : (accountsQuery.error as Error).message;
+  const saveConfigMutation = useMutation({ mutationFn: patchConfig });
+  const startFetchMutation = useMutation({ mutationFn: startAllFetch });
   const [apiKey, setApiKey] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -42,23 +46,6 @@ export function OnboardingView() {
       current === "" ? (config?.steamId64 ?? status?.steam.account?.steamId64 ?? "") : current,
     );
   }, [config, status]);
-
-  const loadAccounts = useCallback(() => {
-    const controller = new AbortController();
-    void fetchSteamAccounts(controller.signal)
-      .then((next) => {
-        setAccounts(next);
-        setAccountsError(null);
-      })
-      .catch((error: unknown) => {
-        if ((error as Error).name !== "AbortError") {
-          setAccountsError((error as Error).message);
-        }
-      });
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => loadAccounts(), [loadAccounts]);
 
   const envManaged = config?.steamApiKeySource === "env";
   const keyConfigured = config?.steamApiKeySet === true;
@@ -115,10 +102,10 @@ export function OnboardingView() {
     setScanning(true);
     try {
       if (Object.keys(patch).length > 0) {
-        const saved = await patchConfig(patch);
+        const saved = await saveConfigMutation.mutateAsync(patch);
         applyConfig(saved.data);
       }
-      await startAllFetch();
+      await startFetchMutation.mutateAsync();
       setApiKey("");
       reloadStatus();
       navigate("/");
@@ -145,7 +132,7 @@ export function OnboardingView() {
   const retry = async (): Promise<void> => {
     setFormError(null);
     try {
-      await startAllFetch();
+      await startFetchMutation.mutateAsync();
       reloadStatus();
       navigate("/");
     } catch (error) {
@@ -327,7 +314,7 @@ export function OnboardingView() {
             ) : null}
 
             <div className="setup-actions">
-              <button type="button" className="button" onClick={loadAccounts}>
+              <button type="button" className="button" onClick={() => void accountsQuery.refetch()}>
                 Recheck accounts
               </button>
               {accountsError !== null && <span className="field-error">{accountsError}</span>}

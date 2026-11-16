@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { GameSummary } from "../../shared/types.ts";
-import { fetchGames } from "../api.ts";
+import { gamesQueryOptions } from "../api.ts";
 import { sortedGameIds } from "../rule-editor.ts";
 
 export interface GamePickerProps {
@@ -18,42 +19,25 @@ const MAX_GAME_IDS = 1_000;
 export function GamePicker({ value, onChange, selectedIds, inputId }: GamePickerProps) {
   const [open, setOpen] = useState(value.length === 0);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<GameSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      setLoading(true);
-      fetchGames(
-        {
-          page: 1,
-          pageSize: 60,
-          sort: "name",
-          order: "asc",
-          ...(query.trim() === "" ? {} : { search: query.trim() }),
-        },
-        controller.signal,
-      )
-        .then((response) => {
-          setResults(response.data);
-          setLoading(false);
-        })
-        .catch((error: unknown) => {
-          if ((error as Error).name !== "AbortError") {
-            setResults([]);
-            setLoading(false);
-          }
-        });
-    }, 200);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [open, query]);
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 200);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const gamesQuery = useQuery({
+    ...gamesQueryOptions({
+      page: 1,
+      pageSize: 60,
+      sort: "name",
+      order: "asc",
+      ...(debouncedQuery.trim() === "" ? {} : { search: debouncedQuery.trim() }),
+    }),
+    enabled: open,
+  });
+  const results: GameSummary[] = gamesQuery.isError ? [] : (gamesQuery.data?.data ?? []);
+  const loading = open && gamesQuery.isFetching;
 
   const selected = new Set(value);
   const toggle = (appId: number): void => {

@@ -1,3 +1,4 @@
+import { queryOptions } from "@tanstack/react-query";
 import type {
   Config,
   ConfigPatchResponse,
@@ -49,6 +50,10 @@ export class ApiError extends Error {
   }
 }
 
+function isAbortError(error: unknown): boolean {
+  return (error as Error).name === "AbortError";
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
@@ -71,34 +76,62 @@ async function readJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function fetchStatus(signal?: AbortSignal): Promise<Status> {
-  let response: Response;
-  try {
-    response = await fetch("/api/status", {
-      headers: { accept: "application/json" },
-      signal,
-    });
-  } catch (error) {
-    throw new ApiError((error as Error).message, null);
-  }
-  const body = await readJson<{ data: Status }>(response);
-  return body.data;
+interface RequestOptions {
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  body?: unknown;
+  signal?: AbortSignal;
 }
 
-export async function fetchConfig(signal?: AbortSignal): Promise<Config> {
-  let response: Response;
+/** One place that owns fetch, headers, transport errors, and abort handling. */
+async function send(path: string, options: RequestOptions = {}): Promise<Response> {
+  const headers: Record<string, string> = { accept: "application/json" };
+  if (options.body !== undefined) {
+    headers["content-type"] = "application/json";
+  }
   try {
-    response = await fetch("/api/config", {
-      headers: { accept: "application/json" },
-      signal,
+    return await fetch(path, {
+      method: options.method ?? "GET",
+      headers,
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      signal: options.signal,
     });
   } catch (error) {
-    if ((error as Error).name === "AbortError") {
+    if (isAbortError(error)) {
       throw error;
     }
     throw new ApiError((error as Error).message, null);
   }
-  const body = await readJson<{ data: Config }>(response);
+}
+
+async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return readJson<T>(await send(path, options));
+}
+
+async function requestNone(path: string, options: RequestOptions = {}): Promise<void> {
+  const response = await send(path, options);
+  if (!response.ok) {
+    await readJson<never>(response);
+  }
+}
+
+function queryString(params: object): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined) {
+      continue;
+    }
+    query.set(key, String(value));
+  }
+  return query.toString();
+}
+
+export async function fetchStatus(signal?: AbortSignal): Promise<Status> {
+  const body = await requestJson<{ data: Status }>("/api/status", { signal });
+  return body.data;
+}
+
+export async function fetchConfig(signal?: AbortSignal): Promise<Config> {
+  const body = await requestJson<{ data: Config }>("/api/config", { signal });
   return body.data;
 }
 
@@ -112,30 +145,22 @@ export interface ConfigPatch {
 }
 
 export async function patchConfig(patch: ConfigPatch): Promise<ConfigPatchResponse> {
-  const response = await fetch("/api/config", {
+  return requestJson<ConfigPatchResponse>("/api/config", {
     method: "PATCH",
-    headers: { accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify(patch),
+    body: patch,
   });
-  return readJson<ConfigPatchResponse>(response);
 }
 
 export async function fetchSteamAccounts(signal?: AbortSignal): Promise<SteamAccount[]> {
-  const response = await fetch("/api/steam/accounts", {
-    headers: { accept: "application/json" },
-    signal,
-  });
-  const body = await readJson<SteamAccountsResponse>(response);
+  const body = await requestJson<SteamAccountsResponse>("/api/steam/accounts", { signal });
   return body.data;
 }
 
 export async function startAllFetch(): Promise<RefreshRun> {
-  const response = await fetch("/api/refresh", {
+  const body = await requestJson<{ data: RefreshRun }>("/api/refresh", {
     method: "POST",
-    headers: { accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify({ scope: "all", mode: "fetch" }),
+    body: { scope: "all", mode: "fetch" },
   });
-  const body = await readJson<{ data: RefreshRun }>(response);
   return body.data;
 }
 
@@ -162,12 +187,10 @@ export interface RefreshRequestBody {
 
 /** Start any documented Refresh request. The run executes in the background. */
 export async function startRefresh(body: RefreshRequestBody): Promise<RefreshRun> {
-  const response = await fetch("/api/refresh", {
+  const result = await requestJson<{ data: RefreshRun }>("/api/refresh", {
     method: "POST",
-    headers: { accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body,
   });
-  const result = await readJson<{ data: RefreshRun }>(response);
   return result.data;
 }
 
@@ -175,26 +198,7 @@ export async function fetchGames(
   params: FetchGamesParams = {},
   signal?: AbortSignal,
 ): Promise<GamesResponse> {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined) {
-      continue;
-    }
-    query.set(key, String(value));
-  }
-  let response: Response;
-  try {
-    response = await fetch(`/api/games?${query.toString()}`, {
-      headers: { accept: "application/json" },
-      signal,
-    });
-  } catch (error) {
-    if ((error as Error).name === "AbortError") {
-      throw error;
-    }
-    throw new ApiError((error as Error).message, null);
-  }
-  return readJson<GamesResponse>(response);
+  return requestJson<GamesResponse>(`/api/games?${queryString(params)}`, { signal });
 }
 
 export interface PreviewRulesBody {
@@ -210,21 +214,11 @@ export async function previewRules(
   body: PreviewRulesBody,
   signal?: AbortSignal,
 ): Promise<GamesResponse> {
-  let response: Response;
-  try {
-    response = await fetch("/api/rules/preview", {
-      method: "POST",
-      headers: { accept: "application/json", "content-type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    });
-  } catch (error) {
-    if ((error as Error).name === "AbortError") {
-      throw error;
-    }
-    throw new ApiError((error as Error).message, null);
-  }
-  return readJson<GamesResponse>(response);
+  return requestJson<GamesResponse>("/api/rules/preview", {
+    method: "POST",
+    body,
+    signal,
+  });
 }
 
 export interface FetchTagsParams {
@@ -237,17 +231,7 @@ export async function fetchTags(
   params: FetchTagsParams = {},
   signal?: AbortSignal,
 ): Promise<TagsResponse> {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
-      query.set(key, String(value));
-    }
-  }
-  const response = await fetch(`/api/tags?${query.toString()}`, {
-    headers: { accept: "application/json" },
-    signal,
-  });
-  return readJson<TagsResponse>(response);
+  return requestJson<TagsResponse>(`/api/tags?${queryString(params)}`, { signal });
 }
 
 export interface FetchRuleValuesParams {
@@ -261,56 +245,30 @@ export async function fetchRuleValues(
   params: FetchRuleValuesParams,
   signal?: AbortSignal,
 ): Promise<RuleValuesResponse> {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
-      query.set(key, String(value));
-    }
-  }
-  const response = await fetch(`/api/rule-values?${query.toString()}`, {
-    headers: { accept: "application/json" },
-    signal,
-  });
-  return readJson<RuleValuesResponse>(response);
+  return requestJson<RuleValuesResponse>(`/api/rule-values?${queryString(params)}`, { signal });
 }
 
 export async function fetchGameDetail(
   appId: number,
   signal?: AbortSignal,
 ): Promise<GameDetailResponse["data"]> {
-  let response: Response;
-  try {
-    response = await fetch(`/api/games/${appId}`, {
-      headers: { accept: "application/json" },
-      signal,
-    });
-  } catch (error) {
-    if ((error as Error).name === "AbortError") {
-      throw error;
-    }
-    throw new ApiError((error as Error).message, null);
-  }
-  const body = await readJson<GameDetailResponse>(response);
+  const body = await requestJson<GameDetailResponse>(`/api/games/${appId}`, { signal });
   return body.data;
 }
 
 export async function startMetadataRefresh(appIds: number[]): Promise<RefreshRun> {
-  const response = await fetch("/api/refresh", {
+  const body = await requestJson<{ data: RefreshRun }>("/api/refresh", {
     method: "POST",
-    headers: { accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify({ scope: "metadata", mode: "full", appIds }),
+    body: { scope: "metadata", mode: "full", appIds },
   });
-  const body = await readJson<{ data: RefreshRun }>(response);
   return body.data;
 }
 
 export async function startLibraryScan(): Promise<RefreshRun> {
-  const response = await fetch("/api/refresh", {
+  const body = await requestJson<{ data: RefreshRun }>("/api/refresh", {
     method: "POST",
-    headers: { accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify({ scope: "library" }),
+    body: { scope: "library" },
   });
-  const body = await readJson<{ data: RefreshRun }>(response);
   return body.data;
 }
 
@@ -323,28 +281,19 @@ export async function fetchSteamCollections(
   params: FetchSteamCollectionsParams = {},
   signal?: AbortSignal,
 ): Promise<SteamCollectionsResponse> {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
-      query.set(key, String(value));
-    }
-  }
-  const response = await fetch(`/api/steam-collections?${query.toString()}`, {
-    headers: { accept: "application/json" },
+  return requestJson<SteamCollectionsResponse>(`/api/steam-collections?${queryString(params)}`, {
     signal,
   });
-  return readJson<SteamCollectionsResponse>(response);
 }
 
 export async function fetchSteamCollection(
   id: string,
   signal?: AbortSignal,
 ): Promise<SteamCollectionSummary> {
-  const response = await fetch(`/api/steam-collections/${encodeURIComponent(id)}`, {
-    headers: { accept: "application/json" },
-    signal,
-  });
-  const body = await readJson<{ data: SteamCollectionSummary }>(response);
+  const body = await requestJson<{ data: SteamCollectionSummary }>(
+    `/api/steam-collections/${encodeURIComponent(id)}`,
+    { signal },
+  );
   return body.data;
 }
 
@@ -358,17 +307,10 @@ export async function fetchSteamCollectionGames(
   params: FetchSteamCollectionGamesParams = {},
   signal?: AbortSignal,
 ): Promise<SteamCollectionGamesResponse> {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
-      query.set(key, String(value));
-    }
-  }
-  const response = await fetch(
-    `/api/steam-collections/${encodeURIComponent(id)}/games?${query.toString()}`,
-    { headers: { accept: "application/json" }, signal },
+  return requestJson<SteamCollectionGamesResponse>(
+    `/api/steam-collections/${encodeURIComponent(id)}/games?${queryString(params)}`,
+    { signal },
   );
-  return readJson<SteamCollectionGamesResponse>(response);
 }
 
 export interface FetchSmartCollectionsParams {
@@ -382,28 +324,19 @@ export async function fetchSmartCollections(
   params: FetchSmartCollectionsParams = {},
   signal?: AbortSignal,
 ): Promise<SmartCollectionsResponse> {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
-      query.set(key, String(value));
-    }
-  }
-  const response = await fetch(`/api/smart-collections?${query.toString()}`, {
-    headers: { accept: "application/json" },
+  return requestJson<SmartCollectionsResponse>(`/api/smart-collections?${queryString(params)}`, {
     signal,
   });
-  return readJson<SmartCollectionsResponse>(response);
 }
 
 export async function fetchSmartCollection(
   id: string,
   signal?: AbortSignal,
 ): Promise<SmartCollection> {
-  const response = await fetch(`/api/smart-collections/${encodeURIComponent(id)}`, {
-    headers: { accept: "application/json" },
-    signal,
-  });
-  const body = await readJson<{ data: SmartCollection }>(response);
+  const body = await requestJson<{ data: SmartCollection }>(
+    `/api/smart-collections/${encodeURIComponent(id)}`,
+    { signal },
+  );
   return body.data;
 }
 
@@ -411,12 +344,10 @@ export async function createSmartCollection(body: {
   name: string;
   rules: Rule[];
 }): Promise<SmartCollection> {
-  const response = await fetch("/api/smart-collections", {
+  const result = await requestJson<{ data: SmartCollection }>("/api/smart-collections", {
     method: "POST",
-    headers: { accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body,
   });
-  const result = await readJson<{ data: SmartCollection }>(response);
   return result.data;
 }
 
@@ -424,24 +355,16 @@ export async function patchSmartCollection(
   id: string,
   body: SmartCollectionPatchBody,
 ): Promise<SmartCollection> {
-  const response = await fetch(`/api/smart-collections/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: { accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const result = await readJson<{ data: SmartCollection }>(response);
+  const result = await requestJson<{ data: SmartCollection }>(
+    `/api/smart-collections/${encodeURIComponent(id)}`,
+    { method: "PATCH", body },
+  );
   return result.data;
 }
 
 /** Delete a saved Smart Collection; callers treat 404 as already deleted (§7.4). */
 export async function deleteSmartCollection(id: string): Promise<void> {
-  const response = await fetch(`/api/smart-collections/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-    headers: { accept: "application/json" },
-  });
-  if (!response.ok) {
-    await readJson<never>(response);
-  }
+  await requestNone(`/api/smart-collections/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export interface FetchSmartCollectionGamesParams {
@@ -456,23 +379,123 @@ export async function fetchSmartCollectionGames(
   params: FetchSmartCollectionGamesParams = {},
   signal?: AbortSignal,
 ): Promise<SmartCollectionGamesResponse> {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
-      query.set(key, String(value));
-    }
-  }
-  const response = await fetch(
-    `/api/smart-collections/${encodeURIComponent(id)}/games?${query.toString()}`,
-    { headers: { accept: "application/json" }, signal },
+  return requestJson<SmartCollectionGamesResponse>(
+    `/api/smart-collections/${encodeURIComponent(id)}/games?${queryString(params)}`,
+    { signal },
   );
-  return readJson<SmartCollectionGamesResponse>(response);
 }
 
-export async function fetchRefresh(id: string): Promise<RefreshRun> {
-  const response = await fetch(`/api/refresh/${encodeURIComponent(id)}`, {
-    headers: { accept: "application/json" },
+export async function fetchRefresh(id: string, signal?: AbortSignal): Promise<RefreshRun> {
+  const body = await requestJson<{ data: RefreshRun }>(`/api/refresh/${encodeURIComponent(id)}`, {
+    signal,
   });
-  const body = await readJson<{ data: RefreshRun }>(response);
   return body.data;
+}
+
+export const STATUS_POLL_INTERVAL_MS = 800;
+
+/** Status polling is gated on an active run: queued or running, at 800 ms. */
+export function statusRefetchInterval(status: Status | null | undefined): number | false {
+  return status?.activeRefresh == null ? false : STATUS_POLL_INTERVAL_MS;
+}
+
+export const statusQueryKey = ["status"] as const;
+export const statusQueryOptions = queryOptions({
+  queryKey: statusQueryKey,
+  queryFn: ({ signal }) => fetchStatus(signal),
+  refetchInterval: (query) => statusRefetchInterval(query.state.data),
+});
+
+export const configQueryKey = ["config"] as const;
+export const configQueryOptions = queryOptions({
+  queryKey: configQueryKey,
+  queryFn: ({ signal }) => fetchConfig(signal),
+});
+
+export const steamAccountsQueryOptions = queryOptions({
+  queryKey: ["steam-accounts"] as const,
+  queryFn: ({ signal }) => fetchSteamAccounts(signal),
+});
+
+export function gamesQueryOptions(params: FetchGamesParams = {}) {
+  return queryOptions({
+    queryKey: ["games", params] as const,
+    queryFn: ({ signal }) => fetchGames(params, signal),
+  });
+}
+
+export function tagsQueryOptions(params: FetchTagsParams = {}) {
+  return queryOptions({
+    queryKey: ["tags", params] as const,
+    queryFn: ({ signal }) => fetchTags(params, signal),
+  });
+}
+
+export function ruleValuesQueryOptions(params: FetchRuleValuesParams) {
+  return queryOptions({
+    queryKey: ["rule-values", params] as const,
+    queryFn: ({ signal }) => fetchRuleValues(params, signal),
+  });
+}
+
+export function gameDetailQueryOptions(appId: number) {
+  return queryOptions({
+    queryKey: ["game-detail", appId] as const,
+    queryFn: ({ signal }) => fetchGameDetail(appId, signal),
+  });
+}
+
+export function steamCollectionsQueryOptions(params: FetchSteamCollectionsParams = {}) {
+  return queryOptions({
+    queryKey: ["steam-collections", params] as const,
+    queryFn: ({ signal }) => fetchSteamCollections(params, signal),
+  });
+}
+
+export function steamCollectionQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: ["steam-collection", id] as const,
+    queryFn: ({ signal }) => fetchSteamCollection(id, signal),
+  });
+}
+
+export function steamCollectionGamesQueryOptions(
+  id: string,
+  params: FetchSteamCollectionGamesParams = {},
+) {
+  return queryOptions({
+    queryKey: ["steam-collection-games", id, params] as const,
+    queryFn: ({ signal }) => fetchSteamCollectionGames(id, params, signal),
+  });
+}
+
+export function smartCollectionsQueryOptions(params: FetchSmartCollectionsParams = {}) {
+  return queryOptions({
+    queryKey: ["smart-collections", params] as const,
+    queryFn: ({ signal }) => fetchSmartCollections(params, signal),
+  });
+}
+
+export function smartCollectionQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: ["smart-collection", id] as const,
+    queryFn: ({ signal }) => fetchSmartCollection(id, signal),
+  });
+}
+
+export function smartCollectionGamesQueryOptions(
+  id: string,
+  params: FetchSmartCollectionGamesParams = {},
+) {
+  return queryOptions({
+    queryKey: ["smart-collection-games", id, params] as const,
+    queryFn: ({ signal }) => fetchSmartCollectionGames(id, params, signal),
+  });
+}
+
+export function refreshQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: ["refresh", id] as const,
+    queryFn: ({ signal }) => fetchRefresh(id, signal),
+  });
 }

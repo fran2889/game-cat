@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { SOURCE_ORDER, type SourceHealth } from "../../shared/types.ts";
 import { useBrowse } from "../browse-context.tsx";
@@ -35,52 +36,26 @@ export function ErrorsView() {
   const { isRunning, startFetch } = useRefresh();
   const { replaceSelection } = useBrowse();
   const navigate = useNavigate();
-  const [affected, setAffected] = useState<AffectedState>(emptyAffected);
-  const [loadingAffected, setLoadingAffected] = useState(true);
-  const [affectedError, setAffectedError] = useState(false);
   const [selecting, setSelecting] = useState<MetadataSource | null>(null);
 
   const metadataKey = status === null ? "none" : JSON.stringify(status.metadata);
-
-  useEffect(() => {
-    if (status === null) {
-      return;
+  const affectedQueries = useQueries({
+    queries: METADATA_SOURCES.map((source) => ({
+      queryKey: ["affected-and-pending", source, metadataKey],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        fetchAffectedAndPendingGames(source, signal),
+      enabled: status !== null,
+    })),
+  });
+  const affected = emptyAffected();
+  for (const [index, source] of METADATA_SOURCES.entries()) {
+    const data = affectedQueries[index]?.data;
+    if (data !== undefined) {
+      affected[source] = data;
     }
-    const controller = new AbortController();
-    let active = true;
-    setLoadingAffected(true);
-    setAffectedError(false);
-
-    void Promise.all(
-      METADATA_SOURCES.map(async (source) => {
-        const result = await fetchAffectedAndPendingGames(source, controller.signal);
-        return [source, result] as const;
-      }),
-    )
-      .then((entries) => {
-        if (!active) {
-          return;
-        }
-        const next = emptyAffected();
-        for (const [source, result] of entries) {
-          next[source] = result;
-        }
-        setAffected(next);
-        setLoadingAffected(false);
-      })
-      .catch((error: unknown) => {
-        if (!active || (error as Error).name === "AbortError") {
-          return;
-        }
-        setAffectedError(true);
-        setLoadingAffected(false);
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [metadataKey]);
+  }
+  const loadingAffected = status !== null && affectedQueries.some((query) => query.isPending);
+  const affectedError = affectedQueries.some((query) => query.isError);
 
   const selectAffected = async (source: MetadataSource): Promise<void> => {
     const known = affected[source];
