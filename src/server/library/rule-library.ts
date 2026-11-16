@@ -206,7 +206,7 @@ function sortValue(row: GamesRow, sort: GameSort): SortValue {
 }
 
 /**
- * The SQL comparator from `gameOrderSql`: nulls last in both directions, the
+ * The SQL comparator from the read path (`sortColumn`): nulls last in both directions, the
  * chosen direction, then `app_id ASC`.
  */
 function compareGames(left: GamesRow, right: GamesRow, sort: GameSort, order: GameOrder): number {
