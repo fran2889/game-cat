@@ -119,8 +119,17 @@ The following are explicitly out of scope for v1.
 ### 1.5 Architecture
 
 - TypeScript end to end. The server is Node 24 or newer with Fastify. SQLite is accessed through
-  `better-sqlite3` with the connection settings in [§3.1](#31-connection-settings). The browser client
-  is React with Vite, built to static assets and served by the same process in production.
+  `better-sqlite3` with the connection settings in [§3.1](#31-connection-settings); query construction
+  uses Kysely over that same connection. The browser client is React with Vite, built to static assets
+  and served by the same process in production, with Mantine for components and TanStack Query for
+  server state.
+- Generic plumbing is provided by established libraries rather than hand-written code: Fastify route
+  schemas for request validation and response serialisation, Kysely for SQL construction, TanStack
+  Query for client fetching, and Mantine for generic UI. Domain logic — rule evaluation, Refresh
+  phases, migrations and their safety guards, config precedence, and the Autosave state machine — stays
+  hand-written. [ADR 0004](../adr/0004-libraries-over-boilerplate.md) records the policy: the
+  user-visible contract is frozen, libraries are pure JavaScript and GPL-3.0-only compatible, and no
+  native dependency is added.
 - One process serves the UI and `/api` on one loopback port. One in-process Refresh worker runs at a
   time. There is no queue, scheduler, second writer, or separate worker process.
 - The server starts before the browser and exposes `GET /api/status` as its readiness signal.
