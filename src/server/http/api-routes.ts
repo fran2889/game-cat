@@ -14,7 +14,7 @@ import {
   parseSteamCollectionsQuery,
   type SteamCollectionsRepository,
 } from "../library/collections.ts";
-import { GamesRepository, parseGamesQuery } from "../library/games.ts";
+import { GamesRepository, type GamesQuery } from "../library/games.ts";
 import type { RulePreviewRepository } from "../library/rule-preview.ts";
 import {
   parseSmartCollectionGamesQuery,
@@ -24,6 +24,14 @@ import {
 import { parseRuleValuesQuery, type RuleValuesRepository } from "../library/rule-values.ts";
 import { parseTagsQuery, type TagsRepository } from "../library/tags.ts";
 import type { RefreshService } from "../refresh/service.ts";
+import {
+  gameDetailResponseSchema,
+  gameIdParamsSchema,
+  gamesListQuerySchema,
+  gamesResponseSchema,
+  rejectRepeatedQueryValues,
+  type GamesListQuery,
+} from "./schemas.ts";
 
 export interface ApiRoutesOptions {
   status: Status | (() => Status);
@@ -82,27 +90,68 @@ function queryValues(query: unknown): RawQuery {
   return result;
 }
 
+/**
+ * Map the schema-validated Games query onto the repository input. Validation
+ * and bounds live in `gamesListQuerySchema`; this only resolves "empty means
+ * absent" and the documented pagination defaults.
+ */
+function gamesQuery(query: GamesListQuery): GamesQuery {
+  const boolean = (value: boolean | "" | undefined): boolean | null =>
+    typeof value === "boolean" ? value : null;
+  const filter = <T extends string>(value: T | "" | undefined): T | null =>
+    value === undefined || value === "" ? null : value;
+  return {
+    search: query.search !== undefined && query.search.trim() !== "" ? query.search : null,
+    sort: query.sort,
+    order: query.order,
+    installed: boolean(query.installed),
+    tagsStatus: filter(query.tagsStatus),
+    storeStatus: filter(query.storeStatus),
+    reviewStatus: filter(query.reviewStatus),
+    tagsFetched: boolean(query.tagsFetched),
+    storeFetched: boolean(query.storeFetched),
+    reviewFetched: boolean(query.reviewFetched),
+    page: query.page === "" ? 1 : query.page,
+    pageSize: query.pageSize === "" ? 60 : query.pageSize,
+  };
+}
+
 /** The documented Library and Refresh endpoints implemented by this slice. */
 export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOptions): void {
   app.get("/api/status", async () => ({ data: currentStatus(options.status) }));
 
-  app.get("/api/games", async (request) => {
-    const query = parseGamesQuery(queryValues(request.query));
-    return options.games.list(query);
-  });
+  app.get<{ Querystring: GamesListQuery }>(
+    "/api/games",
+    {
+      schema: { querystring: gamesListQuerySchema, response: { 200: gamesResponseSchema } },
+      preValidation: rejectRepeatedQueryValues,
+    },
+    async (request) => options.games.list(gamesQuery(request.query)),
+  );
 
-  app.get("/api/games/:appId", async (request) => {
-    const { appId } = request.params as { appId: string };
-    const id = parseAppId(appId);
-    if (id === null) {
-      throw notFound(appId);
-    }
-    const game = options.games.get(id);
-    if (game === null) {
-      throw notFound(String(id));
-    }
-    return { data: game };
-  });
+  app.get<{ Params: { appId: string } }>(
+    "/api/games/:appId",
+    {
+      schema: { params: gameIdParamsSchema, response: { 200: gameDetailResponseSchema } },
+      // A malformed App ID is a 404 for this resource, not a 422 query error.
+      attachValidation: true,
+    },
+    async (request) => {
+      const { appId } = request.params;
+      if (request.validationError !== undefined) {
+        throw notFound(appId);
+      }
+      const id = parseAppId(appId);
+      if (id === null) {
+        throw notFound(appId);
+      }
+      const game = options.games.get(id);
+      if (game === null) {
+        throw notFound(String(id));
+      }
+      return { data: game };
+    },
+  );
 
   app.get("/api/rule-values", async (request) =>
     options.ruleValues.list(parseRuleValuesQuery(queryValues(request.query))),

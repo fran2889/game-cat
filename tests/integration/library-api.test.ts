@@ -422,6 +422,130 @@ describe("GET /api/games", () => {
     }
   });
 
+  it("accepts every documented parameter together with the documented defaults", async () => {
+    const test = harness();
+    seedGame(test.db, 620, {
+      name: "Portal 2",
+      installed: 1,
+      playtime: 100,
+      lastPlayed: 1712100000,
+      releaseYear: 2011,
+      metacritic: 95,
+    });
+
+    const explicit = await get(
+      test.app,
+      "/api/games?search=portal&sort=metacritic&order=desc&installed=true" +
+        "&tagsStatus=missing&storeStatus=missing&reviewStatus=missing" +
+        "&tagsFetched=false&storeFetched=false&reviewFetched=false&page=1&pageSize=200",
+    );
+    expect(explicit.statusCode).toBe(200);
+    expect(explicit.json()).toMatchObject({
+      data: [{ appId: 620, name: "Portal 2" }],
+      pagination: { page: 1, pageSize: 200, totalItems: 1, totalPages: 1 },
+    });
+
+    const defaults = await get(test.app, "/api/games");
+    expect(defaults.statusCode).toBe(200);
+    expect((defaults.json() as { pagination: Record<string, number> }).pagination).toEqual({
+      page: 1,
+      pageSize: 60,
+      totalItems: 1,
+      totalPages: 1,
+    });
+  });
+
+  it("treats an empty query value as omitted", async () => {
+    const test = harness();
+    seedGame(test.db, 620, { name: "Portal 2" });
+
+    for (const query of [
+      "page=&pageSize=",
+      "installed=",
+      "tagsStatus=&storeStatus=&reviewStatus=",
+      "tagsFetched=&storeFetched=&reviewFetched=",
+      "search=",
+      "search=   ",
+    ]) {
+      const response = await get(test.app, `/api/games?${query}`);
+      expect(response.statusCode, query).toBe(200);
+      expect(
+        (response.json() as { pagination: Record<string, number> }).pagination,
+        query,
+      ).toMatchObject({ page: 1, pageSize: 60, totalItems: 1 });
+    }
+  });
+
+  it("rejects an empty sort or order", async () => {
+    const test = harness();
+    for (const [query, field] of [
+      ["sort=", "sort"],
+      ["order=", "order"],
+    ] as const) {
+      const response = await get(test.app, `/api/games?${query}`);
+      expect(response.statusCode, query).toBe(422);
+      expect(response.json(), query).toMatchObject({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Request query is invalid",
+          details: { fieldErrors: { [field]: expect.any(String) } },
+        },
+      });
+    }
+  });
+
+  it("rejects a repeated query parameter with the query envelope and single-value error", async () => {
+    const test = harness();
+    for (const [query, field] of [
+      ["page=1&page=2", "page"],
+      ["search=a&search=b", "search"],
+      ["sort=name&sort=playtime", "sort"],
+      ["undocumented=a&undocumented=b", "undocumented"],
+    ] as const) {
+      const response = await get(test.app, `/api/games?${query}`);
+      expect(response.statusCode, query).toBe(422);
+      expect(response.json(), query).toMatchObject({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Request query is invalid",
+          details: { fieldErrors: { [field]: "must be a single value" } },
+        },
+      });
+    }
+  });
+
+  it("bounds search by 200 characters and ignores undocumented parameters", async () => {
+    const test = harness();
+    seedGame(test.db, 620, { name: "Portal 2" });
+
+    const atLimit = await get(test.app, `/api/games?search=${"x".repeat(200)}`);
+    expect(atLimit.statusCode).toBe(200);
+
+    const tooLong = await get(test.app, `/api/games?search=${"x".repeat(201)}`);
+    expect(tooLong.statusCode).toBe(422);
+    expect(tooLong.json()).toMatchObject({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Request query is invalid",
+        details: { fieldErrors: { search: expect.any(String) } },
+      },
+    });
+
+    const unknown = await get(test.app, "/api/games?undocumented=1");
+    expect(unknown.statusCode).toBe(200);
+  });
+
+  it("treats a non-positive or over-precise App ID as not found", async () => {
+    const test = harness();
+    for (const appId of ["not-a-number", "0", "-1", "1.5", "9007199254740993"]) {
+      const response = await get(test.app, `/api/games/${appId}`);
+      expect(response.statusCode, appId).toBe(404);
+      expect(response.json(), appId).toMatchObject({
+        error: { code: "NOT_FOUND", details: { id: appId } },
+      });
+    }
+  });
+
   it("filters by every documented review status and rejects others", async () => {
     const test = harness();
     const statuses = ["ok", "unavailable", "stale", "error"] as const;

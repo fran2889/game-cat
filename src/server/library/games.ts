@@ -10,7 +10,6 @@ import {
   type GameTag,
   type Pagination,
 } from "../../shared/types.ts";
-import { parseInteger, validationError, type RawQuery } from "../request.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 
 export { GAME_SORTS };
@@ -31,12 +30,6 @@ export interface GamesQuery {
   pageSize: number;
 }
 
-const STATUS_VALUES: Record<"tags" | "store" | "review", readonly string[]> = {
-  tags: ["ok", "missing", "stale", "error"],
-  store: ["ok", "unavailable", "missing", "stale", "error"],
-  review: ["ok", "unavailable", "missing", "stale", "error"],
-};
-
 const SORT_COLUMNS: Record<GameSort, string> = {
   name: "name_key",
   playtime: "playtime_minutes",
@@ -45,89 +38,6 @@ const SORT_COLUMNS: Record<GameSort, string> = {
   metacritic: "metacritic_score",
   appId: "app_id",
 };
-
-/** Parse and validate `GET /api/games` query parameters (§4.3). */
-export function parseGamesQuery(raw: RawQuery, pageSizeMax = 200): GamesQuery {
-  const fieldErrors: Record<string, string> = {};
-
-  const searchRaw = raw.search;
-  let search: string | null = null;
-  if (searchRaw !== undefined && searchRaw.trim() !== "") {
-    if (searchRaw.length > 200) {
-      fieldErrors.search = "must be at most 200 characters";
-    } else {
-      search = searchRaw;
-    }
-  }
-
-  const sort = (raw.sort ?? "name") as GameSort;
-  if (!GAME_SORTS.includes(sort)) {
-    fieldErrors.sort = `must be one of ${GAME_SORTS.join(", ")}`;
-  }
-  const order = (raw.order ?? "asc") as GameOrder;
-  if (order !== "asc" && order !== "desc") {
-    fieldErrors.order = "must be asc or desc";
-  }
-
-  const booleanFilter = (value: string | undefined, key: string): boolean | null => {
-    if (value === undefined || value === "") {
-      return null;
-    }
-    if (value === "true") {
-      return true;
-    }
-    if (value === "false") {
-      return false;
-    }
-    fieldErrors[key] = "must be true or false";
-    return null;
-  };
-
-  const installed = booleanFilter(raw.installed, "installed");
-
-  const statusFilter = (
-    value: string | undefined,
-    field: "tags" | "store" | "review",
-    key: string,
-  ): string | null => {
-    if (value === undefined || value === "") {
-      return null;
-    }
-    if (!STATUS_VALUES[field].includes(value)) {
-      fieldErrors[key] = `must be one of ${STATUS_VALUES[field].join(", ")}`;
-      return null;
-    }
-    return value;
-  };
-
-  const page = parseInteger(raw.page, 1, "page", 1, Number.MAX_SAFE_INTEGER, fieldErrors);
-  const pageSize = parseInteger(raw.pageSize, 60, "pageSize", 1, pageSizeMax, fieldErrors);
-  const tagsStatus = statusFilter(raw.tagsStatus, "tags", "tagsStatus");
-  const storeStatus = statusFilter(raw.storeStatus, "store", "storeStatus");
-  const reviewStatus = statusFilter(raw.reviewStatus, "review", "reviewStatus");
-  const tagsFetched = booleanFilter(raw.tagsFetched, "tagsFetched");
-  const storeFetched = booleanFilter(raw.storeFetched, "storeFetched");
-  const reviewFetched = booleanFilter(raw.reviewFetched, "reviewFetched");
-
-  if (Object.keys(fieldErrors).length > 0) {
-    throw validationError(fieldErrors);
-  }
-
-  return {
-    search,
-    sort,
-    order,
-    installed,
-    tagsStatus,
-    storeStatus,
-    reviewStatus,
-    tagsFetched,
-    storeFetched,
-    reviewFetched,
-    page,
-    pageSize,
-  };
-}
 
 export interface GamesRow {
   app_id: number;
