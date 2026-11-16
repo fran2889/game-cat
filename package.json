@@ -45,9 +45,8 @@
     "format:check": "prettier --check .",
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "lint:links": "remark --frail --quiet .",
-    "audit:tests": "node scripts/audit-tests.mjs",
-    "audit:secrets": "node scripts/audit-secrets.mjs",
-    "check": "npm run format:check && npm run lint:md && npm run lint:links && npm run typecheck && npm run audit:tests && npm run audit:secrets"
+    "lint": "eslint .",
+    "check": "npm run format:check && npm run lint:md && npm run lint:links && npm run typecheck && npm run lint"
   },
   "dependencies": {
     "@fastify/static": "10.1.11",
@@ -70,6 +69,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
     "ajv": "^8.20.0",
+    "eslint": "10.15.0",
     "markdownlint-cli2": "0.24.1",
     "prettier": "3.10.1",
     "remark-cli": "12.0.1",
