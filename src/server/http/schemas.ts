@@ -470,3 +470,177 @@ export interface SteamCollectionGamesQuery extends PageQuery {
   sort: GameSort;
   order: GameOrder;
 }
+
+const rule = {
+  type: "object",
+  required: ["prefix", "field", "operator", "value"],
+  properties: {
+    prefix: { type: "string", enum: ["AND", "OR", "NOT"] },
+    field: {
+      type: "string",
+      enum: [
+        "name",
+        "playtime",
+        "installed",
+        "ownershipStatus",
+        "lastPlayed",
+        "releaseYear",
+        "metacriticScore",
+        "reviewScore",
+        "reviewTier",
+        "reviewCount",
+        "storefrontType",
+        "platform",
+        "genre",
+        "category",
+        "developer",
+        "publisher",
+        "tag",
+        "steamCollection",
+        "game",
+      ],
+    },
+    operator: { type: "string", enum: ["is", "contains", "has", "in", "lt", "lte", "gt", "gte"] },
+    value: {
+      type: ["string", "number", "boolean", "array"],
+      items: { type: "integer", minimum: 1 },
+    },
+  },
+  additionalProperties: false,
+};
+
+const smartCollection = {
+  type: "object",
+  required: ["id", "name", "rules", "createdAt", "updatedAt"],
+  properties: {
+    id: { type: "string", minLength: 1 },
+    name: { type: "string", minLength: 1, maxLength: 80 },
+    rules: { type: "array", maxItems: 100, items: { $ref: "#/definitions/rule" } },
+    createdAt: { $ref: "#/definitions/timestamp" },
+    updatedAt: { $ref: "#/definitions/timestamp" },
+  },
+  additionalProperties: false,
+};
+
+const smartCollectionListItem = {
+  type: "object",
+  required: ["id", "name", "ruleCount", "matchCount", "createdAt", "updatedAt"],
+  properties: {
+    id: { type: "string", minLength: 1 },
+    name: { type: "string", minLength: 1, maxLength: 80 },
+    ruleCount: { type: "integer", minimum: 0, maximum: 100 },
+    matchCount: { type: "integer", minimum: 0 },
+    createdAt: { $ref: "#/definitions/timestamp" },
+    updatedAt: { $ref: "#/definitions/timestamp" },
+  },
+  additionalProperties: false,
+};
+
+export const smartCollectionContractDefinitions = {
+  ...gameContractDefinitions,
+  rule,
+  smartCollection,
+  smartCollectionListItem,
+};
+
+const dataAsOfMeta = {
+  type: "object",
+  required: ["dataAsOf"],
+  properties: { dataAsOf: { $ref: "#/definitions/nullableTimestamp" } },
+  additionalProperties: false,
+};
+
+export const smartCollectionsResponseSchema = {
+  type: "object",
+  required: ["data", "pagination", "meta"],
+  properties: {
+    data: { type: "array", items: { $ref: "#/definitions/smartCollectionListItem" } },
+    pagination: { $ref: "#/definitions/pagination" },
+    meta: dataAsOfMeta,
+  },
+  additionalProperties: false,
+  definitions: smartCollectionContractDefinitions,
+};
+
+export const smartCollectionResponseSchema = {
+  type: "object",
+  required: ["data"],
+  properties: { data: { $ref: "#/definitions/smartCollection" } },
+  additionalProperties: false,
+  definitions: smartCollectionContractDefinitions,
+};
+
+export const smartCollectionGamesResponseSchema = {
+  type: "object",
+  required: ["data", "pagination", "meta"],
+  properties: {
+    data: { type: "array", items: { $ref: "#/definitions/gameSummary" } },
+    pagination: { $ref: "#/definitions/pagination" },
+    meta: dataAsOfMeta,
+  },
+  additionalProperties: false,
+  definitions: smartCollectionContractDefinitions,
+};
+
+export const smartCollectionsListQuerySchema = {
+  type: "object",
+  properties: {
+    page: pageProperty(1, Number.MAX_SAFE_INTEGER),
+    pageSize: pageProperty(60, 200),
+    sort: { type: "string", enum: ["name", "updatedAt"], default: "name" },
+    order: { type: "string", enum: ["asc", "desc"], default: "asc" },
+  },
+};
+
+export const smartCollectionGamesQuerySchema = {
+  type: "object",
+  properties: {
+    page: pageProperty(1, Number.MAX_SAFE_INTEGER),
+    pageSize: pageProperty(60, 200),
+    sort: { type: "string", enum: [...GAME_SORTS], default: "name" },
+    order: { type: "string", enum: ["asc", "desc"], default: "asc" },
+  },
+};
+
+/**
+ * The envelope only: the name and rule semantics stay with the shared domain
+ * validator so field errors keep their dotted paths and messages.
+ */
+export const smartCollectionCreateBodySchema = {
+  type: "object",
+  required: ["name"],
+  properties: {
+    name: { type: "string" },
+    rules: { type: "array" },
+  },
+};
+
+/** At least one of `name` or `rules`; the domain validator owns the rest. */
+export const smartCollectionPatchBodySchema = {
+  type: "object",
+  anyOf: [{ required: ["name"] }, { required: ["rules"] }],
+  properties: {
+    name: { type: "string" },
+    rules: { type: "array" },
+  },
+};
+
+export interface SmartCollectionsListQuery extends PageQuery {
+  sort: "name" | "updatedAt";
+  order: GameOrder;
+}
+
+export interface SmartCollectionGamesParams extends PageQuery {
+  sort: GameSort;
+  order: GameOrder;
+}
+
+export interface SmartCollectionCreateBody {
+  name: string;
+  rules?: unknown;
+}
+
+export interface SmartCollectionPatchBody {
+  name?: string;
+  rules?: unknown;
+}
