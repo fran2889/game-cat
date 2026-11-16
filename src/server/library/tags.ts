@@ -1,6 +1,8 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { normalizeNameKey } from "../../shared/names.ts";
+import { sql, type SqlBool } from "kysely";
 import type { Pagination, TagSummary, TagsResponse } from "../../shared/types.ts";
+import { allSync, firstSync, queryFor } from "../db/query.ts";
 
 /**
  * `GET /api/tags` typeahead (spec §4.3, AC-A6).
@@ -29,35 +31,31 @@ export class TagsRepository {
 
   list(query: TagsQuery): TagsResponse {
     const normalized = query.query === null ? null : normalizeNameKey(query.query);
-    const where = normalized === null ? "" : "WHERE instr(t.name_key, ?) > 0";
-    const filter = normalized === null ? [] : [normalized];
+    let countQuery = queryFor(this.db)
+      .selectFrom("tags as t")
+      .innerJoin("game_tags as gt", "gt.tag_id", "t.id")
+      .select(sql<number>`COUNT(DISTINCT t.id)`.as("count"));
+    if (normalized !== null) {
+      countQuery = countQuery.where(sql<SqlBool>`instr(t.name_key, ${normalized}) > 0`);
+    }
+    const count = firstSync<{ count: number }>(this.db, countQuery.compile());
+    const total = Number(count?.count ?? 0);
 
-    const total = (
-      this.db
-        .prepare(
-          `SELECT COUNT(*) AS count FROM (
-             SELECT t.id
-             FROM tags t JOIN game_tags gt ON gt.tag_id = t.id
-             ${where}
-             GROUP BY t.id
-           )`,
-        )
-        .get(...filter) as { count: number }
-    ).count;
-
-    const rows = this.db
-      .prepare(
-        `SELECT t.name AS name, COUNT(DISTINCT gt.app_id) AS game_count
-         FROM tags t JOIN game_tags gt ON gt.tag_id = t.id
-         ${where}
-         GROUP BY t.id
-         ORDER BY game_count DESC, t.name_key ASC, t.id ASC
-         LIMIT ? OFFSET ?`,
-      )
-      .all(...filter, query.pageSize, (query.page - 1) * query.pageSize) as Array<{
-      name: string;
-      game_count: number;
-    }>;
+    let rowsQuery = queryFor(this.db)
+      .selectFrom("tags as t")
+      .innerJoin("game_tags as gt", "gt.tag_id", "t.id")
+      .select(["t.name as name", sql<number>`COUNT(DISTINCT gt.app_id)`.as("game_count")])
+      .groupBy("t.id");
+    if (normalized !== null) {
+      rowsQuery = rowsQuery.where(sql<SqlBool>`instr(t.name_key, ${normalized}) > 0`);
+    }
+    const pagedRowsQuery = rowsQuery
+      .orderBy("game_count", "desc")
+      .orderBy("t.name_key", "asc")
+      .orderBy("t.id", "asc")
+      .limit(query.pageSize)
+      .offset((query.page - 1) * query.pageSize);
+    const rows = allSync<{ name: string; game_count: number }>(this.db, pagedRowsQuery.compile());
 
     const data: TagSummary[] = rows.map((row) => ({
       name: row.name,
