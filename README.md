@@ -89,8 +89,7 @@ npm start          # production-shaped single process
 npm run test:e2e   # Playwright with headless Chromium
 npm run test:package # pack, global-install, and smoke-test the tarball
 npm run test:perf  # fixed 20,000-Game / 1,300-Game performance budgets
-npm run audit:tests # fail on focused or skipped acceptance tests
-npm run audit:secrets # fail on a real key, AccountName, or raw Steam user path
+npm run lint       # fail on focused/skipped tests, keys, AccountName, or raw user paths
 ```
 
 `test:perf` builds first, measures p50/p95, and exits non-zero on a missed budget. See
@@ -117,8 +116,8 @@ console.log(server.url); // readiness: GET /api/status returns 200
 await server.close(); // resolves after SQLite closes
 ```
 
-`npm run check` runs Prettier, Markdownlint, link validation, typecheck, `audit:tests`, and
-`audit:secrets`. CI runs `npm run check`, `npm run build`, and `npm test` on Node 24 and 26 (Linux),
+`npm run check` runs Prettier, Markdownlint, link validation, typecheck, and ESLint. CI runs
+`npm run check`, `npm run build`, and `npm test` on Node 24 and 26 (Linux),
 E2E on Node 24 with Chromium, and the package smoke test on Node 24. Performance budgets run in the
 nightly/manual `perf` workflow (Node 24 with Chromium), not on every pull request. See
 [§10.7](docs/specs/game-cat-v1.md#107-ci-and-commands) and the recorded
