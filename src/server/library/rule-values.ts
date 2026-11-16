@@ -1,5 +1,7 @@
 import type BetterSqlite3 from "better-sqlite3";
+import { sql } from "kysely";
 import { normalizeNameKey } from "../../shared/names.ts";
+import { allSync, queryFor } from "../db/query.ts";
 import type {
   Pagination,
   RuleValue,
@@ -70,13 +72,14 @@ export class RuleValuesRepository {
 
   list(query: RuleValuesQuery): RuleValuesResponse {
     const column = FIELD_COLUMNS[query.field];
-    const rows = this.db
-      .prepare(
-        `SELECT sf.app_id AS app_id, sf.${column} AS value_json
-         FROM storefront_appdetails sf
-         JOIN games g ON g.app_id = sf.app_id`,
-      )
-      .all() as ValueRow[];
+    const rows = allSync<ValueRow>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("storefront_appdetails as sf")
+        .innerJoin("games as g", "g.app_id", "sf.app_id")
+        .select(["sf.app_id as app_id", sql<string | null>`${sql.ref(column)}`.as("value_json")])
+        .compile(),
+    );
 
     const values = new Map<string, ValueAccumulator>();
     for (const row of rows) {
