@@ -1,5 +1,6 @@
 import { LOG_LEVELS, type Config, type LogLevel, type SteamAccount } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
+import { asRecord, validationError } from "../request.ts";
 import { discoverSteam, type SteamDiscovery, type SteamDiscoveryFn } from "../steam/discovery.ts";
 import type { FileConfig, ResolvedConfig } from "./load.ts";
 import { expandHome, isAbsolutePath } from "./paths.ts";
@@ -40,12 +41,6 @@ const PATCH_FIELDS = new Set([
   "openBrowser",
   "logLevel",
 ]);
-
-function validationError(fieldErrors: Record<string, string>): HttpError {
-  return new HttpError(422, "VALIDATION_ERROR", "Request body is invalid", {
-    details: { fieldErrors },
-  });
-}
 
 /**
  * The live, non-secret configuration view and the atomic `PATCH /api/config`
@@ -203,7 +198,7 @@ export class ConfigStore {
 
     // The environment key wins over the file, so a file write would be dead.
     if (record.steamApiKey !== undefined && this.apiKeySource === "env") {
-      throw validationError({ steamApiKey: "managed by GAME_CAT_STEAM_API_KEY" });
+      throw validationError({ steamApiKey: "managed by GAME_CAT_STEAM_API_KEY" }, "body");
     }
 
     if (record.steamId64 !== undefined) {
@@ -294,10 +289,10 @@ export class ConfigStore {
   }
 
   private patchRecord(body: unknown): Record<string, unknown> {
-    if (typeof body !== "object" || body === null || Array.isArray(body)) {
-      throw validationError({ body: "must be an object" });
+    const record = asRecord(body);
+    if (record === null) {
+      throw validationError({ body: "must be an object" }, "body");
     }
-    const record = body as Record<string, unknown>;
     const fieldErrors: Record<string, string> = {};
     const present: Record<string, unknown> = {};
 
@@ -369,7 +364,7 @@ export class ConfigStore {
     }
 
     if (Object.keys(fieldErrors).length > 0) {
-      throw validationError(fieldErrors);
+      throw validationError(fieldErrors, "body");
     }
     return present;
   }
