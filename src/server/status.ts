@@ -1,4 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
+import { sql } from "kysely";
+import { allSync, firstSync, queryFor } from "./db/query.ts";
 import { APP_VERSION, DB_SCHEMA_VERSION } from "../shared/app.ts";
 import {
   SOURCE_ORDER,
@@ -33,7 +35,10 @@ interface SourceRow {
 }
 
 function sourceHealth(db: BetterSqlite3.Database, ownershipConfigured: boolean): SourceHealth[] {
-  const rows = db.prepare("SELECT * FROM source_state").all() as SourceRow[];
+  const rows = allSync<SourceRow>(
+    db,
+    queryFor(db).selectFrom("source_state").selectAll().compile(),
+  );
   const byName = new Map(rows.map((row) => [row.name, row]));
   return SOURCE_ORDER.map((name) => {
     const row = byName.get(name);
@@ -92,9 +97,14 @@ function ownershipState(status: SourceStatus | undefined): OwnershipState {
  * latest safe message and status are the source of truth.
  */
 function ownershipError(db: BetterSqlite3.Database): ErrorDetail | null {
-  const row = db
-    .prepare("SELECT status, last_error FROM source_state WHERE name = 'steam_web_api'")
-    .get() as { status: SourceStatus; last_error: string | null } | undefined;
+  const row = firstSync<{ status: SourceStatus; last_error: string | null }>(
+    db,
+    queryFor(db)
+      .selectFrom("source_state")
+      .select(["status as status", "last_error as last_error"])
+      .where("name", "=", "steam_web_api")
+      .compile(),
+  );
   if (row === undefined || row.last_error === null) {
     return null;
   }
@@ -114,11 +124,19 @@ function ownershipStatus(
   lastAttemptAt: string | null;
   error: ErrorDetail | null;
 } {
-  const row = db
-    .prepare(
-      "SELECT status, last_success_at, last_attempt_at, last_error FROM source_state WHERE name = ?",
-    )
-    .get("steam_web_api") as OwnershipStateRow | undefined;
+  const row = firstSync<OwnershipStateRow>(
+    db,
+    queryFor(db)
+      .selectFrom("source_state")
+      .select([
+        "status as status",
+        "last_success_at as last_success_at",
+        "last_attempt_at as last_attempt_at",
+        "last_error as last_error",
+      ])
+      .where("name", "=", "steam_web_api")
+      .compile(),
+  );
   const state =
     row === undefined || row.status === "unknown"
       ? configured
@@ -139,16 +157,15 @@ type TagsCounts = Status["metadata"]["tags"];
 type StoreCounts = Status["metadata"]["store"];
 type ReviewCounts = Status["metadata"]["reviews"];
 
-function countByStatus(
+function countRows(
   db: BetterSqlite3.Database,
-  query: string,
+  rows: Array<{ status: string; count: number }>,
   allowed: readonly string[],
 ): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const status of allowed) {
     counts[status] = 0;
   }
-  const rows = db.prepare(query).all() as Array<{ status: string; count: number }>;
   for (const row of rows) {
     if ((allowed as readonly string[]).includes(row.status)) {
       counts[row.status] = row.count;
@@ -162,33 +179,56 @@ function countByStatus(
  * Game with no source row is `missing`; the LEFT JOIN keeps those counted.
  */
 function metadataState(db: BetterSqlite3.Database): Status["metadata"] {
-  const tags = countByStatus(
+  const tags = countRows(
     db,
-    `SELECT COALESCE(sp.tags_status, 'missing') AS status, COUNT(*) AS count
-       FROM games g LEFT JOIN steamspy_appdetails sp ON sp.app_id = g.app_id
-      GROUP BY status`,
+    allSync(
+      db,
+      queryFor(db)
+        .selectFrom("games as g")
+        .leftJoin("steamspy_appdetails as s", "s.app_id", "g.app_id")
+        .select(sql<string>`COALESCE(s.tags_status, 'missing')`.as("status"))
+        .select(sql<number>`COUNT(*)`.as("count"))
+        .groupBy(sql`COALESCE(s.tags_status, 'missing')`)
+        .compile(),
+    ),
     ["ok", "missing", "stale", "error"],
   ) as TagsCounts;
-  const store = countByStatus(
+  const store = countRows(
     db,
-    `SELECT COALESCE(sf.store_status, 'missing') AS status, COUNT(*) AS count
-       FROM games g LEFT JOIN storefront_appdetails sf ON sf.app_id = g.app_id
-      GROUP BY status`,
+    allSync(
+      db,
+      queryFor(db)
+        .selectFrom("games as g")
+        .leftJoin("storefront_appdetails as s", "s.app_id", "g.app_id")
+        .select(sql<string>`COALESCE(s.store_status, 'missing')`.as("status"))
+        .select(sql<number>`COUNT(*)`.as("count"))
+        .groupBy(sql`COALESCE(s.store_status, 'missing')`)
+        .compile(),
+    ),
     ["ok", "unavailable", "missing", "stale", "error"],
   ) as StoreCounts;
-  const reviews = countByStatus(
+  const reviews = countRows(
     db,
-    `SELECT COALESCE(sr.review_status, 'missing') AS status, COUNT(*) AS count
-       FROM games g LEFT JOIN steam_review_summaries sr ON sr.app_id = g.app_id
-      GROUP BY status`,
+    allSync(
+      db,
+      queryFor(db)
+        .selectFrom("games as g")
+        .leftJoin("steam_review_summaries as s", "s.app_id", "g.app_id")
+        .select(sql<string>`COALESCE(s.review_status, 'missing')`.as("status"))
+        .select(sql<number>`COUNT(*)`.as("count"))
+        .groupBy(sql`COALESCE(s.review_status, 'missing')`)
+        .compile(),
+    ),
     ["ok", "unavailable", "missing", "stale", "error"],
   ) as ReviewCounts;
-  const row = db
-    .prepare(
-      `SELECT MAX(last_success_at) AS last_success_at FROM source_state
-       WHERE name IN ('steamspy', 'storefront', 'steam_reviews')`,
-    )
-    .get() as { last_success_at: number | null } | undefined;
+  const row = firstSync<{ last_success_at: number | null }>(
+    db,
+    queryFor(db)
+      .selectFrom("source_state")
+      .select(sql<number | null>`MAX(last_success_at)`.as("last_success_at"))
+      .where("name", "in", ["steamspy", "storefront", "steam_reviews"])
+      .compile(),
+  );
   return { tags, store, reviews, lastSuccessAt: toIso(row?.last_success_at ?? null) };
 }
 
