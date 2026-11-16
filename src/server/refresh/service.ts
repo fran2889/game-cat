@@ -373,32 +373,15 @@ function validateAppIds(value: unknown): { appIds: number[] | null; error: strin
   return { appIds: [...seen].sort((left, right) => left - right), error: null };
 }
 
+/**
+ * Resolve the cross-field Refresh rules. The envelope types and the scope
+ * enum are enforced by the route schema; what remains is which combinations
+ * of scope, mode, and App IDs are legal.
+ */
 function parseRefreshRequest(body: unknown): RefreshRequest {
-  const record = asRecord(body);
-  if (record === null) {
-    throw validationError({ body: "must be an object" }, "body");
-  }
+  const record = body as { scope: RefreshScope; mode?: unknown; appIds?: unknown };
   const fieldErrors: Record<string, string> = {};
-
-  const scope = record.scope;
-  if (scope === undefined) {
-    fieldErrors.scope = "is required";
-  } else if (typeof scope !== "string") {
-    fieldErrors.scope = "must be a string";
-  } else if (
-    scope !== "library" &&
-    scope !== "ownership" &&
-    scope !== "metadata" &&
-    scope !== "all"
-  ) {
-    fieldErrors.scope = "must be library, ownership, metadata, or all";
-  }
-
-  if (Object.keys(fieldErrors).length > 0) {
-    throw validationError(fieldErrors, "body");
-  }
-
-  const validScope = scope as RefreshScope;
+  const validScope = record.scope;
   const rawMode = record.mode;
   const modeProvided = rawMode !== undefined;
   let mode: RefreshMode | null = null;
