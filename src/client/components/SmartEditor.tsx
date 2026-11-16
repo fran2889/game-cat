@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { keepPreviousData, useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useBlocker } from "react-router-dom";
 import type {
   GameSummary,
   GamesResponse,
   RuleValueField,
   SteamCollectionSummary,
-  TagsResponse,
 } from "../../shared/types.ts";
 import { MAX_GAME_RULE_IDS, validateRules, type Rule, type RuleField } from "../../shared/rules.ts";
 import type { SmartCollection } from "../../shared/smart-collections.ts";
@@ -13,11 +13,12 @@ import {
   ApiError,
   createSmartCollection,
   deleteSmartCollection,
-  fetchRuleValues,
-  fetchSteamCollections,
-  fetchTags,
   patchSmartCollection,
   previewRules,
+  ruleValuesQueryOptions,
+  steamCollectionsQueryOptions,
+  tagsQueryOptions,
+  type PreviewRulesBody,
 } from "../api.ts";
 import {
   AutosaveController,
@@ -29,7 +30,7 @@ import { useBrowse } from "../browse-context.tsx";
 import { GameResults } from "./GameResults.tsx";
 import { Pagination } from "./Pagination.tsx";
 import { RuleRow } from "./RuleRow.tsx";
-import { EMPTY_SUGGESTIONS, type RuleSuggestions } from "./RuleValueControl.tsx";
+import { type RuleSuggestions } from "./RuleValueControl.tsx";
 import { SelectionBar } from "./SelectionBar.tsx";
 import { useToast } from "./ToastProvider.tsx";
 import { formatRange } from "../browse.ts";
@@ -119,10 +120,7 @@ export function SmartEditor({
   const [rules, setRules] = useState<Rule[]>(collection?.rules ?? initialRules ?? []);
   const [page, setPage] = useState(1);
   const [preview, setPreview] = useState<GamesResponse | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [collections, setCollections] = useState<SteamCollectionSummary[]>([]);
-  const [suggestions, setSuggestions] = useState<RuleSuggestions>(EMPTY_SUGGESTIONS);
+  const [previewInput, setPreviewInput] = useState<PreviewRulesBody | null>(null);
   const [creating, setCreating] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
@@ -131,6 +129,37 @@ export function SmartEditor({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const steamCollectionsQuery = useQuery(steamCollectionsQueryOptions({ pageSize: 200 }));
+  const collections: SteamCollectionSummary[] = steamCollectionsQuery.data?.data ?? [];
+  const tagsQuery = useQuery(tagsQueryOptions({ pageSize: 100 }));
+  const valueQueries = useQueries({
+    queries: RULE_VALUE_FIELDS.map((field) => ruleValuesQueryOptions({ field, pageSize: 100 })),
+  });
+  const suggestions = useMemo<RuleSuggestions>(() => {
+    const values: Record<RuleValueField, string[]> = {
+      genre: [],
+      category: [],
+      developer: [],
+      publisher: [],
+    };
+    RULE_VALUE_FIELDS.forEach((field, index) => {
+      values[field] = valueQueries[index]?.data?.data.map((entry) => entry.value) ?? [];
+    });
+    return {
+      tags: tagsQuery.data?.data.map((tag) => tag.name) ?? [],
+      values,
+    };
+  }, [tagsQuery.data, valueQueries]);
+
+  const createMutation = useMutation({ mutationFn: createSmartCollection });
+  const deleteMutation = useMutation({ mutationFn: deleteSmartCollection });
+  const patchMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: AutosaveSnapshot }) =>
+      patchSmartCollection(id, body),
+  });
+  const patchMutationRef = useRef(patchMutation);
+  patchMutationRef.current = patchMutation;
 
   const savedId = collection?.id ?? null;
   const savedIdRef = useRef(savedId);
@@ -177,7 +206,7 @@ export function SmartEditor({
         setServerFieldErrors({});
         setConflict(null);
         try {
-          const saved = await patchSmartCollection(id, snapshot);
+          const saved = await patchMutationRef.current.mutateAsync({ id, body: snapshot });
           onSavedRef.current?.(saved);
           return { name: saved.name, rules: saved.rules };
         } catch (error) {
@@ -232,74 +261,37 @@ export function SmartEditor({
   }, [autosave, name, rules, localNameError, rulesInvalid]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void fetchSteamCollections({ pageSize: 200 }, controller.signal)
-      .then((response) => setCollections(response.data))
-      .catch((error: unknown) => {
-        if ((error as Error).name !== "AbortError") {
-          setCollections([]);
-        }
-      });
-    void fetchTags({ pageSize: 100 }, controller.signal)
-      .then((response: TagsResponse) =>
-        setSuggestions((current) => ({ ...current, tags: response.data.map((tag) => tag.name) })),
-      )
-      .catch(() => undefined);
-    for (const field of RULE_VALUE_FIELDS) {
-      void fetchRuleValues({ field, pageSize: 100 }, controller.signal)
-        .then((response) =>
-          setSuggestions((current) => ({
-            ...current,
-            values: {
-              ...current.values,
-              [field]: response.data.map((entry) => entry.value),
-            },
-          })),
-        )
-        .catch(() => undefined);
-    }
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
     const changed = previousSignature.current !== null && previousSignature.current !== signature;
     previousSignature.current = signature;
     if (rulesInvalid) {
-      setPending(false);
+      setPreviewInput(null);
       return;
     }
-    const controller = new AbortController();
-    let active = true;
-
-    const start = (): void => {
-      setPending(true);
-      previewRules({ rules: validRules, page, pageSize: PAGE_SIZE, sort, order }, controller.signal)
-        .then((response) => {
-          if (!active) {
-            return;
-          }
-          setPreview(response);
-          setPreviewError(null);
-          setPending(false);
-        })
-        .catch((error: unknown) => {
-          if (!active || (error as Error).name === "AbortError") {
-            return;
-          }
-          setPreviewError(
-            error instanceof ApiError ? error.message : "The preview could not be loaded.",
-          );
-          setPending(false);
-        });
-    };
-
-    const timer = window.setTimeout(start, changed ? 300 : 0);
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-      controller.abort();
-    };
+    const body = { rules: validRules, page, pageSize: PAGE_SIZE, sort, order };
+    const timer = window.setTimeout(() => setPreviewInput(body), changed ? 300 : 0);
+    return () => window.clearTimeout(timer);
   }, [signature, page, sort, order, rulesInvalid]);
+
+  const previewQuery = useQuery({
+    queryKey: ["rules-preview", previewInput],
+    queryFn: ({ signal }) => previewRules(previewInput as PreviewRulesBody, signal),
+    enabled: previewInput !== null,
+    placeholderData: keepPreviousData,
+  });
+
+  useEffect(() => {
+    if (previewQuery.data !== undefined) {
+      setPreview(previewQuery.data);
+    }
+  }, [previewQuery.data]);
+
+  const pending = previewQuery.isFetching;
+  const previewError =
+    previewQuery.error === null
+      ? null
+      : previewQuery.error instanceof ApiError
+        ? previewQuery.error.message
+        : "The preview could not be loaded.";
 
   const updateRules = useCallback(
     (next: Rule[]) => {
@@ -336,7 +328,7 @@ export function SmartEditor({
     setServerFieldErrors({});
     setConflict(null);
     try {
-      const saved = await createSmartCollection({ name: name.trim(), rules: validRules });
+      const saved = await createMutation.mutateAsync({ name: name.trim(), rules: validRules });
       autosave.markSaved({ name: saved.name, rules: saved.rules });
       setName(saved.name);
       setRules(saved.rules);
@@ -380,7 +372,7 @@ export function SmartEditor({
     setDeleteError(null);
     autosave.cancelPending();
     try {
-      await deleteSmartCollection(savedId);
+      await deleteMutation.mutateAsync(savedId);
       allowNavigationRef.current = true;
       autosave.dispose();
       onDeleted?.();

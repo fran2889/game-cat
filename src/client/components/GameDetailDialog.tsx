@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import type { GameDetail } from "../../shared/types.ts";
-import { ApiError, fetchGameDetail } from "../api.ts";
+import { ApiError, gameDetailQueryOptions } from "../api.ts";
 import {
   dash,
   formatBytes,
@@ -56,8 +57,30 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
   const { showToast } = useToast();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const [reloadToken, setReloadToken] = useState(0);
+  const parsed = /^\d+$/.test(appId) ? Number.parseInt(appId, 10) : null;
+  const appIdValue = parsed !== null && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+  const detailQuery = useQuery({
+    ...gameDetailQueryOptions(appIdValue ?? 0),
+    enabled: appIdValue !== null,
+  });
+  const detail = detailQuery.data ?? null;
+  const notFound =
+    appIdValue === null ||
+    (detailQuery.error instanceof ApiError && detailQuery.error.status === 404);
+  const failure = detailQuery.error;
+  const errorMessage =
+    failure === null || (failure instanceof ApiError && failure.status === 404)
+      ? null
+      : failure instanceof ApiError && failure.status === null
+        ? "Cannot reach game-cat. Is the server still running?"
+        : failure.message;
+  const state: LoadState = notFound
+    ? { kind: "not_found" }
+    : errorMessage !== null
+      ? { kind: "error", message: errorMessage }
+      : detail !== null
+        ? { kind: "ready", detail }
+        : { kind: "loading" };
 
   const closeTo = useCallback(
     (destination: { pathname: string; search: string; hash: string }) => {
@@ -68,35 +91,6 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
     },
     [navigate],
   );
-
-  useEffect(() => {
-    const parsed = /^\d+$/.test(appId) ? Number.parseInt(appId, 10) : null;
-    if (parsed === null || !Number.isSafeInteger(parsed) || parsed <= 0) {
-      setState({ kind: "not_found" });
-      return;
-    }
-    const controller = new AbortController();
-    setState({ kind: "loading" });
-    void fetchGameDetail(parsed, controller.signal)
-      .then((detail) => setState({ kind: "ready", detail }))
-      .catch((error: unknown) => {
-        if ((error as Error).name === "AbortError") {
-          return;
-        }
-        if (error instanceof ApiError && error.status === 404) {
-          setState({ kind: "not_found" });
-          return;
-        }
-        setState({
-          kind: "error",
-          message:
-            error instanceof ApiError && error.status === null
-              ? "Cannot reach game-cat. Is the server still running?"
-              : (error as Error).message,
-        });
-      });
-    return () => controller.abort();
-  }, [appId, reloadToken]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -169,7 +163,6 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
 
   const close = () => closeTo(background);
 
-  const detail = state.kind === "ready" ? state.detail : null;
   const installed = detail?.installed === true;
   const reviewSummary = (() => {
     if (detail === null) {
@@ -233,11 +226,7 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
           <div className="detail-state" role="alert">
             <h2 id="detail-title">Cannot load this Game</h2>
             <p>{state.message}</p>
-            <button
-              type="button"
-              className="button"
-              onClick={() => setReloadToken((token) => token + 1)}
-            >
+            <button type="button" className="button" onClick={() => void detailQuery.refetch()}>
               Retry
             </button>
           </div>

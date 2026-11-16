@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import type { SteamCollectionGamesResponse, SteamCollectionSummary } from "../../shared/types.ts";
-import { ApiError, fetchSteamCollection, fetchSteamCollectionGames } from "../api.ts";
+import type { SteamCollectionSummary } from "../../shared/types.ts";
+import { ApiError, steamCollectionGamesQueryOptions, steamCollectionQueryOptions } from "../api.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { GameResults } from "../components/GameResults.tsx";
 import { Pagination } from "../components/Pagination.tsx";
@@ -48,77 +49,34 @@ export function SteamCollectionView() {
   const { id = "" } = useParams();
   const { sort, order, layout, selectedCount, isSelected, selectShown, clearSelection } =
     useBrowse();
-  const [summary, setSummary] = useState<SteamCollectionSummary | null>(null);
-  const [members, setMembers] = useState<SteamCollectionGamesResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [missing, setMissing] = useState(false);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    setSummary(null);
-    setMembers(null);
-    setError(null);
-    setMissing(false);
     setPage(1);
-  }, [id]);
-
-  useEffect(() => {
-    if (id === "") {
-      setMissing(true);
-      return;
-    }
-    const controller = new AbortController();
-    void fetchSteamCollection(id, controller.signal)
-      .then((next) => {
-        setSummary(next);
-        setError(null);
-      })
-      .catch((fetchError: unknown) => {
-        if ((fetchError as Error).name === "AbortError") {
-          return;
-        }
-        if (fetchError instanceof ApiError && fetchError.status === 404) {
-          setMissing(true);
-        } else {
-          setError((fetchError as Error).message);
-        }
-      });
-    return () => controller.abort();
   }, [id]);
 
   useEffect(() => {
     setPage(1);
   }, [sort, order, layout]);
 
-  const loadMembers = useCallback(
-    (signal?: AbortSignal) => {
-      if (id === "") {
-        return;
-      }
-      void fetchSteamCollectionGames(id, { page, pageSize: PAGE_SIZE, sort, order }, signal)
-        .then((next) => {
-          setMembers(next);
-          setError(null);
-        })
-        .catch((fetchError: unknown) => {
-          if ((fetchError as Error).name === "AbortError") {
-            return;
-          }
-          if (fetchError instanceof ApiError && fetchError.status === 404) {
-            setMissing(true);
-          } else {
-            setError((fetchError as Error).message);
-          }
-        });
-    },
-    [id, order, page, sort],
-  );
+  const summaryQuery = useQuery({
+    ...steamCollectionQueryOptions(id),
+    enabled: id !== "",
+  });
+  const membersQuery = useQuery({
+    ...steamCollectionGamesQueryOptions(id, { page, pageSize: PAGE_SIZE, sort, order }),
+    enabled: id !== "",
+  });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    loadMembers(controller.signal);
-    return () => controller.abort();
-  }, [loadMembers]);
+  const notFound = (error: Error | null): boolean =>
+    error instanceof ApiError && error.status === 404;
+  const missing = id === "" || notFound(summaryQuery.error) || notFound(membersQuery.error);
+  const queryError = [summaryQuery.error, membersQuery.error].find(
+    (error): error is Error => error !== null && !notFound(error),
+  );
+  const error = queryError?.message ?? null;
+  const summary = summaryQuery.data ?? null;
+  const members = membersQuery.data ?? null;
 
   if (missing) {
     return (
@@ -144,7 +102,14 @@ export function SteamCollectionView() {
           <strong>Cannot load this Steam Collection.</strong>
           <p>{error}</p>
         </div>
-        <button type="button" className="button" onClick={() => loadMembers()}>
+        <button
+          type="button"
+          className="button"
+          onClick={() => {
+            void summaryQuery.refetch();
+            void membersQuery.refetch();
+          }}
+        >
           Retry
         </button>
       </div>
