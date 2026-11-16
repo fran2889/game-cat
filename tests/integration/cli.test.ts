@@ -163,12 +163,7 @@ describe("CLI", () => {
     ],
     [
       "equals",
-      (dataDir: string) => [
-        `--data-dir=${dataDir}`,
-        "--port=0",
-        "--no-open",
-        "--log-level=error",
-      ],
+      (dataDir: string) => [`--data-dir=${dataDir}`, "--port=0", "--no-open", "--log-level=error"],
     ],
   ])(
     "starts with %s values, prints the loopback URL, and shuts down cleanly on SIGTERM",
