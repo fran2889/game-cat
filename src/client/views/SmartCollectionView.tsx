@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { SmartCollection } from "../../shared/smart-collections.ts";
-import { ApiError, fetchSmartCollection } from "../api.ts";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError, smartCollectionQueryOptions } from "../api.ts";
 import { SmartEditor } from "../components/SmartEditor.tsx";
 import { useSmartCollections } from "../smart-collections-context.tsx";
 
@@ -12,44 +11,20 @@ import { useSmartCollections } from "../smart-collections-context.tsx";
 export function SmartCollectionView() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { reload, remove } = useSmartCollections();
-  const [collection, setCollection] = useState<SmartCollection | null>(null);
-  const [missing, setMissing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(
-    (signal?: AbortSignal) => {
-      if (id === "") {
-        setMissing(true);
-        return;
-      }
-      setError(null);
-      void fetchSmartCollection(id, signal)
-        .then((next) => {
-          setCollection(next);
-          setMissing(false);
-        })
-        .catch((fetchError: unknown) => {
-          if ((fetchError as Error).name === "AbortError") {
-            return;
-          }
-          if (fetchError instanceof ApiError && fetchError.status === 404) {
-            setMissing(true);
-          } else {
-            setError((fetchError as Error).message);
-          }
-        });
-    },
-    [id],
-  );
-
-  useEffect(() => {
-    setCollection(null);
-    setMissing(false);
-    const controller = new AbortController();
-    load(controller.signal);
-    return () => controller.abort();
-  }, [load]);
+  const queryOptions = smartCollectionQueryOptions(id);
+  const collectionQuery = useQuery({ ...queryOptions, enabled: id !== "" });
+  const collection = collectionQuery.data ?? null;
+  const missing =
+    id === "" ||
+    (collectionQuery.error instanceof ApiError && collectionQuery.error.status === 404);
+  const error =
+    collectionQuery.error !== null && !(collectionQuery.error instanceof ApiError)
+      ? collectionQuery.error.message
+      : collectionQuery.error instanceof ApiError && collectionQuery.error.status !== 404
+        ? collectionQuery.error.message
+        : null;
 
   if (missing) {
     return (
@@ -72,7 +47,7 @@ export function SmartCollectionView() {
           <strong>Cannot load this Smart Collection.</strong>
           <p>{error}</p>
         </div>
-        <button type="button" className="button" onClick={() => load()}>
+        <button type="button" className="button" onClick={() => void collectionQuery.refetch()}>
           Retry
         </button>
       </div>
@@ -104,11 +79,12 @@ export function SmartCollectionView() {
       key={collection.id}
       collection={collection}
       onSaved={(saved) => {
-        setCollection(saved);
+        queryClient.setQueryData(queryOptions.queryKey, saved);
         void reload();
       }}
       onDeleted={() => {
         remove(collection.id);
+        queryClient.removeQueries({ queryKey: queryOptions.queryKey });
         void reload();
         navigate("/");
       }}

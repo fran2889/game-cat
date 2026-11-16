@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { NavLink, useLocation } from "react-router-dom";
-import type { Status, SteamCollectionSummary } from "../../shared/types.ts";
-import { fetchSteamCollections } from "../api.ts";
+import type { Status } from "../../shared/types.ts";
+import { steamCollectionsQueryOptions } from "../api.ts";
 import { formatCount, formatRelativeTime } from "../format.ts";
 import { useRefresh } from "../refresh-context.tsx";
 import { dataAsOf, refreshCardTitle } from "../refresh.ts";
@@ -29,20 +30,17 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
   const account = status?.steam.account ?? null;
   const gameCount = status?.library.gameCount ?? 0;
   const installedCount = status?.library.installedCount ?? 0;
-  const [steamCollections, setSteamCollections] = useState<SteamCollectionSummary[]>([]);
+  const steamCollectionsQuery = useQuery(steamCollectionsQueryOptions({ pageSize: 200 }));
+  const steamCollections = steamCollectionsQuery.data?.data ?? [];
   const lastScanAt = status?.library.lastScanAt ?? null;
+  const previousScanAt = useRef<string | null>(null);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void fetchSteamCollections({ pageSize: 200 }, controller.signal)
-      .then((response) => setSteamCollections(response.data))
-      .catch((error: unknown) => {
-        if ((error as Error).name !== "AbortError") {
-          setSteamCollections([]);
-        }
-      });
-    return () => controller.abort();
-  }, [lastScanAt, status]);
+    if (previousScanAt.current !== null && previousScanAt.current !== lastScanAt) {
+      void steamCollectionsQuery.refetch();
+    }
+    previousScanAt.current = lastScanAt;
+  }, [lastScanAt, steamCollectionsQuery.refetch]);
 
   const cardTitle = refreshCardTitle(status, activeRun);
   const refreshedAt = status === null ? null : dataAsOf(status);

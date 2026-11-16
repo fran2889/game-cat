@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useOutletContext } from "react-router-dom";
-import type { GamesResponse } from "../../shared/types.ts";
-import { ApiError, fetchGames, startLibraryScan } from "../api.ts";
+import { ApiError, gamesQueryOptions, startLibraryScan } from "../api.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { GameResults } from "../components/GameResults.tsx";
 import { OwnershipBanner } from "../components/OwnershipBanner.tsx";
@@ -49,53 +49,44 @@ export function LibraryView({ mode }: LibraryViewProps) {
     selectShown,
     clearSelection,
   } = useBrowse();
-  const [games, setGames] = useState<GamesResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [scanning, setScanning] = useState(false);
+  const scanMutation = useMutation({ mutationFn: startLibraryScan });
 
   const installedFilter = mode === "installed" || installedOnly;
 
-  const load = useCallback(
-    (signal?: AbortSignal) => {
-      return fetchGames(
-        {
-          page,
-          pageSize: PAGE_SIZE,
-          sort,
-          order,
-          ...(search.trim() === "" ? {} : { search }),
-          ...(installedFilter ? { installed: true } : {}),
-        },
-        signal,
-      )
-        .then((next) => {
-          setGames(next);
-          setError(null);
-        })
-        .catch((fetchError: unknown) => {
-          if ((fetchError as Error).name !== "AbortError") {
-            setError((fetchError as Error).message);
-          }
-        });
-    },
-    [installedFilter, order, page, search, sort],
+  const gamesQuery = useQuery(
+    gamesQueryOptions({
+      page,
+      pageSize: PAGE_SIZE,
+      sort,
+      order,
+      ...(search.trim() === "" ? {} : { search }),
+      ...(installedFilter ? { installed: true } : {}),
+    }),
   );
+  const games = gamesQuery.data ?? null;
+  const error = gamesQuery.error === null ? null : (gamesQuery.error as Error).message;
 
   useEffect(() => {
     setPage(1);
   }, [search, sort, order, installedFilter, layout, mode]);
 
+  // A finished Refresh changes the stored rows; refetch without making the
+  // initial status load look like a finished run.
+  const finishedAt = status?.lastRefresh?.finishedAt ?? null;
+  const previousFinishedAt = useRef<string | null>(null);
   useEffect(() => {
-    const controller = new AbortController();
-    void load(controller.signal);
-    return () => controller.abort();
-  }, [load, status?.lastRefresh?.finishedAt]);
+    if (previousFinishedAt.current !== null && previousFinishedAt.current !== finishedAt) {
+      void gamesQuery.refetch();
+    }
+    previousFinishedAt.current = finishedAt;
+  }, [finishedAt, gamesQuery.refetch]);
 
   const scan = async (): Promise<void> => {
     setScanning(true);
     try {
-      const run = await startLibraryScan();
+      const run = await scanMutation.mutateAsync();
       if (run.status === "failed") {
         showToast(run.error?.message ?? "The scan failed.");
       } else if (run.status === "partial") {
@@ -104,7 +95,9 @@ export function LibraryView({ mode }: LibraryViewProps) {
         showToast("Library scan finished.");
       }
       setPage(1);
-      await load();
+      if (page === 1) {
+        await gamesQuery.refetch();
+      }
       reloadStatus();
     } catch (scanError) {
       showToast(
@@ -169,12 +162,14 @@ export function LibraryView({ mode }: LibraryViewProps) {
   }
 
   if (error !== null && games === null) {
-    return <DisconnectedBanner message={error} onRetry={() => void load()} />;
+    return <DisconnectedBanner message={error} onRetry={() => void gamesQuery.refetch()} />;
   }
 
   const banners = (
     <>
-      {error !== null && <DisconnectedBanner message={error} onRetry={() => void load()} />}
+      {error !== null && (
+        <DisconnectedBanner message={error} onRetry={() => void gamesQuery.refetch()} />
+      )}
       {noAccount && <NoAccountBanner />}
       {status !== null && <OwnershipBanner status={status} />}
     </>
