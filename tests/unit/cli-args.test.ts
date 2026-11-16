@@ -10,7 +10,19 @@ describe("CLI arguments", () => {
     expect(parsed.options).toEqual({});
   });
 
-  it("parses the documented flags in both value forms", () => {
+  it.each([
+    [["--data-dir=/tmp/game-cat"], { dataDir: "/tmp/game-cat" }],
+    [["--data-dir", "/tmp/game-cat"], { dataDir: "/tmp/game-cat" }],
+    [["--port=0"], { port: "0" }],
+    [["--port", "0"], { port: "0" }],
+    [["--log-level=debug"], { logLevel: "debug" }],
+    [["--log-level", "debug"], { logLevel: "debug" }],
+    [["--no-open"], { openBrowser: false }],
+  ])("parses %j", (argv, expected) => {
+    expect(parseCliArgs(argv).options).toEqual(expected);
+  });
+
+  it("parses the documented flags together in both value forms", () => {
     const parsed = parseCliArgs([
       "--data-dir",
       "/tmp/game-cat",
@@ -40,6 +52,23 @@ describe("CLI arguments", () => {
     }
   });
 
+  it("rejects missing and empty values as usage errors", () => {
+    for (const argv of [
+      ["--data-dir"],
+      ["--data-dir="],
+      ["--port"],
+      ["--port="],
+      ["--log-level"],
+      ["--log-level="],
+    ]) {
+      expect(() => parseCliArgs(argv)).toThrowError(CliUsageError);
+    }
+  });
+
+  it("leaves value validation to the config layer", () => {
+    expect(parseCliArgs(["--port", "-1"]).options).toEqual({ port: "-1" });
+  });
+
   it("documents every flag in the help text", () => {
     for (const flag of [
       "--data-dir",
@@ -51,5 +80,8 @@ describe("CLI arguments", () => {
     ]) {
       expect(USAGE).toContain(flag);
     }
+    expect(USAGE).toContain("Usage: game-cat [options]");
+    expect(USAGE).toContain("Environment:");
+    expect(USAGE).toContain("GAME_CAT_DATA_DIR");
   });
 });
