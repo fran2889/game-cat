@@ -63,8 +63,11 @@ Per area:
 - **UI.** Mantine for components and styling, sequenced last so the server strands land
   independently. The framework choice comes from the existing unmerged mockup evidence; that branch is
   evidence, not code to build on, and is not merged.
-- **Small replacements.** `commander` for argument parsing, `pino-roll` for log rotation, and ESLint
-  rules replacing the two custom audit scripts.
+- **Small replacements.** `commander` for argument parsing and ESLint rules replacing the two custom
+  audit scripts. Log rotation stays hand-written: `pino-roll` renames the active file (it writes
+  `game-cat.1.log` and no stable `game-cat.log`), and `rotating-file-stream` v4 does not reproduce the
+  documented `game-cat.log`, `.1`, `.2` set either. The filenames are part of the frozen contract, so
+  the 121-line rotator is the smaller risk.
 
 ## Considered Options
 
@@ -91,9 +94,9 @@ Per area:
 ## Consequences
 
 - §1.5 now names the libraries and the boundary. Tickets cite this ADR instead of re-arguing it.
-- Six pure-JS runtime dependencies are added over the effort (`kysely`, `@tanstack/react-query`,
-  `@mantine/core`, `@mantine/hooks`, `commander`, `pino-roll`), and a seventh (`@mantine/form`) if
-  the UI strand lands, plus ESLint as a development dependency. No native additions.
+- Five pure-JS runtime dependencies are added over the effort (`kysely`, `@tanstack/react-query`,
+  `@mantine/core`, `@mantine/hooks`, `commander`), and a sixth (`@mantine/form`) if the UI strand
+  lands, plus ESLint as a development dependency. No native additions.
 - When [#63](https://github.com/fran2889/game-cat/issues/63) lands, `npm run check` gains ESLint and
   the two custom audit scripts become lint configuration; `audit:tests` and `audit:secrets` keep
   their current rules. Until then `README.md`, `AGENTS.md`, and §9.9 describe today's pipeline.
