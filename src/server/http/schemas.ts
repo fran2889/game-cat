@@ -1,6 +1,7 @@
 import type { FastifyRequest } from "fastify";
 import {
   GAME_SORTS,
+  LOG_LEVELS,
   type GameOrder,
   type GameSort,
   type RuleValueField,
@@ -644,3 +645,40 @@ export interface SmartCollectionPatchBody {
   name?: string;
   rules?: unknown;
 }
+
+export const configPatchBodySchema = {
+  type: "object",
+  properties: {
+    steamApiKey: { type: "string", minLength: 1 },
+    steamRoot: { type: "string", minLength: 1 },
+    steamId64: { type: "string", pattern: "^\\d{17}$" },
+    port: { type: "integer", minimum: 0, maximum: 65535 },
+    openBrowser: { type: "boolean" },
+    logLevel: { type: "string", enum: [...LOG_LEVELS] },
+  },
+};
+
+export const refreshBodySchema = {
+  type: "object",
+  required: ["scope"],
+  properties: {
+    scope: { type: "string", enum: ["library", "ownership", "metadata", "all"] },
+    mode: { type: "string", enum: ["fetch", "full"] },
+    appIds: { type: "array", items: { type: "integer", minimum: 1 } },
+  },
+};
+
+export interface ConfigPatchBody {
+  steamApiKey?: string;
+  steamRoot?: string;
+  steamId64?: string;
+  port?: number;
+  openBrowser?: boolean;
+  logLevel?: (typeof LOG_LEVELS)[number];
+}
+
+export type RefreshBody = {
+  scope: "library" | "ownership" | "metadata" | "all";
+  mode?: unknown;
+  appIds?: unknown;
+};
