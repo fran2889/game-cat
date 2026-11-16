@@ -215,74 +215,69 @@ export function createSteamSpySource(options: SteamSpySourceOptions = {}): Metad
     name: "steamspy",
 
     async fetch(context: MetadataSourceContext): Promise<MetadataSourceOutcome> {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
       const signal =
         context.signal === undefined
-          ? controller.signal
-          : AbortSignal.any([controller.signal, context.signal]);
+          ? timeoutSignal
+          : AbortSignal.any([timeoutSignal, context.signal]);
+      let response: Response;
       try {
-        let response: Response;
-        try {
-          response = await fetchImpl(steamspyUrl(context.game.appId), {
-            method: "GET",
-            headers: {
-              accept: "application/json",
-              "user-agent": STEAMSPY_USER_AGENT,
-            },
-            signal,
-          });
-        } catch {
-          return failureOutcome(
-            context.db,
-            context,
-            context.signal?.aborted === true
-              ? "The SteamSpy request was interrupted by shutdown."
-              : controller.signal.aborted
-                ? "The SteamSpy request timed out."
-                : "SteamSpy could not be reached.",
-          );
-        }
-
-        if (response.status === 403 || response.headers.get("cf-mitigated") === "challenge") {
-          const message = "SteamSpy blocked or challenged the request.";
-          recordFailure(context.db, context, message);
-          return { kind: "blocked", message };
-        }
-        if (response.status === 429) {
-          const message = "SteamSpy rate limited the request. Try again later.";
-          recordFailure(context.db, context, message);
-          return {
-            kind: "rate_limited",
-            retryAfterAt: parseRetryAfter(response.headers.get("retry-after"), context.now),
-            message,
-          };
-        }
-        if (response.status < 200 || response.status >= 300) {
-          return failureOutcome(
-            context.db,
-            context,
-            `The SteamSpy request failed with status ${response.status}.`,
-          );
-        }
-
-        let body: unknown;
-        try {
-          body = await response.json();
-        } catch {
-          return failureOutcome(context.db, context, "SteamSpy returned an unreadable response.");
-        }
-
-        const parsed = classifyBody(body, context.game.appId);
-        if (parsed.kind === "malformed") {
-          return failureOutcome(context.db, context, parsed.message);
-        }
-
-        storeSuccessfulResponse(context.db, context, parsed);
-        return { kind: parsed.kind === "ok" ? "ok" : "missing" };
-      } finally {
-        clearTimeout(timer);
+        response = await fetchImpl(steamspyUrl(context.game.appId), {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+            "user-agent": STEAMSPY_USER_AGENT,
+          },
+          signal,
+        });
+      } catch {
+        return failureOutcome(
+          context.db,
+          context,
+          context.signal?.aborted === true
+            ? "The SteamSpy request was interrupted by shutdown."
+            : timeoutSignal.aborted
+              ? "The SteamSpy request timed out."
+              : "SteamSpy could not be reached.",
+        );
       }
+
+      if (response.status === 403 || response.headers.get("cf-mitigated") === "challenge") {
+        const message = "SteamSpy blocked or challenged the request.";
+        recordFailure(context.db, context, message);
+        return { kind: "blocked", message };
+      }
+      if (response.status === 429) {
+        const message = "SteamSpy rate limited the request. Try again later.";
+        recordFailure(context.db, context, message);
+        return {
+          kind: "rate_limited",
+          retryAfterAt: parseRetryAfter(response.headers.get("retry-after"), context.now),
+          message,
+        };
+      }
+      if (response.status < 200 || response.status >= 300) {
+        return failureOutcome(
+          context.db,
+          context,
+          `The SteamSpy request failed with status ${response.status}.`,
+        );
+      }
+
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        return failureOutcome(context.db, context, "SteamSpy returned an unreadable response.");
+      }
+
+      const parsed = classifyBody(body, context.game.appId);
+      if (parsed.kind === "malformed") {
+        return failureOutcome(context.db, context, parsed.message);
+      }
+
+      storeSuccessfulResponse(context.db, context, parsed);
+      return { kind: parsed.kind === "ok" ? "ok" : "missing" };
     },
   };
 }
