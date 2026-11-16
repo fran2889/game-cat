@@ -1,4 +1,5 @@
 import type BetterSqlite3 from "better-sqlite3";
+import { sql } from "kysely";
 import type {
   GameSummary,
   Pagination,
@@ -7,10 +8,11 @@ import type {
   SteamCollectionSummary,
   SteamCollectionsResponse,
 } from "../../shared/types.ts";
+import { allSync, firstSync, queryFor } from "../db/query.ts";
 import {
-  gameOrderSql,
   readDataAsOf,
   readTagsForGames,
+  sortColumn,
   toGameSummary,
   type GameOrder,
   type GamesRow,
@@ -63,19 +65,29 @@ export class SteamCollectionsRepository {
   constructor(private readonly db: BetterSqlite3.Database) {}
 
   list(query: SteamCollectionsQuery): SteamCollectionsResponse {
-    const total = (
-      this.db.prepare("SELECT COUNT(*) AS count FROM steam_collections").get() as { count: number }
-    ).count;
-    const rows = this.db
-      .prepare(
-        `SELECT c.id, c.name, c.kind, c.is_dynamic,
-                (SELECT COUNT(*) FROM steam_collection_games g
-                  WHERE g.steam_collection_id = c.id) AS game_count
-         FROM steam_collections c
-         ORDER BY c.name ASC, c.id ASC
-         LIMIT ? OFFSET ?`,
-      )
-      .all(query.pageSize, (query.page - 1) * query.pageSize) as CollectionRow[];
+    const count = firstSync<{ count: number }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("steam_collections")
+        .select((expression) => expression.fn.countAll().as("count"))
+        .compile(),
+    );
+    const total = Number(count?.count ?? 0);
+    const rows = allSync<CollectionRow>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("steam_collections as c")
+        .select(["c.id as id", "c.name as name", "c.kind as kind", "c.is_dynamic as is_dynamic"])
+        .select(
+          sql<number>`(SELECT COUNT(*) FROM steam_collection_games g
+            WHERE g.steam_collection_id = c.id)`.as("game_count"),
+        )
+        .orderBy("c.name", "asc")
+        .orderBy("c.id", "asc")
+        .limit(query.pageSize)
+        .offset((query.page - 1) * query.pageSize)
+        .compile(),
+    );
 
     return {
       data: rows.map(toSummary),
@@ -100,22 +112,35 @@ export class SteamCollectionsRepository {
       };
     }
 
-    const total = (
-      this.db
-        .prepare(
-          "SELECT COUNT(*) AS count FROM steam_collection_games WHERE steam_collection_id = ?",
-        )
-        .get(id) as { count: number }
-    ).count;
-    const rows = this.db
-      .prepare(
-        `SELECT vg.* FROM v_games vg
-         JOIN steam_collection_games scg ON scg.app_id = vg.app_id
-         WHERE scg.steam_collection_id = ?
-         ${gameOrderSql(query.sort, query.order)}
-         LIMIT ? OFFSET ?`,
+    const count = firstSync<{ count: number }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("steam_collection_games")
+        .select((expression) => expression.fn.countAll().as("count"))
+        .where("steam_collection_id", "=", id)
+        .compile(),
+    );
+    const total = Number(count?.count ?? 0);
+    const column = sortColumn(query.sort);
+    const direction = query.order === "desc" ? "desc" : "asc";
+    const gamesQuery = queryFor(this.db)
+      .selectFrom("v_games as vg")
+      .innerJoin("steam_collection_games as scg", "scg.app_id", "vg.app_id")
+      .selectAll("vg")
+      .where("scg.steam_collection_id", "=", id);
+    const rows = allSync<GamesRow>(
+      this.db,
+      (query.sort === "appId"
+        ? gamesQuery.orderBy("vg.app_id", direction)
+        : gamesQuery
+            .orderBy(sql`(${sql.ref(column)} IS NULL)`, "asc")
+            .orderBy(sql.ref(column), direction)
+            .orderBy("vg.app_id", "asc")
       )
-      .all(id, query.pageSize, (query.page - 1) * query.pageSize) as GamesRow[];
+        .limit(query.pageSize)
+        .offset((query.page - 1) * query.pageSize)
+        .compile(),
+    );
     const tags = readTagsForGames(
       this.db,
       rows.map((row) => row.app_id),
@@ -129,14 +154,18 @@ export class SteamCollectionsRepository {
   }
 
   private read(id: string): SteamCollectionSummary | null {
-    const row = this.db
-      .prepare(
-        `SELECT c.id, c.name, c.kind, c.is_dynamic,
-                (SELECT COUNT(*) FROM steam_collection_games g
-                  WHERE g.steam_collection_id = c.id) AS game_count
-         FROM steam_collections c WHERE c.id = ?`,
-      )
-      .get(id) as CollectionRow | undefined;
+    const row = firstSync<CollectionRow>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("steam_collections as c")
+        .select(["c.id as id", "c.name as name", "c.kind as kind", "c.is_dynamic as is_dynamic"])
+        .select(
+          sql<number>`(SELECT COUNT(*) FROM steam_collection_games g
+            WHERE g.steam_collection_id = c.id)`.as("game_count"),
+        )
+        .where("c.id", "=", id)
+        .compile(),
+    );
     return row === undefined ? null : toSummary(row);
   }
 }
