@@ -1,4 +1,5 @@
 import type BetterSqlite3 from "better-sqlite3";
+import { queryFor, runSync } from "../db/query.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import type { SteamCollectionRecord } from "../steam/collections.ts";
 import type { LocalLibrarySnapshot, LocalManifest, LocalPlaytimeEntry } from "../steam/local.ts";
@@ -539,12 +540,11 @@ function persistCollections(
   importedAt: number,
 ): void {
   const ids = collections.map((collection) => collection.id);
-  if (ids.length === 0) {
-    db.prepare("DELETE FROM steam_collections").run();
-  } else {
-    const placeholders = ids.map(() => "?").join(", ");
-    db.prepare(`DELETE FROM steam_collections WHERE id NOT IN (${placeholders})`).run(...ids);
-  }
+  const removeCollections = queryFor(db).deleteFrom("steam_collections");
+  runSync(
+    db,
+    (ids.length === 0 ? removeCollections : removeCollections.where("id", "not in", ids)).compile(),
+  );
 
   const upsert = db.prepare(`
     INSERT INTO steam_collections (
