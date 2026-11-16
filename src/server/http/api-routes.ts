@@ -1,5 +1,5 @@
-import type { FastifyInstance } from "fastify";
-import { validatePreviewRequest } from "../../shared/rules.ts";
+import type { FastifyInstance, FastifyRequest } from "fastify";
+import { validatePreviewRequest, validateRules, type Rule } from "../../shared/rules.ts";
 import type {
   Config,
   ConfigPatchResponse,
@@ -9,14 +9,13 @@ import type {
 } from "../../shared/types.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { parseAppId } from "../app-id.ts";
-import { notFound, validationError, type RawQuery } from "../request.ts";
+import { notFound, validationError } from "../request.ts";
 import { type SteamCollectionsRepository } from "../library/collections.ts";
 import { GamesRepository, type GamesQuery } from "../library/games.ts";
 import type { RulePreviewRepository } from "../library/rule-preview.ts";
 import {
-  parseSmartCollectionGamesQuery,
-  parseSmartCollectionsQuery,
   type SmartCollectionsRepository,
+  validateSmartCollectionName,
 } from "../library/smart-collections.ts";
 import { type RuleValuesRepository } from "../library/rule-values.ts";
 import { type TagsRepository } from "../library/tags.ts";
@@ -32,6 +31,13 @@ import {
   steamCollectionGamesQuerySchema,
   steamCollectionGamesResponseSchema,
   steamCollectionResponseSchema,
+  smartCollectionCreateBodySchema,
+  smartCollectionGamesQuerySchema,
+  smartCollectionGamesResponseSchema,
+  smartCollectionPatchBodySchema,
+  smartCollectionResponseSchema,
+  smartCollectionsListQuerySchema,
+  smartCollectionsResponseSchema,
   steamCollectionsQuerySchema,
   steamCollectionsResponseSchema,
   tagsListQuerySchema,
@@ -39,6 +45,10 @@ import {
   type GamesListQuery,
   type PageQuery,
   type RuleValuesListQuery,
+  type SmartCollectionCreateBody,
+  type SmartCollectionGamesParams,
+  type SmartCollectionPatchBody,
+  type SmartCollectionsListQuery,
   type SteamCollectionGamesQuery as SteamCollectionGamesParams,
   type TagsListQuery,
 } from "./schemas.ts";
@@ -46,6 +56,36 @@ import {
 /** An empty page value takes the route's documented default. */
 function pageValue(value: number | "", fallback: number): number {
   return value === "" ? fallback : value;
+}
+
+/** Rule semantics stay with the shared validator; this only collects its errors. */
+function validatedRules(value: unknown, fieldErrors: Record<string, string>): Rule[] {
+  const validated = validateRules(value);
+  Object.assign(fieldErrors, validated.fieldErrors);
+  return validated.rules;
+}
+
+/**
+ * Fastify's ajv coerces body scalars (`42` becomes `"42"`, `null` becomes
+ * `[null]`), which would accept bodies the hand-written validators rejected.
+ * This runs before validation, while the parsed body still has its real types.
+ */
+async function rejectCoercedBodyFields(request: FastifyRequest): Promise<void> {
+  const body = request.body;
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return;
+  }
+  const record = body as Record<string, unknown>;
+  const fieldErrors: Record<string, string> = {};
+  if ("name" in record && typeof record.name !== "string") {
+    fieldErrors.name = "must be a string";
+  }
+  if ("rules" in record && !Array.isArray(record.rules)) {
+    fieldErrors.rules = "must be an array";
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    throw validationError(fieldErrors, "body");
+  }
 }
 
 export interface ApiRoutesOptions {
@@ -86,23 +126,6 @@ export function registerConfigRoutes(app: FastifyInstance, config: ConfigRoutes)
 
 function currentStatus(status: Status | (() => Status)): Status {
   return typeof status === "function" ? status() : status;
-}
-
-function queryValues(query: unknown): RawQuery {
-  if (typeof query !== "object" || query === null) {
-    return {};
-  }
-  const result: Record<string, string | undefined> = {};
-  for (const [key, value] of Object.entries(query)) {
-    if (typeof value === "string") {
-      result[key] = value;
-    } else if (value === undefined) {
-      result[key] = undefined;
-    } else {
-      throw validationError({ [key]: "must be a single value" });
-    }
-  }
-  return result;
 }
 
 /**
@@ -273,29 +296,85 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     });
   });
 
-  app.get("/api/smart-collections", async (request) =>
-    options.smartCollections.list(parseSmartCollectionsQuery(queryValues(request.query))),
+  app.get<{ Querystring: SmartCollectionsListQuery }>(
+    "/api/smart-collections",
+    {
+      schema: {
+        querystring: smartCollectionsListQuerySchema,
+        response: { 200: smartCollectionsResponseSchema },
+      },
+      preValidation: rejectRepeatedQueryValues,
+    },
+    async (request) =>
+      options.smartCollections.list({
+        page: pageValue(request.query.page, 1),
+        pageSize: pageValue(request.query.pageSize, 60),
+        sort: request.query.sort,
+        order: request.query.order,
+      }),
   );
 
-  app.post("/api/smart-collections", async (request, reply) => {
-    const collection = options.smartCollections.create(request.body);
-    reply.header("location", `/api/smart-collections/${collection.id}`);
-    return reply.code(201).send({ data: collection });
-  });
+  app.post<{ Body: SmartCollectionCreateBody }>(
+    "/api/smart-collections",
+    {
+      schema: {
+        body: smartCollectionCreateBodySchema,
+        response: { 201: smartCollectionResponseSchema },
+      },
+      preValidation: rejectCoercedBodyFields,
+    },
+    async (request, reply) => {
+      const fieldErrors: Record<string, string> = {};
+      const name = validateSmartCollectionName(request.body.name, fieldErrors) ?? "";
+      const rules = validatedRules(request.body.rules, fieldErrors);
+      if (Object.keys(fieldErrors).length > 0) {
+        throw validationError(fieldErrors, "body");
+      }
+      const collection = options.smartCollections.create({ name, rules });
+      reply.header("location", `/api/smart-collections/${collection.id}`);
+      return reply.code(201).send({ data: collection });
+    },
+  );
 
-  app.get("/api/smart-collections/:id", async (request) => {
-    const { id } = request.params as { id: string };
-    const collection = options.smartCollections.get(id);
-    if (collection === null) {
-      throw notFound(id);
-    }
-    return { data: collection };
-  });
+  app.get<{ Params: { id: string } }>(
+    "/api/smart-collections/:id",
+    { schema: { response: { 200: smartCollectionResponseSchema } } },
+    async (request) => {
+      const { id } = request.params;
+      const collection = options.smartCollections.get(id);
+      if (collection === null) {
+        throw notFound(id);
+      }
+      return { data: collection };
+    },
+  );
 
-  app.patch("/api/smart-collections/:id", async (request) => {
-    const { id } = request.params as { id: string };
-    return { data: options.smartCollections.update(id, request.body) };
-  });
+  app.patch<{ Params: { id: string }; Body: SmartCollectionPatchBody }>(
+    "/api/smart-collections/:id",
+    {
+      schema: {
+        body: smartCollectionPatchBodySchema,
+        response: { 200: smartCollectionResponseSchema },
+      },
+      preValidation: rejectCoercedBodyFields,
+    },
+    async (request) => {
+      const { id } = request.params;
+      const fieldErrors: Record<string, string> = {};
+      const name =
+        request.body.name === undefined
+          ? undefined
+          : (validateSmartCollectionName(request.body.name, fieldErrors) ?? undefined);
+      const rules =
+        request.body.rules === undefined
+          ? undefined
+          : validatedRules(request.body.rules, fieldErrors);
+      if (Object.keys(fieldErrors).length > 0) {
+        throw validationError(fieldErrors, "body");
+      }
+      return { data: options.smartCollections.update(id, { name, rules }) };
+    },
+  );
 
   app.delete("/api/smart-collections/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -303,15 +382,29 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     return reply.code(204).send();
   });
 
-  app.get("/api/smart-collections/:id/games", async (request) => {
-    const { id } = request.params as { id: string };
-    const query = parseSmartCollectionGamesQuery(queryValues(request.query));
-    const games = options.smartCollections.games(id, query);
-    if (games === null) {
-      throw notFound(id);
-    }
-    return games;
-  });
+  app.get<{ Params: { id: string }; Querystring: SmartCollectionGamesParams }>(
+    "/api/smart-collections/:id/games",
+    {
+      schema: {
+        querystring: smartCollectionGamesQuerySchema,
+        response: { 200: smartCollectionGamesResponseSchema },
+      },
+      preValidation: rejectRepeatedQueryValues,
+    },
+    async (request) => {
+      const { id } = request.params;
+      const games = options.smartCollections.games(id, {
+        page: pageValue(request.query.page, 1),
+        pageSize: pageValue(request.query.pageSize, 60),
+        sort: request.query.sort,
+        order: request.query.order,
+      });
+      if (games === null) {
+        throw notFound(id);
+      }
+      return games;
+    },
+  );
 
   app.get("/api/refresh/:id", async (request) => {
     const { id } = request.params as { id: string };
