@@ -100,7 +100,8 @@ The following are explicitly out of scope for v1.
 - A per-Game error-message API. v1 exposes safe per-source errors and per-Game statuses only.
 - Undo for Smart Collection edits, multi-user collaboration, or conflict resolution beyond
   last-write-wins.
-- A separate visual identity. The prototype is the functional visual reference.
+- A separate visual identity. The prototype is the functional reference for layout, flows, and
+  states; component-level appearance follows Mantine.
 
 ### 1.4 Sources of truth
 
@@ -121,6 +122,13 @@ The following are explicitly out of scope for v1.
 - TypeScript end to end. The server is Node 24 or newer with Fastify. SQLite is accessed through
   `better-sqlite3` with the connection settings in [§3.1](#31-connection-settings). The browser client
   is React with Vite, built to static assets and served by the same process in production.
+- Generic plumbing is provided by established libraries rather than hand-written code: Fastify route
+  schemas for request validation and response serialisation, Kysely for SQL construction over that
+  same connection, TanStack Query for client fetching, Mantine for components (adopted last, behind
+  the accessibility and E2E gate), and `commander` for CLI flags. Domain logic — rule evaluation,
+  Refresh phases, migrations and their safety guards, config precedence, and the Autosave state
+  machine — stays hand-written. See [ADR 0004](../adr/0004-libraries-over-boilerplate.md) for the
+  policy, constraints, and rejected options.
 - One process serves the UI and `/api` on one loopback port. One in-process Refresh worker runs at a
   time. There is no queue, scheduler, second writer, or separate worker process.
 - The server starts before the browser and exposes `GET /api/status` as its readiness signal.
@@ -2969,9 +2977,10 @@ fetch timestamps, and counts.
 ### 7.10 Visual reference
 
 The [prototype](https://github.com/fran2889/game-cat/blob/prototype/v1-ui/docs/prototype/v1-ui.html)
-is the functional and visual reference: dark neutral surfaces, a persistent sidebar, a top bar, cover
-grid, table, editor aside, and detail dialog. Exact colour tokens, spacing, and branding are not
-contractual. Visual identity beyond a functional interface is not a v1 acceptance criterion.
+is the functional and visual reference for layout, flows, and states: a persistent sidebar, a top bar,
+cover grid, table, editor aside, and detail dialog. When Mantine lands, component-level appearance —
+surfaces, colour tokens, spacing, and branding — follows Mantine and is not contractual. Visual
+identity beyond a functional interface is not a v1 acceptance criterion.
 
 ## 8. Run contract
 
