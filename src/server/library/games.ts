@@ -10,6 +10,9 @@ import {
   type GameTag,
   type Pagination,
 } from "../../shared/types.ts";
+import { sql, type SelectQueryBuilder, type SqlBool } from "kysely";
+import { allSync, firstSync, queryFor } from "../db/query.ts";
+import type { DatabaseSchema } from "../db/schema.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 
 export { GAME_SORTS };
@@ -153,16 +156,17 @@ export function readTagsForGames(
   if (appIds.length === 0) {
     return tags;
   }
-  const placeholders = appIds.map(() => "?").join(", ");
-  const rows = db
-    .prepare(
-      `SELECT gt.app_id AS app_id, t.name AS name, gt.votes AS votes
-       FROM game_tags gt
-       JOIN tags t ON t.id = gt.tag_id
-       WHERE gt.app_id IN (${placeholders})
-       ORDER BY gt.app_id ASC, gt.votes DESC, t.name ASC, t.id ASC`,
-    )
-    .all(...appIds) as Array<{ app_id: number; name: string; votes: number }>;
+  const query = queryFor(db)
+    .selectFrom("game_tags as gt")
+    .innerJoin("tags as t", "t.id", "gt.tag_id")
+    .select(["gt.app_id as app_id", "t.name as name", "gt.votes as votes"])
+    .where("gt.app_id", "in", appIds)
+    .orderBy("gt.app_id", "asc")
+    .orderBy("gt.votes", "desc")
+    .orderBy("t.name", "asc")
+    .orderBy("t.id", "asc")
+    .compile();
+  const rows = allSync<{ app_id: number; name: string; votes: number }>(db, query);
   for (const row of rows) {
     const list = tags.get(row.app_id) ?? [];
     list.push({ name: row.name, votes: row.votes });
@@ -219,6 +223,11 @@ export interface GameListResult {
 }
 
 /** Shared sorting SQL for every endpoint that pages Games. */
+/** The typed column a sort key reads, shared with the other read paths. */
+export function sortColumn(sort: GameSort): keyof GamesRow & string {
+  return SORT_COLUMNS[sort] as keyof GamesRow & string;
+}
+
 export function gameOrderSql(sort: GameSort, order: GameOrder): string {
   const column = SORT_COLUMNS[sort];
   const direction = order === "desc" ? "DESC" : "ASC";
@@ -240,57 +249,79 @@ export function readDataAsOf(db: BetterSqlite3.Database): string | null {
   return toIso(row.at);
 }
 
+type GamesSelect = SelectQueryBuilder<DatabaseSchema, "v_games", object>;
+
+/** Apply the documented Library filters through the typed builder. */
+function withGameFilters<T extends GamesSelect>(builder: T, query: GamesQuery): T {
+  let next = builder;
+  if (query.search !== null) {
+    next = next.where(sql<SqlBool>`instr(name_key, ${normalizeNameKey(query.search)}) > 0`) as T;
+  }
+  if (query.installed !== null) {
+    next = next.where("installed", "=", query.installed ? 1 : 0) as T;
+  }
+  if (query.tagsStatus !== null) {
+    next = next.where("tags_status", "=", query.tagsStatus) as T;
+  }
+  if (query.storeStatus !== null) {
+    next = next.where("store_status", "=", query.storeStatus) as T;
+  }
+  if (query.reviewStatus !== null) {
+    next = next.where("review_status", "=", query.reviewStatus) as T;
+  }
+  const fetchedFilters: Array<
+    [boolean | null, "tags_fetched_at" | "store_fetched_at" | "review_fetched_at"]
+  > = [
+    [query.tagsFetched, "tags_fetched_at"],
+    [query.storeFetched, "store_fetched_at"],
+    [query.reviewFetched, "review_fetched_at"],
+  ];
+  for (const [fetched, column] of fetchedFilters) {
+    if (fetched !== null) {
+      next = (
+        fetched
+          ? next.where(sql<SqlBool>`${sql.ref(column)} IS NOT NULL`)
+          : next.where(sql<SqlBool>`${sql.ref(column)} IS NULL`)
+      ) as T;
+    }
+  }
+  return next;
+}
+
 export class GamesRepository {
   constructor(private readonly db: BetterSqlite3.Database) {}
 
   list(query: GamesQuery): GameListResult {
-    const where: string[] = [];
-    const parameters: unknown[] = [];
+    const count = firstSync<{ count: number }>(
+      this.db,
+      withGameFilters(
+        queryFor(this.db)
+          .selectFrom("v_games")
+          .select((expression) => expression.fn.countAll().as("count")),
+        query,
+      ).compile(),
+    );
+    const total = Number(count?.count ?? 0);
 
-    if (query.search !== null) {
-      where.push("instr(name_key, ?) > 0");
-      parameters.push(normalizeNameKey(query.search));
+    const column = SORT_COLUMNS[query.sort] as keyof GamesRow & string;
+    const direction = query.order === "desc" ? "desc" : "asc";
+    let rowsQuery = withGameFilters(queryFor(this.db).selectFrom("v_games").selectAll(), query);
+    if (query.sort === "appId") {
+      rowsQuery = rowsQuery.orderBy("app_id", direction);
+    } else {
+      rowsQuery = rowsQuery
+        .orderBy(sql`(${sql.ref(column)} IS NULL)`, "asc")
+        .orderBy(sql.ref(column), direction)
+        .orderBy("app_id", "asc");
     }
-    if (query.installed !== null) {
-      where.push("installed = ?");
-      parameters.push(query.installed ? 1 : 0);
-    }
-    if (query.tagsStatus !== null) {
-      where.push("tags_status = ?");
-      parameters.push(query.tagsStatus);
-    }
-    if (query.storeStatus !== null) {
-      where.push("store_status = ?");
-      parameters.push(query.storeStatus);
-    }
-    if (query.reviewStatus !== null) {
-      where.push("review_status = ?");
-      parameters.push(query.reviewStatus);
-    }
-    const fetchedFilters: Array<[boolean | null, string]> = [
-      [query.tagsFetched, "tags_fetched_at"],
-      [query.storeFetched, "store_fetched_at"],
-      [query.reviewFetched, "review_fetched_at"],
-    ];
-    for (const [fetched, column] of fetchedFilters) {
-      if (fetched !== null) {
-        where.push(fetched ? `${column} IS NOT NULL` : `${column} IS NULL`);
-      }
-    }
+    const rows = allSync<GamesRow>(
+      this.db,
+      rowsQuery
+        .limit(query.pageSize)
+        .offset((query.page - 1) * query.pageSize)
+        .compile(),
+    );
 
-    const whereSql = where.length === 0 ? "" : `WHERE ${where.join(" AND ")}`;
-    const total = (
-      this.db.prepare(`SELECT COUNT(*) AS count FROM v_games ${whereSql}`).get(...parameters) as {
-        count: number;
-      }
-    ).count;
-
-    const orderSql = gameOrderSql(query.sort, query.order);
-
-    const offset = (query.page - 1) * query.pageSize;
-    const rows = this.db
-      .prepare(`SELECT * FROM v_games ${whereSql} ${orderSql} LIMIT ? OFFSET ?`)
-      .all(...parameters, query.pageSize, offset) as GamesRow[];
     const tags = readTagsForGames(
       this.db,
       rows.map((row) => row.app_id),
@@ -309,8 +340,10 @@ export class GamesRepository {
   }
 
   get(appId: number): GameDetail | null {
-    const row = this.db.prepare("SELECT * FROM v_games WHERE app_id = ?").get(appId) as
-      GamesRow | undefined;
+    const row = firstSync<GamesRow>(
+      this.db,
+      queryFor(this.db).selectFrom("v_games").selectAll().where("app_id", "=", appId).compile(),
+    );
     if (row === undefined) {
       return null;
     }
@@ -323,15 +356,18 @@ export class GamesRepository {
 
   /** Static Steam Collections containing the Game, for GameDetail. */
   collectionsFor(appId: number): Array<{ id: string; name: string; kind: string }> {
-    return this.db
-      .prepare(
-        `SELECT c.id, c.name, c.kind
-         FROM steam_collections c
-         JOIN steam_collection_games scg ON scg.steam_collection_id = c.id
-         WHERE scg.app_id = ? AND c.is_dynamic = 0
-         ORDER BY c.name ASC, c.id ASC`,
-      )
-      .all(appId) as Array<{ id: string; name: string; kind: string }>;
+    return allSync<{ id: string; name: string; kind: string }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("steam_collections as c")
+        .innerJoin("steam_collection_games as scg", "scg.steam_collection_id", "c.id")
+        .select(["c.id as id", "c.name as name", "c.kind as kind"])
+        .where("scg.app_id", "=", appId)
+        .where("c.is_dynamic", "=", 0)
+        .orderBy("c.name", "asc")
+        .orderBy("c.id", "asc")
+        .compile(),
+    );
   }
 
   counts(): LibraryCounts {
