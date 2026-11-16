@@ -305,6 +305,21 @@ describe("PATCH /api/smart-collections/{id}", () => {
     expect(rows.map((row) => row.position)).toEqual([0, 1]);
   });
 
+  it("round-trips a game Rule value as an array", async () => {
+    const { app } = harness();
+    const collection = created(await create(app, { name: "Games" }));
+    const gameRule: Rule = {
+      prefix: "AND",
+      field: "game",
+      operator: "in",
+      value: [570, 730],
+    };
+
+    const response = await patch(app, collection.id, { rules: [gameRule] });
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as { data: SmartCollection }).data.rules).toEqual([gameRule]);
+  });
+
   it("allows a case-only rename on the same row", async () => {
     const { app } = harness();
     const collection = created(await create(app, { name: "Co-op" }));
