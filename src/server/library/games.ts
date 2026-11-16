@@ -228,14 +228,6 @@ export function sortColumn(sort: GameSort): keyof GamesRow & string {
   return SORT_COLUMNS[sort] as keyof GamesRow & string;
 }
 
-export function gameOrderSql(sort: GameSort, order: GameOrder): string {
-  const column = SORT_COLUMNS[sort];
-  const direction = order === "desc" ? "DESC" : "ASC";
-  return sort === "appId"
-    ? `ORDER BY app_id ${direction}`
-    : `ORDER BY (${column} IS NULL) ASC, ${column} ${direction}, app_id ASC`;
-}
-
 export function readDataAsOf(db: BetterSqlite3.Database): string | null {
   // Every phase of a direct scope or an `all` run records its success in
   // `source_state`. The later of the local scan, ownership refresh, and
