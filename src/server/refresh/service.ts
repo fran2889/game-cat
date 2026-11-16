@@ -1,4 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
+import { sql, type CompiledQuery } from "kysely";
+import { allSync, firstSync, queryFor, runSync } from "../db/query.ts";
 import type {
   ErrorDetail,
   RefreshMode,
@@ -180,6 +182,42 @@ const SOURCE_ROW_QUERIES: Record<MetadataSourceName, string> = {
     "SELECT app_id, review_status AS status, review_fetched_at AS fetched_at, updated_at FROM steam_review_summaries",
 };
 
+function sourceRowQuery(db: BetterSqlite3.Database, name: MetadataSourceName): CompiledQuery {
+  const query = queryFor(db);
+  switch (name) {
+    case "steamspy":
+      return query
+        .selectFrom("steamspy_appdetails")
+        .select([
+          "app_id as app_id",
+          "tags_status as status",
+          "tags_fetched_at as fetched_at",
+          "updated_at as updated_at",
+        ])
+        .compile();
+    case "storefront":
+      return query
+        .selectFrom("storefront_appdetails")
+        .select([
+          "app_id as app_id",
+          "store_status as status",
+          "store_fetched_at as fetched_at",
+          "updated_at as updated_at",
+        ])
+        .compile();
+    case "steam_reviews":
+      return query
+        .selectFrom("steam_review_summaries")
+        .select([
+          "app_id as app_id",
+          "review_status as status",
+          "review_fetched_at as fetched_at",
+          "updated_at as updated_at",
+        ])
+        .compile();
+  }
+}
+
 function unixSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
@@ -293,23 +331,32 @@ export function toRefreshRun(row: RefreshRow): RefreshRun {
 }
 
 export function readRefreshRun(db: BetterSqlite3.Database, id: number): RefreshRun | null {
-  const row = db.prepare("SELECT * FROM refresh_runs WHERE id = ?").get(id) as
-    RefreshRow | undefined;
+  const row = firstSync<RefreshRow>(
+    db,
+    queryFor(db).selectFrom("refresh_runs").selectAll().where("id", "=", id).compile(),
+  );
   return row === undefined ? null : toRefreshRun(row);
 }
 
 export function readLastRefresh(db: BetterSqlite3.Database): RefreshRun | null {
-  const row = db.prepare("SELECT * FROM refresh_runs ORDER BY id DESC LIMIT 1").get() as
-    RefreshRow | undefined;
+  const row = firstSync<RefreshRow>(
+    db,
+    queryFor(db).selectFrom("refresh_runs").selectAll().orderBy("id", "desc").limit(1).compile(),
+  );
   return row === undefined ? null : toRefreshRun(row);
 }
 
 export function readActiveRefresh(db: BetterSqlite3.Database): RefreshRun | null {
-  const row = db
-    .prepare(
-      "SELECT * FROM refresh_runs WHERE status IN ('queued', 'running') ORDER BY id DESC LIMIT 1",
-    )
-    .get() as RefreshRow | undefined;
+  const row = firstSync<RefreshRow>(
+    db,
+    queryFor(db)
+      .selectFrom("refresh_runs")
+      .selectAll()
+      .where("status", "in", ["queued", "running"])
+      .orderBy("id", "desc")
+      .limit(1)
+      .compile(),
+  );
   return row === undefined ? null : toRefreshRun(row);
 }
 
@@ -515,19 +562,21 @@ export class RefreshService {
 
     const startedAt = this.now();
     const steamId64 = this.steamIdForRun(request.scope);
-    const info = this.db
-      .prepare(
-        `INSERT INTO refresh_runs
-           (scope, mode, status, steam_id64, started_at, done, app_ids_json)
-         VALUES (?, ?, 'queued', ?, ?, 0, ?)`,
-      )
-      .run(
-        request.scope,
-        request.mode,
-        steamId64,
-        startedAt,
-        request.appIds === null ? null : JSON.stringify(request.appIds),
-      );
+    const info = runSync(
+      this.db,
+      queryFor(this.db)
+        .insertInto("refresh_runs")
+        .values({
+          scope: request.scope,
+          mode: request.mode,
+          status: "queued",
+          steam_id64: steamId64,
+          started_at: startedAt,
+          done: 0,
+          app_ids_json: request.appIds === null ? null : JSON.stringify(request.appIds),
+        })
+        .compile(),
+    );
     const id = Number(info.lastInsertRowid);
     this.runConfigs.set(id, { ...this.currentConfig });
     this.enqueue();
@@ -550,25 +599,34 @@ export class RefreshService {
    * `running`. Completed per-Game and per-source rows are untouched.
    */
   recoverInterruptedRuns(): number {
-    const rows = this.db
-      .prepare("SELECT * FROM refresh_runs WHERE status IN ('queued', 'running')")
-      .all() as RefreshRow[];
+    const rows = allSync<RefreshRow>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("refresh_runs")
+        .selectAll()
+        .where("status", "in", ["queued", "running"])
+        .compile(),
+    );
     if (rows.length === 0) {
       return 0;
     }
     const now = this.now();
-    const update = this.db.prepare(
-      `UPDATE refresh_runs SET
-         status = 'failed',
-         finished_at = ?,
-         error_code = 'INTERRUPTED',
-         error_message = ?
-       WHERE id = ?`,
-    );
     const message = "The Refresh run was interrupted. The next Fetch resumes pending work.";
     this.db.transaction(() => {
       for (const row of rows) {
-        update.run(lastProgressAt(row.stats_json) ?? now, message, row.id);
+        runSync(
+          this.db,
+          queryFor(this.db)
+            .updateTable("refresh_runs")
+            .set({
+              status: "failed",
+              finished_at: lastProgressAt(row.stats_json) ?? now,
+              error_code: "INTERRUPTED",
+              error_message: message,
+            })
+            .where("id", "=", row.id)
+            .compile(),
+        );
       }
     })();
     return rows.length;
@@ -584,16 +642,20 @@ export class RefreshService {
     const row = this.readActiveRow();
     if (row !== undefined) {
       const message = "The Refresh run was interrupted by shutdown.";
-      this.db
-        .prepare(
-          `UPDATE refresh_runs SET
-             status = 'failed',
-             finished_at = ?,
-             error_code = 'INTERRUPTED',
-             error_message = ?
-           WHERE id = ? AND status IN ('queued', 'running')`,
-        )
-        .run(lastProgressAt(row.stats_json) ?? this.now(), message, row.id);
+      runSync(
+        this.db,
+        queryFor(this.db)
+          .updateTable("refresh_runs")
+          .set({
+            status: "failed",
+            finished_at: lastProgressAt(row.stats_json) ?? this.now(),
+            error_code: "INTERRUPTED",
+            error_message: message,
+          })
+          .where("id", "=", row.id)
+          .where("status", "in", ["queued", "running"])
+          .compile(),
+      );
     }
     if (this.worker !== null) {
       await this.worker;
@@ -651,11 +713,16 @@ export class RefreshService {
   }
 
   private readActiveRow(): RefreshRow | undefined {
-    return this.db
-      .prepare(
-        "SELECT * FROM refresh_runs WHERE status IN ('queued', 'running') ORDER BY id DESC LIMIT 1",
-      )
-      .get() as RefreshRow | undefined;
+    return firstSync<RefreshRow>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("refresh_runs")
+        .selectAll()
+        .where("status", "in", ["queued", "running"])
+        .orderBy("id", "desc")
+        .limit(1)
+        .compile(),
+    );
   }
 
   private enqueue(): void {
@@ -679,21 +746,41 @@ export class RefreshService {
 
   private hasQueued(): boolean {
     return (
-      this.db
-        .prepare("SELECT 1 AS queued FROM refresh_runs WHERE status = 'queued' LIMIT 1")
-        .get() !== undefined
+      firstSync(
+        this.db,
+        queryFor(this.db)
+          .selectFrom("refresh_runs")
+          .select(sql<number>`1`.as("queued"))
+          .where("status", "=", "queued")
+          .limit(1)
+          .compile(),
+      ) !== undefined
     );
   }
 
   private async drain(): Promise<void> {
     while (!this.stopping) {
-      const row = this.db
-        .prepare("SELECT * FROM refresh_runs WHERE status = 'queued' ORDER BY id ASC LIMIT 1")
-        .get() as RefreshRow | undefined;
+      const row = firstSync<RefreshRow>(
+        this.db,
+        queryFor(this.db)
+          .selectFrom("refresh_runs")
+          .selectAll()
+          .where("status", "=", "queued")
+          .orderBy("id", "asc")
+          .limit(1)
+          .compile(),
+      );
       if (row === undefined) {
         return;
       }
-      this.db.prepare("UPDATE refresh_runs SET status = 'running' WHERE id = ?").run(row.id);
+      runSync(
+        this.db,
+        queryFor(this.db)
+          .updateTable("refresh_runs")
+          .set({ status: "running" })
+          .where("id", "=", row.id)
+          .compile(),
+      );
       const running = { ...row, status: "running" as const };
       try {
         await this.execute(running);
@@ -809,16 +896,21 @@ export class RefreshService {
     const finishedAt = this.now();
     const sourceStatus =
       result.status === "ok" ? "ok" : result.status === "partial" ? "partial" : "error";
-    this.db
-      .prepare(
-        `UPDATE source_state SET
-           status = ?,
-           last_attempt_at = ?,
-           last_success_at = CASE WHEN ? = 'ok' THEN ? ELSE last_success_at END,
-           last_error = ?
-         WHERE name = 'steam_local'`,
-      )
-      .run(sourceStatus, finishedAt, result.status, finishedAt, result.error?.message ?? null);
+    runSync(
+      this.db,
+      queryFor(this.db)
+        .updateTable("source_state")
+        .set({
+          status: sourceStatus,
+          last_attempt_at: finishedAt,
+          last_success_at: sql<
+            number | null
+          >`CASE WHEN ${result.status} = 'ok' THEN ${finishedAt} ELSE last_success_at END`,
+          last_error: result.error?.message ?? null,
+        })
+        .where("name", "=", "steam_local")
+        .compile(),
+    );
 
     for (const warning of result.warnings) {
       this.options.onWarn?.(warning, {});
@@ -1008,24 +1100,22 @@ export class RefreshService {
     success: boolean;
   }): void {
     const finishedAt = this.now();
-    this.db
-      .prepare(
-        `UPDATE source_state SET
-           status = ?,
-           last_attempt_at = ?,
-           last_success_at = CASE WHEN ? = 1 THEN ? ELSE last_success_at END,
-           retry_after_at = ?,
-           last_error = ?
-         WHERE name = 'steam_web_api'`,
-      )
-      .run(
-        outcome.status,
-        finishedAt,
-        outcome.success ? 1 : 0,
-        finishedAt,
-        outcome.retryAfterAt,
-        outcome.lastError,
-      );
+    runSync(
+      this.db,
+      queryFor(this.db)
+        .updateTable("source_state")
+        .set({
+          status: outcome.status,
+          last_attempt_at: finishedAt,
+          last_success_at: sql<
+            number | null
+          >`CASE WHEN ${outcome.success ? 1 : 0} = 1 THEN ${finishedAt} ELSE last_success_at END`,
+          retry_after_at: outcome.retryAfterAt,
+          last_error: outcome.lastError,
+        })
+        .where("name", "=", "steam_web_api")
+        .compile(),
+    );
   }
 
   private async executeMetadata(row: RefreshRow): Promise<void> {
@@ -1152,23 +1242,22 @@ export class RefreshService {
     if (this.stopping) {
       return;
     }
-    this.db
-      .prepare(
-        `UPDATE refresh_runs SET
-           status = ?, finished_at = ?, total = ?, done = ?,
-           stats_json = COALESCE(?, stats_json), error_code = ?, error_message = ?
-         WHERE id = ?`,
-      )
-      .run(
-        outcome.status,
-        this.now(),
-        outcome.total,
-        outcome.done,
-        outcome.stats,
-        outcome.error?.code ?? null,
-        outcome.error?.message ?? null,
-        id,
-      );
+    runSync(
+      this.db,
+      queryFor(this.db)
+        .updateTable("refresh_runs")
+        .set({
+          status: outcome.status,
+          finished_at: this.now(),
+          total: outcome.total,
+          done: outcome.done,
+          stats_json: sql<string | null>`COALESCE(${outcome.stats}, stats_json)`,
+          error_code: outcome.error?.code ?? null,
+          error_message: outcome.error?.message ?? null,
+        })
+        .where("id", "=", id)
+        .compile(),
+    );
   }
 
   private buildSelection(row: RefreshRow): SelectionPlan {
@@ -1183,9 +1272,14 @@ export class RefreshService {
     };
 
     const sources = this.sources.entries();
-    const rows = this.db
-      .prepare("SELECT app_id, name FROM games ORDER BY app_id ASC")
-      .all() as Array<{ app_id: number; name: string }>;
+    const rows = allSync<{ app_id: number; name: string }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("games")
+        .select(["app_id as app_id", "name as name"])
+        .orderBy("app_id", "asc")
+        .compile(),
+    );
     const games = new Map(rows.map((game) => [game.app_id, game.name]));
     const retryAfter = this.readRetryAfter();
 
@@ -1241,11 +1335,11 @@ export class RefreshService {
 
     // Fetch selection: pending is per `(Game, source)`.
     for (const source of sources) {
-      const statusRows = this.db.prepare(SOURCE_ROW_QUERIES[source.name]).all() as Array<{
+      const statusRows = allSync<{
         app_id: number;
         status: string;
         fetched_at: number | null;
-      }>;
+      }>(this.db, sourceRowQuery(this.db, source.name));
       const byGame = new Map(statusRows.map((entry) => [entry.app_id, entry]));
       const items: WorkItem[] = [];
       for (const game of rows) {
@@ -1270,10 +1364,13 @@ export class RefreshService {
   }
 
   private readRetryAfter(): Map<MetadataSourceName, number | null> {
-    const rows = this.db.prepare("SELECT name, retry_after_at FROM source_state").all() as Array<{
-      name: string;
-      retry_after_at: number | null;
-    }>;
+    const rows = allSync<{ name: string; retry_after_at: number | null }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("source_state")
+        .select(["name as name", "retry_after_at as retry_after_at"])
+        .compile(),
+    );
     const values = new Map<MetadataSourceName, number | null>();
     for (const row of rows) {
       if ((METADATA_SOURCE_NAMES as readonly string[]).includes(row.name)) {
@@ -1298,7 +1395,10 @@ export class RefreshService {
   }
 
   private async executeMetadataPhase(runId: number): Promise<MetadataPhaseResult> {
-    const row = this.db.prepare("SELECT * FROM refresh_runs WHERE id = ?").get(runId) as RefreshRow;
+    const row = firstSync<RefreshRow>(
+      this.db,
+      queryFor(this.db).selectFrom("refresh_runs").selectAll().where("id", "=", runId).compile(),
+    ) as RefreshRow;
     const plan = this.buildSelection(row);
     if (plan.missingAppIds.length > 0) {
       plan.partial = true;
@@ -1687,14 +1787,17 @@ export class RefreshService {
    * (§6.4).
    */
   private markMetadataSourceAttempted(name: MetadataSourceName, at: number): void {
-    this.db
-      .prepare(
-        `UPDATE source_state
-            SET last_attempt_at = ?,
-                status = CASE WHEN status = 'unknown' THEN 'partial' ELSE status END
-          WHERE name = ?`,
-      )
-      .run(at, name);
+    runSync(
+      this.db,
+      queryFor(this.db)
+        .updateTable("source_state")
+        .set({
+          last_attempt_at: at,
+          status: sql<string>`CASE WHEN status = 'unknown' THEN 'partial' ELSE status END`,
+        })
+        .where("name", "=", name)
+        .compile(),
+    );
   }
 
   /**
@@ -1714,39 +1817,51 @@ export class RefreshService {
       if ((plan.items.get(source.name)?.length ?? 0) > 0) {
         continue;
       }
-      const row = this.db
-        .prepare("SELECT status FROM source_state WHERE name = ?")
-        .get(source.name) as { status: SourceStatus } | undefined;
+      const row = firstSync<{ status: SourceStatus }>(
+        this.db,
+        queryFor(this.db)
+          .selectFrom("source_state")
+          .select("status as status")
+          .where("name", "=", source.name)
+          .compile(),
+      );
       if (row === undefined || row.status === "ok") {
         continue;
       }
-      const aggregate = this.db
-        .prepare(
-          `SELECT MAX(fetched_at) AS last_success_at,
-                  MAX(updated_at) AS last_attempt_at,
-                  COUNT(CASE WHEN fetched_at IS NOT NULL OR status <> 'missing' THEN 1 END)
-                    AS attempted
-             FROM (${SOURCE_ROW_QUERIES[source.name]})`,
-        )
-        .get() as {
+      const aggregate = firstSync<{
         last_success_at: number | null;
         last_attempt_at: number | null;
         attempted: number;
-      };
-      if (aggregate.attempted === 0) {
+      }>(
+        this.db,
+        queryFor(this.db)
+          .selectFrom(sql`(${sql.raw(SOURCE_ROW_QUERIES[source.name])})`.as("t"))
+          .select(sql<number | null>`MAX(fetched_at)`.as("last_success_at"))
+          .select(sql<number | null>`MAX(updated_at)`.as("last_attempt_at"))
+          .select(
+            sql<number>`COUNT(CASE WHEN fetched_at IS NOT NULL OR status <> 'missing' THEN 1 END)`.as(
+              "attempted",
+            ),
+          )
+          .compile(),
+      );
+      if (aggregate === undefined || aggregate.attempted === 0) {
         continue;
       }
-      this.db
-        .prepare(
-          `UPDATE source_state
-              SET status = 'ok',
-                  last_success_at = ?,
-                  last_attempt_at = ?,
-                  retry_after_at = NULL,
-                  last_error = NULL
-            WHERE name = ?`,
-        )
-        .run(aggregate.last_success_at, aggregate.last_attempt_at, source.name);
+      runSync(
+        this.db,
+        queryFor(this.db)
+          .updateTable("source_state")
+          .set({
+            status: "ok",
+            last_success_at: aggregate.last_success_at,
+            last_attempt_at: aggregate.last_attempt_at,
+            retry_after_at: null,
+            last_error: null,
+          })
+          .where("name", "=", source.name)
+          .compile(),
+      );
     }
   }
 
@@ -1760,27 +1875,31 @@ export class RefreshService {
       lastError: string | null;
     },
   ): void {
-    const existing = this.db
-      .prepare("SELECT last_attempt_at, last_success_at FROM source_state WHERE name = ?")
-      .get(name) as { last_attempt_at: number | null; last_success_at: number | null } | undefined;
-    this.db
-      .prepare(
-        `UPDATE source_state SET
-           status = ?,
-           last_attempt_at = ?,
-           last_success_at = ?,
-           retry_after_at = ?,
-           last_error = ?
-         WHERE name = ?`,
-      )
-      .run(
-        value.status,
-        value.lastAttemptAt ?? existing?.last_attempt_at ?? null,
-        value.lastSuccessAt ?? existing?.last_success_at ?? null,
-        value.retryAfterAt,
-        value.lastError,
-        name,
-      );
+    const existing = firstSync<{
+      last_attempt_at: number | null;
+      last_success_at: number | null;
+    }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("source_state")
+        .select(["last_attempt_at as last_attempt_at", "last_success_at as last_success_at"])
+        .where("name", "=", name)
+        .compile(),
+    );
+    runSync(
+      this.db,
+      queryFor(this.db)
+        .updateTable("source_state")
+        .set({
+          status: value.status,
+          last_attempt_at: value.lastAttemptAt ?? existing?.last_attempt_at ?? null,
+          last_success_at: value.lastSuccessAt ?? existing?.last_success_at ?? null,
+          retry_after_at: value.retryAfterAt,
+          last_error: value.lastError,
+        })
+        .where("name", "=", name)
+        .compile(),
+    );
   }
 
   private writeProgress(runId: number, plan: SelectionPlan): void {
@@ -1789,9 +1908,14 @@ export class RefreshService {
     }
     plan.stats.lastProgressAt = this.now();
     const stats = JSON.stringify(plan.stats);
-    this.db
-      .prepare(`UPDATE refresh_runs SET total = ?, done = ?, stats_json = ? WHERE id = ?`)
-      .run(plan.total, plan.done, stats, runId);
+    runSync(
+      this.db,
+      queryFor(this.db)
+        .updateTable("refresh_runs")
+        .set({ total: plan.total, done: plan.done, stats_json: stats })
+        .where("id", "=", runId)
+        .compile(),
+    );
   }
 
   private backoffSeconds(attempt: number): number {

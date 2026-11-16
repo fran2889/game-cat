@@ -23,6 +23,14 @@ export function allSync<T>(db: BetterSqlite3.Database, query: CompiledQuery): T[
   return db.prepare(query.sql).all(...query.parameters) as T[];
 }
 
+/** Run a compiled write and return the driver's change metadata. */
+export function runSync(
+  db: BetterSqlite3.Database,
+  query: CompiledQuery,
+): { changes: number; lastInsertRowid: number | bigint } {
+  return db.prepare(query.sql).run(...query.parameters);
+}
+
 /** Run a compiled read and take the first row, if any. */
 export function firstSync<T>(db: BetterSqlite3.Database, query: CompiledQuery): T | undefined {
   return db.prepare(query.sql).get(...query.parameters) as T | undefined;
