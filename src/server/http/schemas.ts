@@ -503,8 +503,12 @@ const rule = {
     },
     operator: { type: "string", enum: ["is", "contains", "has", "in", "lt", "lte", "gt", "gte"] },
     value: {
-      type: ["string", "number", "boolean", "array"],
-      items: { type: "integer", minimum: 1 },
+      anyOf: [
+        { type: "string" },
+        { type: "number" },
+        { type: "boolean" },
+        { type: "array", items: { type: "integer", minimum: 1 } },
+      ],
     },
   },
   additionalProperties: false,
