@@ -267,103 +267,98 @@ export class SteamReviewSource implements MetadataSource {
 
   async fetch(context: MetadataSourceContext): Promise<MetadataSourceOutcome> {
     const { db, game, now } = context;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeoutSignal = AbortSignal.timeout(this.timeoutMs);
     const signal =
       context.signal === undefined
-        ? controller.signal
-        : AbortSignal.any([controller.signal, context.signal]);
+        ? timeoutSignal
+        : AbortSignal.any([timeoutSignal, context.signal]);
+    let response: Response;
     try {
-      let response: Response;
-      try {
-        response = await this.fetchImpl(reviewsUrl(game.appId), {
-          method: "GET",
-          headers: { accept: "application/json", "user-agent": REVIEWS_USER_AGENT },
-          redirect: "manual",
-          signal,
-        });
-      } catch {
-        const message = context.signal?.aborted
-          ? "The Steam reviews request was interrupted by shutdown."
-          : controller.signal.aborted
-            ? "The Steam reviews request timed out."
-            : "The Steam reviews request could not be reached.";
-        recordFailure(db, game.appId, now, message);
-        return { kind: "error", message };
-      }
-
-      if (response.status >= 300 && response.status < 400) {
-        const message = "Steam blocked the review request with a redirect.";
-        recordFailure(db, game.appId, now, message);
-        return { kind: "blocked", message };
-      }
-      if (response.status === 403) {
-        const message = "Steam blocked the review request.";
-        recordFailure(db, game.appId, now, message);
-        return { kind: "blocked", message };
-      }
-      if (response.status === 429) {
-        const message = "Steam rate limited review requests. Try again later.";
-        recordFailure(db, game.appId, now, message);
-        return {
-          kind: "rate_limited",
-          retryAfterAt: parseRetryAfter(response.headers.get("retry-after"), now),
-          message,
-        };
-      }
-      if (response.status < 200 || response.status >= 300) {
-        const message = `The Steam reviews request failed with status ${response.status}.`;
-        recordFailure(db, game.appId, now, message);
-        return { kind: "error", message };
-      }
-
-      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-      let text: string;
-      try {
-        text = await response.text();
-      } catch {
-        const message = "The Steam reviews response could not be read.";
-        recordFailure(db, game.appId, now, message);
-        return { kind: "error", message };
-      }
-
-      if (contentType.includes("html") || text.trimStart().startsWith("<")) {
-        const message = "Steam returned a page instead of review JSON.";
-        recordFailure(db, game.appId, now, message);
-        return { kind: "blocked", message };
-      }
-      if (contentType !== "" && !contentType.includes("json")) {
-        const message = "Steam returned an unexpected review response.";
-        recordFailure(db, game.appId, now, message);
-        return { kind: "blocked", message };
-      }
-
-      let body: unknown;
-      try {
-        body = JSON.parse(text);
-      } catch {
-        const message = "The Steam reviews response was not valid JSON.";
-        recordFailure(db, game.appId, now, message);
-        return { kind: "error", message };
-      }
-
-      const parsed = parseReviewSummary(body);
-      if (parsed.kind === "ok") {
-        recordSuccess(db, game.appId, now, parsed.counts, reviewPayload(body));
-        return { kind: "ok" };
-      }
-      if (parsed.kind === "zero") {
-        recordZero(db, game.appId, now, reviewPayload(body));
-        return { kind: "unavailable" };
-      }
-      if (parsed.kind === "empty") {
-        recordEmpty(db, game.appId, now, reviewPayload(body));
-        return { kind: "unavailable" };
-      }
-      recordFailure(db, game.appId, now, parsed.message);
-      return { kind: "error", message: parsed.message };
-    } finally {
-      clearTimeout(timer);
+      response = await this.fetchImpl(reviewsUrl(game.appId), {
+        method: "GET",
+        headers: { accept: "application/json", "user-agent": REVIEWS_USER_AGENT },
+        redirect: "manual",
+        signal,
+      });
+    } catch {
+      const message = context.signal?.aborted
+        ? "The Steam reviews request was interrupted by shutdown."
+        : timeoutSignal.aborted
+          ? "The Steam reviews request timed out."
+          : "The Steam reviews request could not be reached.";
+      recordFailure(db, game.appId, now, message);
+      return { kind: "error", message };
     }
+
+    if (response.status >= 300 && response.status < 400) {
+      const message = "Steam blocked the review request with a redirect.";
+      recordFailure(db, game.appId, now, message);
+      return { kind: "blocked", message };
+    }
+    if (response.status === 403) {
+      const message = "Steam blocked the review request.";
+      recordFailure(db, game.appId, now, message);
+      return { kind: "blocked", message };
+    }
+    if (response.status === 429) {
+      const message = "Steam rate limited review requests. Try again later.";
+      recordFailure(db, game.appId, now, message);
+      return {
+        kind: "rate_limited",
+        retryAfterAt: parseRetryAfter(response.headers.get("retry-after"), now),
+        message,
+      };
+    }
+    if (response.status < 200 || response.status >= 300) {
+      const message = `The Steam reviews request failed with status ${response.status}.`;
+      recordFailure(db, game.appId, now, message);
+      return { kind: "error", message };
+    }
+
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    let text: string;
+    try {
+      text = await response.text();
+    } catch {
+      const message = "The Steam reviews response could not be read.";
+      recordFailure(db, game.appId, now, message);
+      return { kind: "error", message };
+    }
+
+    if (contentType.includes("html") || text.trimStart().startsWith("<")) {
+      const message = "Steam returned a page instead of review JSON.";
+      recordFailure(db, game.appId, now, message);
+      return { kind: "blocked", message };
+    }
+    if (contentType !== "" && !contentType.includes("json")) {
+      const message = "Steam returned an unexpected review response.";
+      recordFailure(db, game.appId, now, message);
+      return { kind: "blocked", message };
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      const message = "The Steam reviews response was not valid JSON.";
+      recordFailure(db, game.appId, now, message);
+      return { kind: "error", message };
+    }
+
+    const parsed = parseReviewSummary(body);
+    if (parsed.kind === "ok") {
+      recordSuccess(db, game.appId, now, parsed.counts, reviewPayload(body));
+      return { kind: "ok" };
+    }
+    if (parsed.kind === "zero") {
+      recordZero(db, game.appId, now, reviewPayload(body));
+      return { kind: "unavailable" };
+    }
+    if (parsed.kind === "empty") {
+      recordEmpty(db, game.appId, now, reviewPayload(body));
+      return { kind: "unavailable" };
+    }
+    recordFailure(db, game.appId, now, parsed.message);
+    return { kind: "error", message: parsed.message };
   }
 }
