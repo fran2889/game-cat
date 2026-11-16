@@ -915,12 +915,12 @@ the database is unbound and the first account-scoped Refresh claims it. `bound_a
 - `source_state` is one row per source and is never deleted. `last_error` is a short, user-safe
   message; never a raw response body or an API key.
 - `source_state.status` uses the shared 11-value CHECK: `unknown` (never attempted), `ok` (the last
-  attempt succeeded), `partial` (the last attempt read some but not all data), `empty` (a successful
-  ownership response with zero Games), `stale` (reserved; v1 records per-Game staleness on the
-  Metadata row and does not emit it here), `not_configured` (no Web API key or SteamID64),
-  `invalid_key` (the key was rejected), `rate_limited` (backing off after `429`), `blocked` (the
-  source was stopped after a block challenge), `offline` (the network is unavailable), or `error`
-  (the attempt failed with no usable fallback). Per-source subsets are:
+  attempt succeeded), `partial` (the last attempt started but has not finished, or read some but not
+  all data), `empty` (a successful ownership response with zero Games), `stale` (reserved; v1 records
+  per-Game staleness on the Metadata row and does not emit it here), `not_configured` (no Web API key
+  or SteamID64), `invalid_key` (the key was rejected), `rate_limited` (backing off after `429`),
+  `blocked` (the source was stopped after a block challenge), `offline` (the network is unavailable),
+  or `error` (the attempt failed with no usable fallback). Per-source subsets are:
   - `steam_local`: `unknown`, `ok`, `partial`, `error`.
   - `steam_web_api`: `unknown`, `not_configured`, `ok`, `partial`, `empty`, `invalid_key`,
     `rate_limited`, `error`.
@@ -930,6 +930,17 @@ the database is unbound and the first account-scoped Refresh claims it. `bound_a
   `not_configured` when no key or SteamID64 is configured.
 - `source_state` is source-level. A per-Game `stale` or `error` does not by itself change the source
   row; only a source-wide failure does. The per-Game status describes that Game.
+- A Metadata source commits `last_attempt_at` before its first request; starting that attempt replaces
+  `unknown` with `partial`, so a running pass is not reported as never attempted. The final `status`,
+  `last_success_at`, and `last_error` are committed when the pass ends or is interrupted. An
+  interrupted pass is always `partial`: it started but did not finish, which is not a failed attempt.
+- When a Metadata Fetch has no pending work and a source row is not `ok` but has an attempted per-Game
+  row, the row is reconciled from them: `last_success_at` is the newest successful `*_fetched_at`,
+  `last_attempt_at` the newest `updated_at`, the status becomes `ok`, and `last_error` and
+  `retry_after_at` are cleared. This repairs a row left `unknown` by a pass that never wrote its final
+  state and a row left `partial` by a hard kill. An attempted row is anything except `missing` with no
+  `*_fetched_at`; any pending or failed row would have selected work instead, so reconciliation only
+  sees a source that answered. Per-Game `stale`/`error` values do not change the source status.
 - On server start, any `refresh_runs` row left `queued` or `running` is marked `failed` with
   `error_code = 'INTERRUPTED'`.
 
@@ -2321,10 +2332,11 @@ counts only no-row and never-attempted `missing` Games and reports `stale` and `
 - The selection is computed at the start of the Metadata phase, so an `all` run sees Games added or
   removed by its library and ownership phases.
 - A `metadata` + Fetch with no pending work creates a `succeeded` run with `total: 0`, makes no
-  Metadata requests, and lets the UI say "up to date". An `all` + Fetch still performs its library
-  scan; when ownership is configured it also makes one ownership request. When ownership is not
-  configured or the selected Account is missing, it skips that phase and finishes `partial`. Only its
-  Metadata phase is a no-op.
+  Metadata requests, and lets the UI say "up to date". It still reconciles a Metadata source row that
+  is not `ok` but has attempted per-Game rows, so `/errors` reports the source's last success and
+  attempt. An `all` + Fetch still performs its library scan; when ownership is configured it also
+  makes one ownership request. When ownership is not configured or the selected Account is missing,
+  it skips that phase and finishes `partial`. Only its Metadata phase is a no-op.
 
 ### 6.3 Full Refresh selection
 
@@ -2342,8 +2354,11 @@ counts only no-row and never-attempted `missing` Games and reports `stale` and `
 
 ### 6.4 Per-source execution and progress
 
-- Per-Game and per-source rows are committed as work completes. The run record's progress is updated
-  at most every 25 items to avoid write amplification. No transaction spans the run.
+- Per-Game rows are committed as work completes. A Metadata source also commits `last_attempt_at`
+  before its first request and its final `status`, `last_success_at`, and `last_error` when the pass
+  ends or is interrupted, so a running pass is not reported as never attempted and an interrupted
+  pass is reported as `partial`. The run record's progress is updated at most every 25 items to avoid
+  write amplification. No transaction spans the run.
 - A per-Game failure is recorded on that source's row and counted. A source-wide failure updates
   `source_state`, stops that source for the documented backoff, and does not stop the other sources.
 - A source failure makes the run `partial`, not `failed`.
@@ -2885,6 +2900,11 @@ The Library, search, detail, and editor remain usable. Cached data is never bloc
 - the affected and pending Game counts for Metadata sources;
 - actions **Fetch now** and **Select affected** for Metadata sources.
 
+An interrupted Metadata pass is shown as `partial` with its latest attempt, any completed success,
+and its safe error. When the pass read no data, the error is
+`The Refresh run stopped before this source finished.` A later Fetch with no pending work reconciles
+the row from its per-Game data.
+
 **Fetch now** sends the same `all` + Fetch as the primary action. **Select affected** selects Games
 whose last attempt for that source failed (`stale` or `error`), excludes `ok`, `unavailable`, pending
 `missing`, and settled `missing`, navigates to `/`, and shows the selection bar. The selection bar
@@ -2923,6 +2943,7 @@ fetch timestamps, and counts.
 | Empty static Steam Collection | `This Steam Collection is empty.`                                                                            | None                                    |
 | Dynamic Steam Collection      | `Steam computes this Collection's membership. game-cat treats dynamic Collections as opaque metadata in v1.` | None                                    |
 | Metadata Refresh running      | Banner with progress; Library usable                                                                         | View refresh errors                     |
+| Metadata source interrupted   | `/errors` shows `partial`; when no data was read, `The Refresh run stopped before this source finished.`     | View refresh errors                     |
 | Ownership invalid key         | `Ownership incomplete`; owned/local-only/unknown counts                                                      | View refresh errors, Fix API key, Retry |
 | Fetch partial                 | Banner with the run error or `Fetch finished with some work incomplete.`                                     | View refresh errors, Retry              |
 | Fetch failed                  | Banner with the run error                                                                                    | View refresh errors, Retry              |
@@ -3563,6 +3584,11 @@ issues, PRs, and test names.
       configured it makes exactly one ownership request. Without a key or Account it skips ownership
       and finishes `partial`. Its Metadata candidates are 0, no Metadata source is called, and its
       terminal status reflects the library and ownership phases.
+- [ ] `AC-M19` A Metadata source records `last_attempt_at` and replaces `unknown` with `partial`
+      before its first request. A pass stopped by shutdown is `partial`, keeps its last success, and
+      reports its safe error. A Fetch with no pending work reconciles a non-`ok` row from per-Game
+      rows, so `Status.sources` never reports a source with per-Game data as never attempted or as
+      interrupted.
 
 ### 9.4 Rule grammar and evaluation
 
