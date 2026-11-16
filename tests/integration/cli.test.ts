@@ -54,25 +54,89 @@ function runCli(args: string[]): Promise<{ code: number | null; stdout: string; 
   });
 }
 
+interface StartedCli {
+  child: ReturnType<typeof spawn>;
+  stdout: () => string;
+  stderr: () => string;
+  url: Promise<string>;
+  exit: Promise<number | null>;
+}
+
+/** Spawn the real CLI and resolve its readiness URL from stdout. */
+function startCli(args: string[]): StartedCli {
+  const child = spawn(process.execPath, ["--import", "tsx", CLI, ...args], {
+    env: cleanEnv(),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  children.push(child);
+
+  let stdout = "";
+  let stderr = "";
+  child.stdout?.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
+  child.stderr?.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+
+  const url = new Promise<string>((resolveUrl, rejectUrl) => {
+    const timer = setTimeout(() => {
+      rejectUrl(new Error(`CLI did not print a URL. stderr: ${stderr}`));
+    }, 20_000);
+    child.stdout?.on("data", () => {
+      const match = /http:\/\/127\.0\.0\.1:\d+\//.exec(stdout);
+      if (match !== null) {
+        clearTimeout(timer);
+        resolveUrl(match[0]);
+      }
+    });
+    child.on("exit", (code) => {
+      clearTimeout(timer);
+      rejectUrl(new Error(`CLI exited early with ${code}. stderr: ${stderr}`));
+    });
+  });
+
+  const exit = new Promise<number | null>((resolveExit) => {
+    child.on("exit", (code) => resolveExit(code));
+  });
+
+  return {
+    child,
+    stdout: () => stdout,
+    stderr: () => stderr,
+    url,
+    exit,
+  };
+}
+
 describe("CLI", () => {
-  it("--version prints the app version and the schema version", async () => {
-    const result = await runCli(["--version"]);
+  it.each(["--version", "-v"])("%s prints the app version and the schema version", async (arg) => {
+    const result = await runCli([arg]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain(APP_VERSION);
     expect(result.stdout).toContain("schema 1");
   });
 
-  it("--help lists the flags", async () => {
-    const result = await runCli(["--help"]);
+  it.each(["--help", "-h"])("%s lists the flags", async (arg) => {
+    const result = await runCli([arg]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("--data-dir");
+    expect(result.stdout).toContain("--port");
     expect(result.stdout).toContain("--no-open");
+    expect(result.stdout).toContain("--log-level");
+    expect(result.stdout).toContain("--version");
   });
 
-  it("exits 2 for a usage error", async () => {
-    const result = await runCli(["--nope"]);
+  it.each([
+    [["--nope"], "Unknown option"],
+    [["stray"], "Unexpected argument"],
+    [["--port"], "requires a value"],
+    [["--data-dir="], "requires a value"],
+  ])("exits 2 for the usage error %j", async (args, message) => {
+    const result = await runCli(args);
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain("Unknown option");
+    expect(result.stderr).toContain(message);
+    expect(result.stderr).toContain("Usage: game-cat");
   });
 
   it("exits CONFIG_INVALID before listening", async () => {
@@ -84,14 +148,10 @@ describe("CLI", () => {
     expect(existsSync(join(dataDir, "game-cat.lock"))).toBe(false);
   });
 
-  it("starts, prints the loopback URL, and shuts down cleanly on SIGTERM", async () => {
-    const dataDir = mkdtempSync(join(tmpdir(), "game-cat-cli-"));
-    const child = spawn(
-      process.execPath,
-      [
-        "--import",
-        "tsx",
-        CLI,
+  it.each([
+    [
+      "space-separated",
+      (dataDir: string) => [
         "--data-dir",
         dataDir,
         "--port",
@@ -100,96 +160,46 @@ describe("CLI", () => {
         "--log-level",
         "error",
       ],
-      { env: cleanEnv(), stdio: ["ignore", "pipe", "pipe"] },
-    );
-    children.push(child);
+    ],
+    [
+      "equals",
+      (dataDir: string) => [`--data-dir=${dataDir}`, "--port=0", "--no-open", "--log-level=error"],
+    ],
+  ])(
+    "starts with %s values, prints the loopback URL, and shuts down cleanly on SIGTERM",
+    async (_name, argsFor) => {
+      const dataDir = mkdtempSync(join(tmpdir(), "game-cat-cli-"));
+      const started = startCli(argsFor(dataDir));
 
-    let stdout = "";
-    let stderr = "";
-    child.stderr?.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
+      const url = await started.url;
+      const response = await fetch(`${url}api/status`);
+      expect(response.status).toBe(200);
+      expect(existsSync(join(dataDir, "game-cat.lock"))).toBe(true);
 
-    const url = await new Promise<string>((resolveUrl, rejectUrl) => {
-      const timer = setTimeout(() => {
-        rejectUrl(new Error(`CLI did not print a URL. stderr: ${stderr}`));
-      }, 20_000);
-      child.stdout?.on("data", (chunk: Buffer) => {
-        stdout += chunk.toString();
-        const match = /http:\/\/127\.0\.0\.1:\d+\//.exec(stdout);
-        if (match !== null) {
-          clearTimeout(timer);
-          resolveUrl(match[0]);
-        }
-      });
-      child.on("exit", (code) => {
-        clearTimeout(timer);
-        rejectUrl(new Error(`CLI exited early with ${code}. stderr: ${stderr}`));
-      });
-    });
-
-    const response = await fetch(`${url}api/status`);
-    expect(response.status).toBe(200);
-    expect(existsSync(join(dataDir, "game-cat.lock"))).toBe(true);
-
-    const exited = new Promise<number | null>((resolveExit) => {
-      child.on("exit", (code) => resolveExit(code));
-    });
-    child.kill("SIGTERM");
-    const code = await exited;
-    expect(code).toBe(0);
-    expect(existsSync(join(dataDir, "game-cat.lock"))).toBe(false);
-  });
+      started.child.kill("SIGTERM");
+      const code = await started.exit;
+      expect(code).toBe(0);
+      expect(existsSync(join(dataDir, "game-cat.lock"))).toBe(false);
+    },
+  );
 
   it.each(["SIGINT", "SIGHUP"] as const)(
     "AC-P4 %s also exits 0 and releases the lock",
     async (signal) => {
       const dataDir = mkdtempSync(join(tmpdir(), "game-cat-cli-signal-"));
-      const child = spawn(
-        process.execPath,
-        [
-          "--import",
-          "tsx",
-          CLI,
-          "--data-dir",
-          dataDir,
-          "--port",
-          "0",
-          "--no-open",
-          "--log-level",
-          "error",
-        ],
-        { env: cleanEnv(), stdio: ["ignore", "pipe", "pipe"] },
-      );
-      children.push(child);
+      const started = startCli([
+        "--data-dir",
+        dataDir,
+        "--port",
+        "0",
+        "--no-open",
+        "--log-level",
+        "error",
+      ]);
 
-      let stdout = "";
-      let stderr = "";
-      child.stderr?.on("data", (chunk: Buffer) => {
-        stderr += chunk.toString();
-      });
-      await new Promise<void>((resolveUrl, rejectUrl) => {
-        const timer = setTimeout(() => {
-          rejectUrl(new Error(`CLI did not print a URL. stderr: ${stderr}`));
-        }, 20_000);
-        child.stdout?.on("data", (chunk: Buffer) => {
-          stdout += chunk.toString();
-          if (/http:\/\/127\.0\.0\.1:\d+\//.test(stdout)) {
-            clearTimeout(timer);
-            resolveUrl();
-          }
-        });
-        child.on("exit", (code) => {
-          clearTimeout(timer);
-          rejectUrl(new Error(`CLI exited early with ${code}. stderr: ${stderr}`));
-        });
-      });
-
-      const exited = new Promise<number | null>((resolveExit) => {
-        child.on("exit", (code) => resolveExit(code));
-      });
-      child.kill(signal);
-      const code = await exited;
+      await started.url;
+      started.child.kill(signal);
+      const code = await started.exit;
       expect(code).toBe(0);
       expect(existsSync(join(dataDir, "game-cat.lock"))).toBe(false);
     },

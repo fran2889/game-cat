@@ -1,3 +1,4 @@
+import { Command, CommanderError } from "commander";
 import { CliUsageError } from "./errors.ts";
 
 export interface CliOptions {
@@ -13,24 +14,57 @@ export interface ParsedCliArgs {
   options: CliOptions;
 }
 
-export const USAGE = `game-cat - a local, read-first view of a Steam library
+interface RawCliOptions {
+  dataDir?: string;
+  port?: string;
+  open?: boolean;
+  logLevel?: string;
+  help?: boolean;
+  version?: boolean;
+}
 
-Usage: game-cat [options]
+/** Commander renders this; the flags and their descriptions are the contract. */
+function createProgram(): Command {
+  return (
+    new Command()
+      .name("game-cat")
+      // `--help` and `--version` are ordinary options below so a structural
+      // mistake is always a usage error, matching the frozen CLI surface.
+      .helpOption(false)
+      .allowExcessArguments(false)
+      .exitOverride()
+      .configureOutput({ writeOut: () => {}, writeErr: () => {} })
+      .addHelpText("before", "game-cat - a local, read-first view of a Steam library\n")
+      .addHelpText(
+        "after",
+        "\nEnvironment:\n" +
+          "  GAME_CAT_DATA_DIR, GAME_CAT_PORT, GAME_CAT_OPEN_BROWSER, GAME_CAT_LOG_LEVEL,\n" +
+          "  GAME_CAT_STEAM_ROOT, GAME_CAT_STEAM_ID64, GAME_CAT_STEAM_API_KEY\n",
+      )
+      .option("--data-dir <path>", "Data directory (overrides GAME_CAT_DATA_DIR)")
+      .option("--port <number>", "Loopback port, 0-65535; 0 asks the OS (default 4780)")
+      .option("--no-open", "Do not open the browser")
+      .option("--log-level <level>", "trace, debug, info, warn, error, or fatal (default info)")
+      .option("--help, -h", "Show this help")
+      .option("--version, -v", "Print the app version and bundled database schema version")
+  );
+}
 
-Options:
-  --data-dir <path>   Data directory (overrides GAME_CAT_DATA_DIR)
-  --port <number>     Loopback port, 0-65535; 0 asks the OS (default 4780)
-  --no-open           Do not open the browser
-  --log-level <level> trace, debug, info, warn, error, or fatal (default info)
-  --help, -h          Show this help
-  --version, -v       Print the app version and bundled database schema version
+/** The help text, rendered by commander from the option catalogue above. */
+export const USAGE = renderHelp();
 
-Environment:
-  GAME_CAT_DATA_DIR, GAME_CAT_PORT, GAME_CAT_OPEN_BROWSER, GAME_CAT_LOG_LEVEL,
-  GAME_CAT_STEAM_ROOT, GAME_CAT_STEAM_ID64, GAME_CAT_STEAM_API_KEY
-`;
-
-const VALUE_FLAGS = new Set(["--data-dir", "--port", "--log-level"]);
+function renderHelp(): string {
+  const program = createProgram();
+  let text = "";
+  program.configureOutput({
+    writeOut: (chunk: string) => {
+      text += chunk;
+    },
+    writeErr: () => {},
+  });
+  program.outputHelp();
+  return text;
+}
 
 /**
  * Parse the CLI without touching the process. Value validation deliberately
@@ -38,56 +72,60 @@ const VALUE_FLAGS = new Set(["--data-dir", "--port", "--log-level"]);
  * while structural mistakes (unknown flag, missing value) exit 2.
  */
 export function parseCliArgs(argv: readonly string[]): ParsedCliArgs {
-  const parsed: ParsedCliArgs = { help: false, version: false, options: {} };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv[index];
-    if (argument === undefined) {
-      continue;
+  const program = createProgram();
+  try {
+    program.parse([...argv], { from: "user" });
+  } catch (error) {
+    if (error instanceof CommanderError) {
+      throw new CliUsageError(usageMessage(error, program));
     }
-
-    if (argument === "--help" || argument === "-h") {
-      parsed.help = true;
-      continue;
-    }
-    if (argument === "--version" || argument === "-v") {
-      parsed.version = true;
-      continue;
-    }
-    if (argument === "--no-open") {
-      parsed.options.openBrowser = false;
-      continue;
-    }
-
-    const equals = argument.indexOf("=");
-    const flag = equals < 0 ? argument : argument.slice(0, equals);
-    if (!VALUE_FLAGS.has(flag)) {
-      throw new CliUsageError(
-        argument.startsWith("-")
-          ? `Unknown option: ${argument}`
-          : `Unexpected argument: ${argument}`,
-      );
-    }
-
-    let value: string | undefined;
-    if (equals >= 0) {
-      value = argument.slice(equals + 1);
-    } else {
-      index += 1;
-      value = argv[index];
-    }
-    if (value === undefined || value === "") {
-      throw new CliUsageError(`Option ${flag} requires a value`);
-    }
-
-    if (flag === "--data-dir") {
-      parsed.options.dataDir = value;
-    } else if (flag === "--port") {
-      parsed.options.port = value;
-    } else {
-      parsed.options.logLevel = value;
-    }
+    throw error;
   }
 
-  return parsed;
+  const raw = program.opts<RawCliOptions>();
+  const options: CliOptions = {};
+  if (raw.dataDir !== undefined) {
+    options.dataDir = requireValue("--data-dir", raw.dataDir);
+  }
+  if (raw.port !== undefined) {
+    options.port = requireValue("--port", raw.port);
+  }
+  if (raw.logLevel !== undefined) {
+    options.logLevel = requireValue("--log-level", raw.logLevel);
+  }
+  // `--no-open` is commander's negatable option: it defaults to true, so only
+  // an explicit flag may override the environment and config file.
+  if (raw.open === false) {
+    options.openBrowser = false;
+  }
+
+  return { help: raw.help === true, version: raw.version === true, options };
+}
+
+function requireValue(flag: string, value: string): string {
+  if (value === "") {
+    throw new CliUsageError(`Option ${flag} requires a value`);
+  }
+  return value;
+}
+
+function usageMessage(error: CommanderError, program: Command): string {
+  switch (error.code) {
+    case "commander.unknownOption": {
+      const option = /unknown option '([^']+)'/.exec(error.message)?.[1];
+      return option === undefined ? "Unknown option" : `Unknown option: ${option}`;
+    }
+    case "commander.optionMissingArgument": {
+      const option = /option '([^' <]+)/.exec(error.message)?.[1];
+      return option === undefined
+        ? "An option requires a value"
+        : `Option ${option} requires a value`;
+    }
+    case "commander.excessArguments": {
+      const argument = program.args[0];
+      return argument === undefined ? "Unexpected argument" : `Unexpected argument: ${argument}`;
+    }
+    default:
+      return error.message.replace(/^error: /, "");
+  }
 }
