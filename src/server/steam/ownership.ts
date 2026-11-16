@@ -163,67 +163,62 @@ export function createSteamOwnershipSource(
 
   return {
     async fetchOwnedGames(steamId64: string, signal?: AbortSignal): Promise<OwnershipFetchResult> {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
       const combined =
-        signal === undefined ? controller.signal : AbortSignal.any([controller.signal, signal]);
+        signal === undefined ? timeoutSignal : AbortSignal.any([timeoutSignal, signal]);
+      let response: Response;
       try {
-        let response: Response;
-        try {
-          response = await fetchImpl(ownershipUrl(options.apiKey, steamId64), {
-            method: "GET",
-            headers: {
-              accept: "application/json",
-              "user-agent": OWNERSHIP_USER_AGENT,
-            },
-            signal: combined,
-          });
-        } catch {
-          // Deliberately generic: a thrown URL or cause may contain the key.
-          return {
-            kind: "error",
-            message:
-              signal?.aborted === true
-                ? "The Steam Web API request was interrupted by shutdown."
-                : controller.signal.aborted
-                  ? "The Steam Web API request timed out."
-                  : "The Steam Web API could not be reached.",
-          };
-        }
-
-        if (response.status === 401 || response.status === 403) {
-          return {
-            kind: "invalid_key",
-            message: "Steam rejected the Web API key. Check it in onboarding.",
-          };
-        }
-        if (response.status === 429) {
-          return {
-            kind: "rate_limited",
-            retryAfterAt: parseRetryAfter(response.headers.get("retry-after"), now()),
-            message: "Steam rate limited the ownership request. Try again later.",
-          };
-        }
-        if (response.status < 200 || response.status >= 300) {
-          return {
-            kind: "error",
-            message: `The Steam Web API failed with status ${response.status}.`,
-          };
-        }
-
-        let body: unknown;
-        try {
-          body = await response.json();
-        } catch {
-          return {
-            kind: "error",
-            message: "The Steam Web API returned an unreadable response.",
-          };
-        }
-        return classifyBody(body);
-      } finally {
-        clearTimeout(timer);
+        response = await fetchImpl(ownershipUrl(options.apiKey, steamId64), {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+            "user-agent": OWNERSHIP_USER_AGENT,
+          },
+          signal: combined,
+        });
+      } catch {
+        // Deliberately generic: a thrown URL or cause may contain the key.
+        return {
+          kind: "error",
+          message:
+            signal?.aborted === true
+              ? "The Steam Web API request was interrupted by shutdown."
+              : timeoutSignal.aborted
+                ? "The Steam Web API request timed out."
+                : "The Steam Web API could not be reached.",
+        };
       }
+
+      if (response.status === 401 || response.status === 403) {
+        return {
+          kind: "invalid_key",
+          message: "Steam rejected the Web API key. Check it in onboarding.",
+        };
+      }
+      if (response.status === 429) {
+        return {
+          kind: "rate_limited",
+          retryAfterAt: parseRetryAfter(response.headers.get("retry-after"), now()),
+          message: "Steam rate limited the ownership request. Try again later.",
+        };
+      }
+      if (response.status < 200 || response.status >= 300) {
+        return {
+          kind: "error",
+          message: `The Steam Web API failed with status ${response.status}.`,
+        };
+      }
+
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        return {
+          kind: "error",
+          message: "The Steam Web API returned an unreadable response.",
+        };
+      }
+      return classifyBody(body);
     },
   };
 }

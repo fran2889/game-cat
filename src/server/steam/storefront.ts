@@ -352,17 +352,10 @@ export class StorefrontSource implements MetadataSource {
     now: number,
     outerSignal?: AbortSignal,
   ): Promise<MetadataSourceOutcome> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeoutSignal = AbortSignal.timeout(this.timeoutMs);
     const signal =
-      outerSignal === undefined
-        ? controller.signal
-        : AbortSignal.any([controller.signal, outerSignal]);
-    try {
-      return await this.performRequest(db, appId, now, signal, outerSignal);
-    } finally {
-      clearTimeout(timer);
-    }
+      outerSignal === undefined ? timeoutSignal : AbortSignal.any([timeoutSignal, outerSignal]);
+    return this.performRequest(db, appId, now, signal, outerSignal);
   }
 
   private async performRequest(
