@@ -246,12 +246,16 @@ export function createHttpApp(options: CreateHttpAppOptions): FastifyInstance {
     }
 
     if (error.validation !== undefined) {
+      // Schema validation runs for both bodies and query strings; the
+      // documented error names the part that failed. A missing context keeps
+      // the body wording the envelope had before route schemas existed.
+      const subject = error.validationContext === "querystring" ? "query" : "body";
       return sendError(
         reply,
         request.id,
         422,
         ERROR_CODES.validationError,
-        "Request body is invalid",
+        `Request ${subject} is invalid`,
         { fieldErrors: fieldErrorsFrom(error) },
       );
     }
