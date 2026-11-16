@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "kysely";
 import type BetterSqlite3 from "better-sqlite3";
 import {
   CONTROL_CHARACTERS,
@@ -18,6 +19,7 @@ import type { GameOrder } from "../../shared/types.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { GAME_SORTS } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
+import { allSync, firstSync, queryFor } from "../db/query.ts";
 import { notFound } from "../request.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 import { readDataAsOf } from "./games.ts";
@@ -115,20 +117,29 @@ export class SmartCollectionsRepository {
   }
 
   list(query: SmartCollectionsQuery): SmartCollectionsResponse {
-    const total = (
-      this.db.prepare("SELECT COUNT(*) AS count FROM smart_collections").get() as { count: number }
-    ).count;
+    const count = firstSync<{ count: number }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("smart_collections")
+        .select((expression) => expression.fn.countAll().as("count"))
+        .compile(),
+    );
+    const total = Number(count?.count ?? 0);
 
     const orderColumn = query.sort === "updatedAt" ? "updated_at" : "name_key";
-    const direction = query.order === "desc" ? "DESC" : "ASC";
-    const rows = this.db
-      .prepare(
-        `SELECT id, name, name_key, created_at, updated_at
-         FROM smart_collections
-         ORDER BY ${orderColumn} ${direction}, id ASC
-         LIMIT ? OFFSET ?`,
-      )
-      .all(query.pageSize, (query.page - 1) * query.pageSize) as SmartCollectionRow[];
+    const direction = query.order === "desc" ? "desc" : "asc";
+    const rows = allSync<SmartCollectionRow>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("smart_collections")
+        .select(["id as id", "name as name", "name_key as name_key"])
+        .select(["created_at as created_at", "updated_at as updated_at"])
+        .orderBy(sql.ref(orderColumn), direction)
+        .orderBy("id", "asc")
+        .limit(query.pageSize)
+        .offset((query.page - 1) * query.pageSize)
+        .compile(),
+    );
 
     // One Library pass supplies every matchCount on this page (§4.2).
     const library = rows.length === 0 ? null : readLibrary(this.db);
@@ -153,11 +164,15 @@ export class SmartCollectionsRepository {
   }
 
   get(id: string): SmartCollection | null {
-    const row = this.db
-      .prepare(
-        "SELECT id, name, name_key, created_at, updated_at FROM smart_collections WHERE id = ?",
-      )
-      .get(id) as SmartCollectionRow | undefined;
+    const row = firstSync<SmartCollectionRow>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("smart_collections")
+        .select(["id as id", "name as name", "name_key as name_key"])
+        .select(["created_at as created_at", "updated_at as updated_at"])
+        .where("id", "=", id)
+        .compile(),
+    );
     if (row === undefined) {
       return null;
     }
@@ -261,15 +276,23 @@ export class SmartCollectionsRepository {
     if (collectionIds.length === 0) {
       return result;
     }
-    const placeholders = collectionIds.map(() => "?").join(", ");
-    const rows = this.db
-      .prepare(
-        `SELECT smart_collection_id, position, prefix, field, operator, value_json
-         FROM rules
-         WHERE smart_collection_id IN (${placeholders})
-         ORDER BY smart_collection_id ASC, position ASC`,
-      )
-      .all(...collectionIds) as RuleRow[];
+    const rows = allSync<RuleRow>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("rules")
+        .select([
+          "smart_collection_id as smart_collection_id",
+          "position as position",
+          "prefix as prefix",
+          "field as field",
+          "operator as operator",
+          "value_json as value_json",
+        ])
+        .where("smart_collection_id", "in", [...collectionIds])
+        .orderBy("smart_collection_id", "asc")
+        .orderBy("position", "asc")
+        .compile(),
+    );
     for (const row of rows) {
       const rules = result.get(row.smart_collection_id) ?? [];
       rules.push({
