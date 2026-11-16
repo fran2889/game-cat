@@ -10,6 +10,7 @@ import type {
 import { MAX_REFRESH_APP_IDS } from "../../shared/types.ts";
 import { readBoundSteamId64 } from "../db/database.ts";
 import { HttpError } from "../errors.ts";
+import { asRecord, validationError } from "../request.ts";
 import {
   AccountMismatchError,
   bindAccount,
@@ -218,9 +219,7 @@ function parseRawStats(raw: string | null): Record<string, unknown> | null {
   }
   try {
     const value: unknown = JSON.parse(raw);
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null;
+    return asRecord(value);
   } catch {
     return null;
   }
@@ -314,12 +313,6 @@ export function readActiveRefresh(db: BetterSqlite3.Database): RefreshRun | null
   return row === undefined ? null : toRefreshRun(row);
 }
 
-function validationError(fieldErrors: Record<string, string>): HttpError {
-  return new HttpError(422, "VALIDATION_ERROR", "Request body is invalid", {
-    details: { fieldErrors },
-  });
-}
-
 const OWNERSHIP_RUN_ERRORS: Record<
   Exclude<OwnershipFetchResult["kind"], "complete" | "empty" | "partial">,
   {
@@ -381,10 +374,10 @@ function validateAppIds(value: unknown): { appIds: number[] | null; error: strin
 }
 
 function parseRefreshRequest(body: unknown): RefreshRequest {
-  if (typeof body !== "object" || body === null || Array.isArray(body)) {
-    throw validationError({ body: "must be an object" });
+  const record = asRecord(body);
+  if (record === null) {
+    throw validationError({ body: "must be an object" }, "body");
   }
-  const record = body as Record<string, unknown>;
   const fieldErrors: Record<string, string> = {};
 
   const scope = record.scope;
@@ -402,7 +395,7 @@ function parseRefreshRequest(body: unknown): RefreshRequest {
   }
 
   if (Object.keys(fieldErrors).length > 0) {
-    throw validationError(fieldErrors);
+    throw validationError(fieldErrors, "body");
   }
 
   const validScope = scope as RefreshScope;
@@ -456,7 +449,7 @@ function parseRefreshRequest(body: unknown): RefreshRequest {
   }
 
   if (Object.keys(fieldErrors).length > 0) {
-    throw validationError(fieldErrors);
+    throw validationError(fieldErrors, "body");
   }
 
   return {
