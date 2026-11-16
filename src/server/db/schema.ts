@@ -1,3 +1,4 @@
+import type { Generated } from "kysely";
 import type { GamesRow } from "../library/games.ts";
 
 /**
@@ -48,6 +49,7 @@ export interface SteamspyAppdetailsTable {
   app_id: number;
   tags_status: string;
   tags_fetched_at: number | null;
+  updated_at: number;
 }
 
 export interface StorefrontAppdetailsTable {
@@ -63,6 +65,7 @@ export interface StorefrontAppdetailsTable {
   metacritic_score: number | null;
   store_status: string;
   store_fetched_at: number | null;
+  updated_at: number;
 }
 
 export interface SteamReviewSummariesTable {
@@ -73,6 +76,7 @@ export interface SteamReviewSummariesTable {
   review_negative: number | null;
   review_total: number | null;
   review_tier: string | null;
+  updated_at: number;
 }
 
 export interface SourceStateTable {
@@ -82,6 +86,22 @@ export interface SourceStateTable {
   last_attempt_at: number | null;
   retry_after_at: number | null;
   last_error: string | null;
+}
+
+export interface RefreshRunsTable {
+  id: Generated<number>;
+  scope: string;
+  mode: string | null;
+  status: string;
+  steam_id64: string | null;
+  started_at: number;
+  finished_at?: number | null;
+  total?: number | null;
+  done: number;
+  stats_json?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  app_ids_json?: string | null;
 }
 
 export interface SmartCollectionsTable {
@@ -107,6 +127,7 @@ export interface DatabaseSchema {
   storefront_appdetails: StorefrontAppdetailsTable;
   steam_review_summaries: SteamReviewSummariesTable;
   source_state: SourceStateTable;
+  refresh_runs: RefreshRunsTable;
   smart_collections: SmartCollectionsTable;
   rules: RulesTable;
   v_games: GamesRow;
