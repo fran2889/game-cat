@@ -9,12 +9,17 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { RefreshRun, Status } from "../shared/types.ts";
-import { ApiError, fetchStatus, startRefresh, type RefreshRequestBody } from "./api.ts";
+import {
+  ApiError,
+  fetchStatus,
+  startRefresh,
+  statusQueryOptions,
+  type RefreshRequestBody,
+} from "./api.ts";
 import { useToast } from "./components/ToastProvider.tsx";
 import { isRunningStatus, isTerminalStatus, refreshRequestFor } from "./refresh.ts";
-
-const POLL_INTERVAL_MS = 800;
 
 interface RefreshContextValue {
   status: Status | null;
@@ -42,9 +47,10 @@ export interface RefreshProviderProps {
  * Refresh state shared by the shell, the Library, and `/errors`.
  *
  * The server is the source of truth. While a run is queued or running the
- * provider polls `GET /api/status`, so progress, phase, source chips, and the
- * point at which the run becomes terminal all come from the documented
- * `activeRefresh` / `lastRefresh` shapes. Polling stops at the terminal state.
+ * status query refetches every 800 ms, so progress, phase, source chips, and
+ * the point at which the run becomes terminal all come from the documented
+ * `activeRefresh` / `lastRefresh` shapes. The query stops refetching at the
+ * terminal state because `activeRefresh` becomes null.
  */
 export function RefreshProvider({
   status,
@@ -52,6 +58,10 @@ export function RefreshProvider({
   children,
 }: RefreshProviderProps): ReactElement {
   const { showToast } = useToast();
+  // Observe the shell's status query so its 800 ms refetch interval is driven
+  // from the same cache entry as App; TanStack Query dedupes concurrent reads.
+  useQuery(statusQueryOptions);
+  const startRunMutation = useMutation({ mutationFn: startRefresh });
   const [trackedId, setTrackedId] = useState<string | null>(null);
   const [pendingRun, setPendingRun] = useState<RefreshRun | null>(null);
   const [starting, setStarting] = useState(false);
@@ -60,7 +70,7 @@ export function RefreshProvider({
   const activeFromStatus = status?.activeRefresh ?? null;
 
   // Adopt a run that was already active when the page loaded (for example the
-  // startup Fetch) so the banner and progress polling start immediately.
+  // startup Fetch) so the banner and its completion toast start immediately.
   useEffect(() => {
     if (activeFromStatus !== null) {
       setTrackedId(activeFromStatus.id);
@@ -80,39 +90,8 @@ export function RefreshProvider({
     }
   }, [pendingRun, status]);
 
-  // Poll while a run is active. Polling stops when the run becomes terminal.
-  useEffect(() => {
-    if (trackedId === null) {
-      return;
-    }
-    let cancelled = false;
-    let timer: number | undefined;
-
-    const poll = async (): Promise<void> => {
-      try {
-        const next = await fetchStatus();
-        if (!cancelled) {
-          applyStatus(next);
-        }
-      } catch {
-        // The shell already shows the disconnected banner and Retry connection.
-      }
-      if (!cancelled) {
-        timer = window.setTimeout(() => void poll(), POLL_INTERVAL_MS);
-      }
-    };
-
-    timer = window.setTimeout(() => void poll(), 250);
-    return () => {
-      cancelled = true;
-      if (timer !== undefined) {
-        window.clearTimeout(timer);
-      }
-    };
-  }, [applyStatus, trackedId]);
-
-  // Once the tracked run reaches a terminal state, stop polling and announce a
-  // successful Fetch. Partial and failed runs keep their persistent banner.
+  // Once the tracked run reaches a terminal state, announce a successful Fetch.
+  // Partial and failed runs keep their persistent banner.
   useEffect(() => {
     if (trackedId === null || activeFromStatus !== null) {
       return;
@@ -135,7 +114,7 @@ export function RefreshProvider({
     async (body: RefreshRequestBody): Promise<RefreshRun | null> => {
       setStarting(true);
       try {
-        const run = await startRefresh(body);
+        const run = await startRunMutation.mutateAsync(body);
         setPendingRun(isRunningStatus(run.status) ? run : null);
         setTrackedId(run.id);
         return run;
@@ -154,7 +133,7 @@ export function RefreshProvider({
         setStarting(false);
       }
     },
-    [applyStatus, showToast],
+    [applyStatus, showToast, startRunMutation],
   );
 
   const startFetch = useCallback(async (): Promise<void> => {

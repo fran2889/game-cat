@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, Route, Routes, matchPath, useLocation } from "react-router-dom";
 import type { Config, Status } from "../shared/types.ts";
-import { fetchConfig, fetchStatus } from "./api.ts";
+import { configQueryKey, configQueryOptions, statusQueryKey, statusQueryOptions } from "./api.ts";
 import { BrowseProvider } from "./browse-context.tsx";
 import { viewKindForPath } from "./browse.ts";
 import { AppShell } from "./components/AppShell.tsx";
@@ -38,8 +39,11 @@ function backgroundFor(location: ReturnType<typeof useLocation>): DetailBackgrou
 }
 
 export function App() {
-  const [status, setStatus] = useState<Status | null>(null);
-  const [config, setConfig] = useState<Config | null>(null);
+  const queryClient = useQueryClient();
+  const statusQuery = useQuery(statusQueryOptions);
+  const configQuery = useQuery(configQueryOptions);
+  const status = statusQuery.data ?? null;
+  const config = configQuery.data ?? null;
   const [error, setError] = useState<string | null>(null);
   const location = useLocation();
   const gameMatch = matchPath("/games/:appId", location.pathname);
@@ -53,69 +57,47 @@ export function App() {
         });
   const routeLocation = detailBackground ?? location;
 
+  useEffect(() => {
+    if (statusQuery.data !== undefined) {
+      setError(null);
+    }
+  }, [statusQuery.data]);
+
+  useEffect(() => {
+    if (statusQuery.error !== null) {
+      setError((statusQuery.error as Error).message);
+    }
+  }, [statusQuery.error]);
+
+  useEffect(() => {
+    if (configQuery.error !== null) {
+      setError((configQuery.error as Error).message);
+    }
+  }, [configQuery.error]);
+
   const reloadStatus = useCallback(() => {
     setError(null);
-    const controller = new AbortController();
-    void fetchStatus(controller.signal)
-      .then((next) => {
-        setStatus(next);
-        setError(null);
-      })
-      .catch((fetchError: unknown) => {
-        if ((fetchError as Error).name !== "AbortError") {
-          setError((fetchError as Error).message);
-        }
-      });
-    return () => controller.abort();
-  }, []);
+    void queryClient.refetchQueries({ queryKey: statusQueryKey });
+  }, [queryClient]);
 
   const reloadConfig = useCallback(() => {
-    const controller = new AbortController();
-    void fetchConfig(controller.signal)
-      .then((next) => setConfig(next))
-      .catch((fetchError: unknown) => {
-        if ((fetchError as Error).name !== "AbortError") {
-          setError((fetchError as Error).message);
-        }
-      });
-    return () => controller.abort();
-  }, []);
+    void queryClient.refetchQueries({ queryKey: configQueryKey });
+  }, [queryClient]);
 
-  const applyConfig = useCallback((next: Config) => {
-    setConfig(next);
-  }, []);
+  const applyConfig = useCallback(
+    (next: Config) => {
+      queryClient.setQueryData(configQueryKey, next);
+    },
+    [queryClient],
+  );
 
-  const applyStatus = useCallback((next: Status) => {
-    setStatus(next);
-    setError(null);
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetchStatus(controller.signal)
-      .then((next) => {
-        setStatus(next);
-        setError(null);
-      })
-      .catch((fetchError: unknown) => {
-        if ((fetchError as Error).name !== "AbortError") {
-          setError((fetchError as Error).message);
-        }
-      });
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetchConfig(controller.signal)
-      .then((next) => setConfig(next))
-      .catch((fetchError: unknown) => {
-        if ((fetchError as Error).name !== "AbortError") {
-          setError((fetchError as Error).message);
-        }
-      });
-    return () => controller.abort();
-  }, []);
+  const applyStatus = useCallback(
+    (next: Status) => {
+      queryClient.setQueryData(statusQueryKey, next);
+      setError(null);
+    },
+    [queryClient],
+  );
 
   const needsOnboarding =
     config !== null && !config.steamApiKeySet && config.steamApiKeySource === "none";
