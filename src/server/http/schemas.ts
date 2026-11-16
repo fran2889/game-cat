@@ -1,5 +1,11 @@
 import type { FastifyRequest } from "fastify";
-import { GAME_SORTS, type GameOrder, type GameSort } from "../../shared/types.ts";
+import {
+  GAME_SORTS,
+  type GameOrder,
+  type GameSort,
+  type RuleValueField,
+} from "../../shared/types.ts";
+import { RULE_VALUE_FIELDS } from "../library/rule-values.ts";
 import { validationError } from "../request.ts";
 
 /**
@@ -295,4 +301,172 @@ export async function rejectRepeatedQueryValues(request: FastifyRequest): Promis
       throw validationError({ [key]: "must be a single value" });
     }
   }
+}
+
+const tagSummary = {
+  type: "object",
+  required: ["name", "gameCount"],
+  properties: {
+    name: { type: "string", minLength: 1 },
+    gameCount: { type: "integer", minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
+const ruleValue = {
+  type: "object",
+  required: ["value", "gameCount"],
+  properties: {
+    value: { type: "string", minLength: 1 },
+    gameCount: { type: "integer", minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
+const steamCollectionSummary = {
+  type: "object",
+  required: ["id", "name", "kind", "isDynamic", "gameCount"],
+  properties: {
+    id: { type: "string", minLength: 1 },
+    name: { type: "string", minLength: 1 },
+    kind: { type: "string", enum: ["favorite", "hidden", "user", "tag", "system", "other"] },
+    isDynamic: { type: "boolean" },
+    gameCount: { type: ["integer", "null"], minimum: 0 },
+  },
+  additionalProperties: false,
+};
+
+/** The contract definitions shared by the library read endpoints. */
+export const libraryContractDefinitions = {
+  ...gameContractDefinitions,
+  tagSummary,
+  ruleValue,
+  steamCollectionSummary,
+};
+
+export const tagsResponseSchema = {
+  type: "object",
+  required: ["data", "pagination"],
+  properties: {
+    data: { type: "array", items: { $ref: "#/definitions/tagSummary" } },
+    pagination: { $ref: "#/definitions/pagination" },
+  },
+  additionalProperties: false,
+  definitions: libraryContractDefinitions,
+};
+
+export const ruleValuesResponseSchema = {
+  type: "object",
+  required: ["data", "pagination"],
+  properties: {
+    data: { type: "array", items: { $ref: "#/definitions/ruleValue" } },
+    pagination: { $ref: "#/definitions/pagination" },
+  },
+  additionalProperties: false,
+  definitions: libraryContractDefinitions,
+};
+
+export const steamCollectionsResponseSchema = {
+  type: "object",
+  required: ["data", "pagination"],
+  properties: {
+    data: { type: "array", items: { $ref: "#/definitions/steamCollectionSummary" } },
+    pagination: { $ref: "#/definitions/pagination" },
+  },
+  additionalProperties: false,
+  definitions: libraryContractDefinitions,
+};
+
+export const steamCollectionResponseSchema = {
+  type: "object",
+  required: ["data"],
+  properties: {
+    data: { $ref: "#/definitions/steamCollectionSummary" },
+  },
+  additionalProperties: false,
+  definitions: libraryContractDefinitions,
+};
+
+export const steamCollectionGamesResponseSchema = {
+  type: "object",
+  required: ["data", "pagination", "meta"],
+  properties: {
+    data: { type: "array", items: { $ref: "#/definitions/gameSummary" } },
+    pagination: { $ref: "#/definitions/pagination" },
+    meta: {
+      type: "object",
+      required: ["dataAsOf", "dynamic"],
+      properties: {
+        dataAsOf: { $ref: "#/definitions/nullableTimestamp" },
+        dynamic: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
+  },
+  additionalProperties: false,
+  definitions: libraryContractDefinitions,
+};
+
+function pageProperty(fallback: number, maximum: number): object {
+  return {
+    ...emptyIsAbsent({ type: "integer", minimum: 1, maximum }),
+    default: fallback,
+  };
+}
+
+export const tagsListQuerySchema = {
+  type: "object",
+  properties: {
+    query: { type: "string", maxLength: 80 },
+    page: pageProperty(1, Number.MAX_SAFE_INTEGER),
+    pageSize: pageProperty(20, 100),
+  },
+};
+
+export const ruleValuesListQuerySchema = {
+  type: "object",
+  required: ["field"],
+  properties: {
+    field: { type: "string", enum: [...RULE_VALUE_FIELDS] },
+    query: { type: "string", maxLength: 80 },
+    page: pageProperty(1, Number.MAX_SAFE_INTEGER),
+    pageSize: pageProperty(20, 100),
+  },
+};
+
+export const steamCollectionsQuerySchema = {
+  type: "object",
+  properties: {
+    page: pageProperty(1, Number.MAX_SAFE_INTEGER),
+    pageSize: pageProperty(60, 200),
+  },
+};
+
+export const steamCollectionGamesQuerySchema = {
+  type: "object",
+  properties: {
+    page: pageProperty(1, Number.MAX_SAFE_INTEGER),
+    pageSize: pageProperty(60, 200),
+    sort: { type: "string", enum: [...GAME_SORTS], default: "name" },
+    order: { type: "string", enum: ["asc", "desc"], default: "asc" },
+  },
+};
+
+export interface PageQuery {
+  page: number | Empty;
+  pageSize: number | Empty;
+}
+
+export interface TagsListQuery extends PageQuery {
+  query?: string;
+}
+
+export interface RuleValuesListQuery extends PageQuery {
+  field: RuleValueField;
+  query?: string;
+}
+
+export interface SteamCollectionGamesQuery extends PageQuery {
+  sort: GameSort;
+  order: GameOrder;
 }
