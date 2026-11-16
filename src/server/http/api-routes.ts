@@ -7,13 +7,10 @@ import type {
   SteamAccount,
   SteamAccountsResponse,
 } from "../../shared/types.ts";
+import { normalizeNameKey } from "../../shared/names.ts";
 import { parseAppId } from "../app-id.ts";
 import { notFound, validationError, type RawQuery } from "../request.ts";
-import {
-  parseSteamCollectionGamesQuery,
-  parseSteamCollectionsQuery,
-  type SteamCollectionsRepository,
-} from "../library/collections.ts";
+import { type SteamCollectionsRepository } from "../library/collections.ts";
 import { GamesRepository, type GamesQuery } from "../library/games.ts";
 import type { RulePreviewRepository } from "../library/rule-preview.ts";
 import {
@@ -21,8 +18,8 @@ import {
   parseSmartCollectionsQuery,
   type SmartCollectionsRepository,
 } from "../library/smart-collections.ts";
-import { parseRuleValuesQuery, type RuleValuesRepository } from "../library/rule-values.ts";
-import { parseTagsQuery, type TagsRepository } from "../library/tags.ts";
+import { type RuleValuesRepository } from "../library/rule-values.ts";
+import { type TagsRepository } from "../library/tags.ts";
 import type { RefreshService } from "../refresh/service.ts";
 import {
   gameDetailResponseSchema,
@@ -30,8 +27,26 @@ import {
   gamesListQuerySchema,
   gamesResponseSchema,
   rejectRepeatedQueryValues,
+  ruleValuesListQuerySchema,
+  ruleValuesResponseSchema,
+  steamCollectionGamesQuerySchema,
+  steamCollectionGamesResponseSchema,
+  steamCollectionResponseSchema,
+  steamCollectionsQuerySchema,
+  steamCollectionsResponseSchema,
+  tagsListQuerySchema,
+  tagsResponseSchema,
   type GamesListQuery,
+  type PageQuery,
+  type RuleValuesListQuery,
+  type SteamCollectionGamesQuery as SteamCollectionGamesParams,
+  type TagsListQuery,
 } from "./schemas.ts";
+
+/** An empty page value takes the route's documented default. */
+function pageValue(value: number | "", fallback: number): number {
+  return value === "" ? fallback : value;
+}
 
 export interface ApiRoutesOptions {
   status: Status | (() => Status);
@@ -153,36 +168,96 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     },
   );
 
-  app.get("/api/rule-values", async (request) =>
-    options.ruleValues.list(parseRuleValuesQuery(queryValues(request.query))),
+  app.get<{ Querystring: RuleValuesListQuery }>(
+    "/api/rule-values",
+    {
+      schema: {
+        querystring: ruleValuesListQuerySchema,
+        response: { 200: ruleValuesResponseSchema },
+      },
+      preValidation: rejectRepeatedQueryValues,
+    },
+    async (request) =>
+      options.ruleValues.list({
+        field: request.query.field,
+        query:
+          request.query.query !== undefined && request.query.query.trim() !== ""
+            ? normalizeNameKey(request.query.query)
+            : null,
+        page: pageValue(request.query.page, 1),
+        pageSize: pageValue(request.query.pageSize, 20),
+      }),
   );
 
-  app.get("/api/tags", async (request) =>
-    options.tags.list(parseTagsQuery(queryValues(request.query))),
+  app.get<{ Querystring: TagsListQuery }>(
+    "/api/tags",
+    {
+      schema: { querystring: tagsListQuerySchema, response: { 200: tagsResponseSchema } },
+      preValidation: rejectRepeatedQueryValues,
+    },
+    async (request) =>
+      options.tags.list({
+        query:
+          request.query.query !== undefined && request.query.query.trim() !== ""
+            ? request.query.query
+            : null,
+        page: pageValue(request.query.page, 1),
+        pageSize: pageValue(request.query.pageSize, 20),
+      }),
   );
 
-  app.get("/api/steam-collections", async (request) =>
-    options.collections.list(parseSteamCollectionsQuery(queryValues(request.query))),
+  app.get<{ Querystring: PageQuery }>(
+    "/api/steam-collections",
+    {
+      schema: {
+        querystring: steamCollectionsQuerySchema,
+        response: { 200: steamCollectionsResponseSchema },
+      },
+      preValidation: rejectRepeatedQueryValues,
+    },
+    async (request) =>
+      options.collections.list({
+        page: pageValue(request.query.page, 1),
+        pageSize: pageValue(request.query.pageSize, 60),
+      }),
   );
 
-  app.get("/api/steam-collections/:id", async (request) => {
-    const { id } = request.params as { id: string };
-    const collection = options.collections.get(id);
-    if (collection === null) {
-      throw notFound(id);
-    }
-    return { data: collection };
-  });
+  app.get<{ Params: { id: string } }>(
+    "/api/steam-collections/:id",
+    { schema: { response: { 200: steamCollectionResponseSchema } } },
+    async (request) => {
+      const { id } = request.params;
+      const collection = options.collections.get(id);
+      if (collection === null) {
+        throw notFound(id);
+      }
+      return { data: collection };
+    },
+  );
 
-  app.get("/api/steam-collections/:id/games", async (request) => {
-    const { id } = request.params as { id: string };
-    const query = parseSteamCollectionGamesQuery(queryValues(request.query));
-    const games = options.collections.games(id, query);
-    if (games === null) {
-      throw notFound(id);
-    }
-    return games;
-  });
+  app.get<{ Params: { id: string }; Querystring: SteamCollectionGamesParams }>(
+    "/api/steam-collections/:id/games",
+    {
+      schema: {
+        querystring: steamCollectionGamesQuerySchema,
+        response: { 200: steamCollectionGamesResponseSchema },
+      },
+      preValidation: rejectRepeatedQueryValues,
+    },
+    async (request) => {
+      const { id } = request.params;
+      const games = options.collections.games(id, {
+        page: pageValue(request.query.page, 1),
+        pageSize: pageValue(request.query.pageSize, 60),
+        sort: request.query.sort,
+        order: request.query.order,
+      });
+      if (games === null) {
+        throw notFound(id);
+      }
+      return games;
+    },
+  );
 
   app.post("/api/rules/preview", async (request) => {
     const validated = validatePreviewRequest(request.body);

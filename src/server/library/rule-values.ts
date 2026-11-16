@@ -6,7 +6,6 @@ import type {
   RuleValueField,
   RuleValuesResponse,
 } from "../../shared/types.ts";
-import { parseInteger, validationError, type RawQuery } from "../request.ts";
 
 /**
  * The read-time picker for Rule values (spec §4.3, §3.5).
@@ -30,53 +29,11 @@ const FIELD_COLUMNS: Record<RuleValueField, string> = {
   publisher: "publishers_json",
 };
 
-const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
-const MAX_QUERY_LENGTH = 80;
-
 export interface RuleValuesQuery {
   field: RuleValueField;
   query: string | null;
   page: number;
   pageSize: number;
-}
-
-export function parseRuleValuesQuery(raw: RawQuery): RuleValuesQuery {
-  const fieldErrors: Record<string, string> = {};
-
-  let field: RuleValueField = "genre";
-  if (raw.field === undefined || raw.field === "") {
-    fieldErrors.field = "is required";
-  } else if (!(RULE_VALUE_FIELDS as readonly string[]).includes(raw.field)) {
-    fieldErrors.field = `must be one of ${RULE_VALUE_FIELDS.join(", ")}`;
-  } else {
-    field = raw.field as RuleValueField;
-  }
-
-  let query: string | null = null;
-  if (raw.query !== undefined && raw.query.trim() !== "") {
-    if (raw.query.length > MAX_QUERY_LENGTH) {
-      fieldErrors.query = `must be at most ${MAX_QUERY_LENGTH} characters`;
-    } else {
-      query = normalizeNameKey(raw.query);
-    }
-  }
-
-  const page = parseInteger(raw.page, 1, "page", 1, Number.MAX_SAFE_INTEGER, fieldErrors);
-  const pageSize = parseInteger(
-    raw.pageSize,
-    DEFAULT_PAGE_SIZE,
-    "pageSize",
-    1,
-    MAX_PAGE_SIZE,
-    fieldErrors,
-  );
-
-  if (Object.keys(fieldErrors).length > 0) {
-    throw validationError(fieldErrors);
-  }
-
-  return { field, query, page, pageSize };
 }
 
 interface ValueAccumulator {
