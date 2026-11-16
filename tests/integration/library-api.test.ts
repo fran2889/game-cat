@@ -1111,3 +1111,66 @@ describe("GET /api/games?tagsStatus", () => {
     }
   });
 });
+
+describe("shared integer query parsing", () => {
+  const PAGINATED_ROUTES = [
+    { url: "/api/games", defaultPageSize: 60 },
+    { url: "/api/tags", defaultPageSize: 20 },
+    { url: "/api/rule-values?field=genre", defaultPageSize: 20 },
+    { url: "/api/steam-collections", defaultPageSize: 60 },
+    { url: "/api/smart-collections", defaultPageSize: 60 },
+  ] as const;
+
+  function withQuery(url: string, query: string): string {
+    return `${url}${url.includes("?") ? "&" : "?"}${query}`;
+  }
+
+  it("defaults an absent or empty page to 1 and the route's page size", async () => {
+    const test = harness();
+    for (const { url, defaultPageSize } of PAGINATED_ROUTES) {
+      for (const query of [undefined, "page=&pageSize="]) {
+        const response = await get(test.app, query === undefined ? url : withQuery(url, query));
+        expect(response.statusCode, `${url} ${query ?? "absent"}`).toBe(200);
+        expect(
+          (response.json() as { pagination: { page: number; pageSize: number } }).pagination,
+          `${url} ${query ?? "absent"}`,
+        ).toMatchObject({ page: 1, pageSize: defaultPageSize });
+      }
+    }
+  });
+
+  it("rejects non-numeric, negative, fractional, zero, and above-maximum values", async () => {
+    const test = harness();
+    for (const { url } of PAGINATED_ROUTES) {
+      for (const [query, field] of [
+        ["page=abc", "page"],
+        ["page=-1", "page"],
+        ["page=1.5", "page"],
+        ["page=0", "page"],
+        ["pageSize=0", "pageSize"],
+        ["pageSize=100000", "pageSize"],
+      ] as const) {
+        const response = await get(test.app, withQuery(url, query));
+        expect(response.statusCode, `${url}?${query}`).toBe(422);
+        const body = response.json() as {
+          error: { code: string; details: { fieldErrors: Record<string, string> } };
+        };
+        expect(body.error.code, `${url}?${query}`).toBe("VALIDATION_ERROR");
+        expect(body.error.details.fieldErrors, `${url}?${query}`).toHaveProperty(field);
+      }
+    }
+  });
+
+  it("rejects a repeated integer parameter as a single-value violation", async () => {
+    const test = harness();
+    for (const { url } of PAGINATED_ROUTES) {
+      const response = await get(test.app, withQuery(url, "page=1&page=2"));
+      expect(response.statusCode, url).toBe(422);
+      const body = response.json() as {
+        error: { code: string; details: { fieldErrors: Record<string, string> } };
+      };
+      expect(body.error.code, url).toBe("VALIDATION_ERROR");
+      expect(body.error.details.fieldErrors.page, url).toBe("must be a single value");
+    }
+  });
+});

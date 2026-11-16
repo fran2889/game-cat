@@ -8,7 +8,7 @@ import type {
   SteamAccountsResponse,
 } from "../../shared/types.ts";
 import { parseAppId } from "../app-id.ts";
-import { HttpError } from "../errors.ts";
+import { notFound, validationError, type RawQuery } from "../request.ts";
 import {
   parseSteamCollectionGamesQuery,
   parseSteamCollectionsQuery,
@@ -65,7 +65,7 @@ function currentStatus(status: Status | (() => Status)): Status {
   return typeof status === "function" ? status() : status;
 }
 
-function queryValues(query: unknown): Record<string, string | undefined> {
+function queryValues(query: unknown): RawQuery {
   if (typeof query !== "object" || query === null) {
     return {};
   }
@@ -76,18 +76,10 @@ function queryValues(query: unknown): Record<string, string | undefined> {
     } else if (value === undefined) {
       result[key] = undefined;
     } else {
-      throw new HttpError(422, "VALIDATION_ERROR", "Request query is invalid", {
-        details: { fieldErrors: { [key]: "must be a single value" } },
-      });
+      throw validationError({ [key]: "must be a single value" });
     }
   }
   return result;
-}
-
-function notFound(identifier: string): HttpError {
-  return new HttpError(404, "NOT_FOUND", "The requested resource was not found.", {
-    details: { id: identifier },
-  });
 }
 
 /** The documented Library and Refresh endpoints implemented by this slice. */
@@ -146,9 +138,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
   app.post("/api/rules/preview", async (request) => {
     const validated = validatePreviewRequest(request.body);
     if (Object.keys(validated.fieldErrors).length > 0) {
-      throw new HttpError(422, "VALIDATION_ERROR", "Request body is invalid", {
-        details: { fieldErrors: validated.fieldErrors },
-      });
+      throw validationError(validated.fieldErrors, "body");
     }
     return options.rulePreview.preview({
       rules: validated.rules,

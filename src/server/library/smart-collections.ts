@@ -18,6 +18,7 @@ import type { GameOrder } from "../../shared/types.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { GAME_SORTS } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
+import { asRecord, notFound, parseInteger, validationError, type RawQuery } from "../request.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 import { readDataAsOf } from "./games.ts";
 import {
@@ -30,8 +31,6 @@ import {
 
 const DEFAULT_PAGE_SIZE = 60;
 const MAX_PAGE_SIZE = 200;
-
-type RawQuery = Record<string, string | undefined>;
 
 export interface SmartCollectionsQuery {
   page: number;
@@ -64,45 +63,10 @@ interface RuleRow {
   value_json: string;
 }
 
-function validationError(fieldErrors: Record<string, string>): HttpError {
-  return new HttpError(422, "VALIDATION_ERROR", "Request body is invalid", {
-    details: { fieldErrors },
-  });
-}
-
 function nameConflict(conflictingId: string): HttpError {
   return new HttpError(409, "NAME_CONFLICT", "A Smart Collection with that name already exists.", {
     details: { conflictingId },
   });
-}
-
-function notFound(id: string): HttpError {
-  return new HttpError(404, "NOT_FOUND", "The requested Smart Collection was not found.", {
-    details: { id },
-  });
-}
-
-function parseInteger(
-  value: string | undefined,
-  fallback: number,
-  field: string,
-  min: number,
-  max: number,
-  fieldErrors: Record<string, string>,
-): number {
-  if (value === undefined || value === "") {
-    return fallback;
-  }
-  if (!/^\d+$/.test(value)) {
-    fieldErrors[field] = `must be an integer between ${min} and ${max}`;
-    return fallback;
-  }
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
-    fieldErrors[field] = `must be an integer between ${min} and ${max}`;
-    return fallback;
-  }
-  return parsed;
 }
 
 export function parseSmartCollectionsQuery(raw: RawQuery): SmartCollectionsQuery {
@@ -125,9 +89,7 @@ export function parseSmartCollectionsQuery(raw: RawQuery): SmartCollectionsQuery
     fieldErrors.order = "must be asc or desc";
   }
   if (Object.keys(fieldErrors).length > 0) {
-    throw new HttpError(422, "VALIDATION_ERROR", "Request query is invalid", {
-      details: { fieldErrors },
-    });
+    throw validationError(fieldErrors);
   }
   return { page, pageSize, sort, order };
 }
@@ -152,17 +114,9 @@ export function parseSmartCollectionGamesQuery(raw: RawQuery): SmartCollectionGa
     fieldErrors.order = "must be asc or desc";
   }
   if (Object.keys(fieldErrors).length > 0) {
-    throw new HttpError(422, "VALIDATION_ERROR", "Request query is invalid", {
-      details: { fieldErrors },
-    });
+    throw validationError(fieldErrors);
   }
   return { page, pageSize, sort, order };
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 /** Validate and normalize one Smart Collection name (§2.5, §4.4). */
@@ -342,7 +296,7 @@ export class SmartCollectionsRepository {
   create(input: unknown): SmartCollection {
     const validated = validateSmartCollectionCreate(input);
     if (Object.keys(validated.fieldErrors).length > 0) {
-      throw validationError(validated.fieldErrors);
+      throw validationError(validated.fieldErrors, "body");
     }
 
     const id = randomUUID();
@@ -364,14 +318,14 @@ export class SmartCollectionsRepository {
   update(id: string, input: unknown): SmartCollection {
     const validated = validateSmartCollectionPatch(input);
     if (Object.keys(validated.fieldErrors).length > 0) {
-      throw validationError(validated.fieldErrors);
+      throw validationError(validated.fieldErrors, "body");
     }
 
     this.db.transaction(() => {
       const existing = this.db.prepare("SELECT id FROM smart_collections WHERE id = ?").get(id) as
         { id: string } | undefined;
       if (existing === undefined) {
-        throw notFound(id);
+        throw notFound(id, "Smart Collection");
       }
 
       if (validated.name !== undefined) {
@@ -397,7 +351,7 @@ export class SmartCollectionsRepository {
   delete(id: string): void {
     const result = this.db.prepare("DELETE FROM smart_collections WHERE id = ?").run(id);
     if (result.changes === 0) {
-      throw notFound(id);
+      throw notFound(id, "Smart Collection");
     }
   }
 

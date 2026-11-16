@@ -7,7 +7,7 @@ import type {
   SteamCollectionSummary,
   SteamCollectionsResponse,
 } from "../../shared/types.ts";
-import { HttpError } from "../errors.ts";
+import { parseInteger, validationError, type RawQuery } from "../request.ts";
 import {
   GAME_SORTS,
   gameOrderSql,
@@ -27,8 +27,6 @@ import {
 const DEFAULT_PAGE_SIZE = 60;
 const MAX_PAGE_SIZE = 200;
 
-type RawQuery = Record<string, string | undefined>;
-
 interface CollectionRow {
   id: string;
   name: string;
@@ -45,35 +43,6 @@ export interface SteamCollectionsQuery {
 export interface SteamCollectionGamesQuery extends SteamCollectionsQuery {
   sort: GameSort;
   order: GameOrder;
-}
-
-function validationError(fieldErrors: Record<string, string>): HttpError {
-  return new HttpError(422, "VALIDATION_ERROR", "Request query is invalid", {
-    details: { fieldErrors },
-  });
-}
-
-function parseInteger(
-  value: string | undefined,
-  fallback: number,
-  field: string,
-  min: number,
-  max: number,
-  fieldErrors: Record<string, string>,
-): number {
-  if (value === undefined || value === "") {
-    return fallback;
-  }
-  if (!/^\d+$/.test(value)) {
-    fieldErrors[field] = `must be an integer between ${min} and ${max}`;
-    return fallback;
-  }
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
-    fieldErrors[field] = `must be an integer between ${min} and ${max}`;
-    return fallback;
-  }
-  return parsed;
 }
 
 export function parseSteamCollectionsQuery(raw: RawQuery): SteamCollectionsQuery {
