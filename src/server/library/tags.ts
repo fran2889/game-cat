@@ -1,7 +1,7 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { normalizeNameKey } from "../../shared/names.ts";
 import type { Pagination, TagSummary, TagsResponse } from "../../shared/types.ts";
-import { HttpError } from "../errors.ts";
+import { parseInteger, validationError, type RawQuery } from "../request.ts";
 
 /**
  * `GET /api/tags` typeahead (spec §4.3, AC-A6).
@@ -14,41 +14,10 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const MAX_QUERY_LENGTH = 80;
 
-type RawQuery = Record<string, string | undefined>;
-
 export interface TagsQuery {
   query: string | null;
   page: number;
   pageSize: number;
-}
-
-function validationError(fieldErrors: Record<string, string>): HttpError {
-  return new HttpError(422, "VALIDATION_ERROR", "Request query is invalid", {
-    details: { fieldErrors },
-  });
-}
-
-function parseInteger(
-  value: string | undefined,
-  fallback: number,
-  field: string,
-  min: number,
-  max: number,
-  fieldErrors: Record<string, string>,
-): number {
-  if (value === undefined || value === "") {
-    return fallback;
-  }
-  if (!/^\d+$/.test(value)) {
-    fieldErrors[field] = `must be an integer between ${min} and ${max}`;
-    return fallback;
-  }
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
-    fieldErrors[field] = `must be an integer between ${min} and ${max}`;
-    return fallback;
-  }
-  return parsed;
 }
 
 export function parseTagsQuery(raw: RawQuery): TagsQuery {

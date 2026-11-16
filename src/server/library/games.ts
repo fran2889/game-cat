@@ -10,7 +10,7 @@ import {
   type GameTag,
   type Pagination,
 } from "../../shared/types.ts";
-import { HttpError } from "../errors.ts";
+import { parseInteger, validationError, type RawQuery } from "../request.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 
 export { GAME_SORTS };
@@ -45,37 +45,6 @@ const SORT_COLUMNS: Record<GameSort, string> = {
   metacritic: "metacritic_score",
   appId: "app_id",
 };
-
-type RawQuery = Record<string, string | undefined>;
-
-function validationError(fieldErrors: Record<string, string>): HttpError {
-  return new HttpError(422, "VALIDATION_ERROR", "Request query is invalid", {
-    details: { fieldErrors },
-  });
-}
-
-function parseInteger(
-  value: string | undefined,
-  fallback: number,
-  field: string,
-  min: number,
-  max: number,
-  fieldErrors: Record<string, string>,
-): number {
-  if (value === undefined || value === "") {
-    return fallback;
-  }
-  if (!/^\d+$/.test(value)) {
-    fieldErrors[field] = `must be an integer between ${min} and ${max}`;
-    return fallback;
-  }
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
-    fieldErrors[field] = `must be an integer between ${min} and ${max}`;
-    return fallback;
-  }
-  return parsed;
-}
 
 /** Parse and validate `GET /api/games` query parameters (§4.3). */
 export function parseGamesQuery(raw: RawQuery, pageSizeMax = 200): GamesQuery {
