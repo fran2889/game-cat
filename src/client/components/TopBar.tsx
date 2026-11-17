@@ -58,6 +58,7 @@ export function breadcrumbFor(pathname: string): { kicker: string; title: string
 export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: TopBarProps) {
   const location = useLocation();
   const breadcrumb = breadcrumbFor(location.pathname);
+  const inEditor = location.pathname.startsWith("/smart/");
   const {
     viewKind,
     layout,
@@ -214,28 +215,30 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
           ✓ Installed
         </Button>
 
-        <Box className="segmented" role="group" aria-label="Layout">
-          <Button.Group>
-            <Button
-              variant={layout === "grid" ? "light" : "default"}
-              aria-label="Grid view"
-              aria-pressed={layout === "grid"}
-              px={8}
-              onClick={() => setLayout("grid")}
-            >
-              ▦
-            </Button>
-            <Button
-              variant={layout === "table" ? "light" : "default"}
-              aria-label="Table view"
-              aria-pressed={layout === "table"}
-              px={8}
-              onClick={() => setLayout("table")}
-            >
-              ☰
-            </Button>
-          </Button.Group>
-        </Box>
+        {!inEditor && (
+          <Box className="segmented" role="group" aria-label="Layout">
+            <Button.Group>
+              <Button
+                variant={layout === "grid" ? "light" : "default"}
+                aria-label="Grid view"
+                aria-pressed={layout === "grid"}
+                px={8}
+                onClick={() => setLayout("grid")}
+              >
+                ▦
+              </Button>
+              <Button
+                variant={layout === "table" ? "light" : "default"}
+                aria-label="Table view"
+                aria-pressed={layout === "table"}
+                px={8}
+                onClick={() => setLayout("table")}
+              >
+                ☰
+              </Button>
+            </Button.Group>
+          </Box>
+        )}
 
         <Button
           className="primary"

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQueries, useQuery } from "@tanstack/react-query";
-import { Link, useBlocker } from "react-router-dom";
+import { Link, useBlocker, useNavigate } from "react-router-dom";
 import {
   Alert,
   Anchor,
@@ -129,6 +129,7 @@ export function SmartEditor({
 }: SmartEditorProps) {
   const { sort, order, selectedIds, selectedCount } = useBrowse();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [name, setName] = useState(collection?.name ?? initialName ?? NEW_COLLECTION_NAME);
   const [rules, setRules] = useState<Rule[]>(collection?.rules ?? initialRules ?? []);
   const [page, setPage] = useState(1);
@@ -174,7 +175,14 @@ export function SmartEditor({
   const patchMutationRef = useRef(patchMutation);
   patchMutationRef.current = patchMutation;
 
+  const initialDraft = useRef({ name, rules });
   const savedId = collection?.id ?? null;
+  const newDraftDirty =
+    savedId === null &&
+    (name !== initialDraft.current.name ||
+      JSON.stringify(rules) !== JSON.stringify(initialDraft.current.rules));
+  const newDraftDirtyRef = useRef(newDraftDirty);
+  newDraftDirtyRef.current = newDraftDirty;
   const savedIdRef = useRef(savedId);
   savedIdRef.current = savedId;
   const onSavedRef = useRef(onSaved);
@@ -345,6 +353,7 @@ export function SmartEditor({
       autosave.markSaved({ name: saved.name, rules: saved.rules });
       setName(saved.name);
       setRules(saved.rules);
+      allowNavigationRef.current = true;
       onSaved?.(saved);
     } catch (error) {
       applySaveError(error);
@@ -365,6 +374,13 @@ export function SmartEditor({
   };
 
   const discard = (): void => {
+    if (savedId === null) {
+      // A new Collection has no saved state to restore; Discard leaves the
+      // explicit first-save flow without creating anything.
+      allowNavigationRef.current = true;
+      navigate("/");
+      return;
+    }
     const snapshot = autosave.discard();
     if (snapshot === null) {
       return;
@@ -422,7 +438,7 @@ export function SmartEditor({
 
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      failedRef.current &&
+      (failedRef.current || newDraftDirtyRef.current) &&
       !allowNavigationRef.current &&
       currentLocation.pathname !== nextLocation.pathname,
   );
@@ -539,13 +555,9 @@ export function SmartEditor({
               <Button onClick={save} disabled={saveDisabled}>
                 Save
               </Button>
-              {savedId !== null &&
-                (autosaveState.dirty || autosaveState.status === "failed") &&
-                autosaveState.status !== "saving" && (
-                  <Button variant="default" size="compact-sm" onClick={discard} disabled={deleting}>
-                    Discard
-                  </Button>
-                )}
+              <Button variant="default" size="compact-sm" onClick={discard} disabled={deleting}>
+                Discard
+              </Button>
               {savedId !== null && !confirmingDelete && (
                 <Button
                   variant="default"
@@ -632,13 +644,17 @@ export function SmartEditor({
               <Paper
                 className="editor-confirm"
                 role="alertdialog"
-                aria-label="Leave with a failed save"
+                aria-label={
+                  failedRef.current ? "Leave with a failed save" : "Leave with unsaved changes"
+                }
                 p="sm"
                 withBorder
               >
                 <Stack gap="sm">
                   <Text size="sm">
-                    Your latest changes could not be saved. Leave this page and lose those changes?
+                    {failedRef.current
+                      ? "Your latest changes could not be saved. Leave this page and lose those changes?"
+                      : "This Smart Collection has not been saved. Leave and discard the draft?"}
                   </Text>
                   <Group gap="xs">
                     <Button variant="default" size="compact-sm" onClick={() => blocker.proceed()}>
@@ -726,7 +742,7 @@ export function SmartEditor({
           )}
 
           <Group className="editor-actions" gap="xs">
-            <Button variant="default" onClick={() => addRules([emptyRule()])}>
+            <Button variant="default" fullWidth mt="sm" onClick={() => addRules([emptyRule()])}>
               + Add rule
             </Button>
           </Group>
@@ -821,7 +837,7 @@ export function SmartEditor({
             </Paper>
           )}
 
-          {preview !== null && rows.length > 0 && <GameResults games={rows} />}
+          {preview !== null && rows.length > 0 && <GameResults games={rows} layout="grid" />}
 
           {preview !== null && totalItems > 0 && !rulesInvalid && (
             <Pagination

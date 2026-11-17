@@ -249,13 +249,29 @@ main {
   overflow-y: auto;
 }
 
-/* The editor keeps the prototype's two-pane layout: a fixed-basis rule pane
- * and a flexible preview. A fixed ratio cannot express the pane widths. */
+/* The editor keeps the prototype's two-pane layout: the results preview on
+ * the left and a 370px rule rail on the right. Grid areas keep the DOM and
+ * focus order (editor first) while matching the visual order. */
 .editor-layout {
   display: grid;
-  grid-template-columns: minmax(340px, 440px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 370px;
+  grid-template-areas: "preview editor";
   gap: var(--mantine-spacing-md);
   align-items: start;
+}
+
+.editor-pane {
+  grid-area: editor;
+}
+
+.preview-pane {
+  grid-area: preview;
+}
+
+/* Every rule row carries the prefix colour as a 3px edge, matching the
+ * prefix buttons. The colour comes from RuleRow's `--rule-accent`. */
+.rule-row {
+  border-left: 3px solid var(--rule-accent, var(--mantine-color-blue-6));
 }
 
 /* Rule fields keep the prefix-first shape: field, operator, and value on one
@@ -337,6 +353,9 @@ main {
 @media (max-width: 1100px) {
   .editor-layout {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "editor"
+      "preview";
   }
 }
 
