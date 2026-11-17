@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
+import { Alert, Button, Group, Text } from "@mantine/core";
 import type { Config, Status } from "../../shared/types.ts";
 import { RefreshProvider } from "../refresh-context.tsx";
 import { SmartCollectionsProvider } from "../smart-collections-context.tsx";
@@ -109,15 +110,21 @@ export function AppShell({
             <main id="content" tabIndex={-1}>
               <RefreshBanner />
               {error !== null && (
-                <div className="banner banner-error" role="alert">
-                  <div>
-                    <strong>Cannot reach game-cat. Is the server still running?</strong>
-                    <p>{error}</p>
-                  </div>
-                  <button type="button" className="button" onClick={reloadStatus}>
-                    Retry connection
-                  </button>
-                </div>
+                <Alert
+                  className="banner banner-error"
+                  color="red"
+                  variant="light"
+                  role="alert"
+                  title="Cannot reach game-cat. Is the server still running?"
+                  mb="md"
+                >
+                  <Group gap="sm" justify="space-between" wrap="wrap">
+                    <Text size="sm">{error}</Text>
+                    <Button variant="default" onClick={reloadStatus}>
+                      Retry connection
+                    </Button>
+                  </Group>
+                </Alert>
               )}
               <Outlet context={context} />
             </main>
