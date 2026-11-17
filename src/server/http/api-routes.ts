@@ -30,11 +30,10 @@ import {
   rejectRepeatedQueryValues,
   ruleValuesListQuerySchema,
   ruleValuesResponseSchema,
-  steamCollectionGamesQuerySchema,
+  collectionGamesQuerySchema,
   steamCollectionGamesResponseSchema,
   steamCollectionResponseSchema,
   smartCollectionCreateBodySchema,
-  smartCollectionGamesQuerySchema,
   smartCollectionGamesResponseSchema,
   smartCollectionPatchBodySchema,
   smartCollectionResponseSchema,
@@ -329,7 +328,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     "/api/steam-collections/:id/games",
     {
       schema: {
-        querystring: steamCollectionGamesQuerySchema,
+        querystring: collectionGamesQuerySchema,
         response: { 200: steamCollectionGamesResponseSchema },
       },
       preValidation: rejectRepeatedQueryValues,
@@ -453,7 +452,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     "/api/smart-collections/:id/games",
     {
       schema: {
-        querystring: smartCollectionGamesQuerySchema,
+        querystring: collectionGamesQuerySchema,
         response: { 200: smartCollectionGamesResponseSchema },
       },
       preValidation: rejectRepeatedQueryValues,
