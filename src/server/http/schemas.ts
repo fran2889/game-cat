@@ -6,6 +6,7 @@ import {
   type GameSort,
   type RuleValueField,
 } from "../../shared/types.ts";
+import type { ConfigPatchField } from "../../shared/config.ts";
 import {
   RULE_FIELDS,
   RULE_OPERATORS,
@@ -634,7 +635,7 @@ export const configPatchBodySchema = {
     port: { type: "integer", minimum: 0, maximum: 65535 },
     openBrowser: { type: "boolean" },
     logLevel: { type: "string", enum: [...LOG_LEVELS] },
-  },
+  } satisfies Record<ConfigPatchField, object>,
 };
 
 export const refreshBodySchema = {
@@ -646,15 +647,6 @@ export const refreshBodySchema = {
     appIds: { type: "array", items: { type: "integer", minimum: 1 } },
   },
 };
-
-export interface ConfigPatchBody {
-  steamApiKey?: string;
-  steamRoot?: string;
-  steamId64?: string;
-  port?: number;
-  openBrowser?: boolean;
-  logLevel?: (typeof LOG_LEVELS)[number];
-}
 
 export type RefreshBody = {
   scope: "library" | "ownership" | "metadata" | "all";
