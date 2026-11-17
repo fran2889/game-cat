@@ -8,6 +8,7 @@
  */
 
 import { normalizeNameKey } from "./names.ts";
+import { asRecord } from "./records.ts";
 import { GAME_SORTS, type GameOrder, type GameSort, type RuleValueField } from "./types.ts";
 
 export const RULE_PREFIXES = ["AND", "OR", "NOT"] as const;
@@ -430,12 +431,6 @@ export function validateRuleValue(definition: RuleFieldDefinition, value: unknow
 export interface RuleValidationResult {
   rules: Rule[];
   fieldErrors: Record<string, string>;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 /** Validate the full Rules array and return the typed Rules plus dotted errors. */

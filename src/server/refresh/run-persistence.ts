@@ -2,7 +2,7 @@ import type BetterSqlite3 from "better-sqlite3";
 import { sql } from "kysely";
 import type { ErrorDetail, RefreshMode, RefreshRun, RefreshScope } from "../../shared/types.ts";
 import { allSync, firstSync, queryFor, runSync } from "../db/query.ts";
-import { asRecord } from "../request.ts";
+import { asRecord } from "../../shared/records.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 import { METADATA_SOURCE_NAMES } from "./sources.ts";
 import { emptyCounters } from "./stats.ts";
