@@ -191,6 +191,55 @@ test("an empty roster with local evidence warns about a private profile and offe
   }
 });
 
+test("settings rejects an invalid port and a relative Steam root before saving", async ({
+  page,
+}) => {
+  const app = await startTestApp({ games: 5 });
+  const patches: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (request.method() === "PATCH" && url.pathname === "/api/config") {
+      patches.push(url.pathname);
+    }
+  });
+
+  try {
+    await page.goto(`${app.url}settings`);
+    await page.getByLabel("Port").fill("70000");
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await expect(page.getByText("Enter an integer between 0 and 65535.")).toBeVisible();
+
+    await page.getByLabel("Port").fill("5099");
+    await page.getByLabel("Steam root").fill("relative/steam");
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await expect(page.getByText("Enter an absolute path to the Steam folder.")).toBeVisible();
+    expect(patches).toEqual([]);
+  } finally {
+    await app.close();
+  }
+});
+
+test("onboarding requires a key before Scan sends the first Fetch", async ({ page }) => {
+  const app = await startTestApp({ games: 5, noKey: true });
+  const configWrites: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (request.method() === "PATCH" && url.pathname === "/api/config") {
+      configWrites.push(url.pathname);
+    }
+  });
+
+  try {
+    await page.goto(app.url);
+    await expect(page).toHaveURL(/\/onboarding$/);
+    await page.getByRole("button", { name: "Scan library" }).click();
+    await expect(page.getByText("A Steam Web API key is required.")).toBeVisible();
+    expect(configWrites).toEqual([]);
+  } finally {
+    await app.close();
+  }
+});
+
 test("settings exposes the non-secret config, Account, and the restart explanation", async ({
   page,
 }) => {
