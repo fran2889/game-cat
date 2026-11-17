@@ -6,6 +6,7 @@ import {
   type GameSort,
   type RuleValueField,
 } from "../../shared/types.ts";
+import type { ConfigPatchField } from "../../shared/config.ts";
 import {
   RULE_FIELDS,
   RULE_OPERATORS,
@@ -448,7 +449,7 @@ export const steamCollectionsQuerySchema = {
   },
 };
 
-export const steamCollectionGamesQuerySchema = {
+export const collectionGamesQuerySchema = {
   type: "object",
   properties: {
     page: pageProperty(1, Number.MAX_SAFE_INTEGER),
@@ -582,16 +583,6 @@ export const smartCollectionsListQuerySchema = {
   },
 };
 
-export const smartCollectionGamesQuerySchema = {
-  type: "object",
-  properties: {
-    page: pageProperty(1, Number.MAX_SAFE_INTEGER),
-    pageSize: pageProperty(60, 200),
-    sort: { type: "string", enum: [...GAME_SORTS], default: "name" },
-    order: { type: "string", enum: ["asc", "desc"], default: "asc" },
-  },
-};
-
 /**
  * The envelope only: the name and rule semantics stay with the shared domain
  * validator so field errors keep their dotted paths and messages.
@@ -644,7 +635,7 @@ export const configPatchBodySchema = {
     port: { type: "integer", minimum: 0, maximum: 65535 },
     openBrowser: { type: "boolean" },
     logLevel: { type: "string", enum: [...LOG_LEVELS] },
-  },
+  } satisfies Record<ConfigPatchField, object>,
 };
 
 export const refreshBodySchema = {
@@ -656,15 +647,6 @@ export const refreshBodySchema = {
     appIds: { type: "array", items: { type: "integer", minimum: 1 } },
   },
 };
-
-export interface ConfigPatchBody {
-  steamApiKey?: string;
-  steamRoot?: string;
-  steamId64?: string;
-  port?: number;
-  openBrowser?: boolean;
-  logLevel?: (typeof LOG_LEVELS)[number];
-}
 
 export type RefreshBody = {
   scope: "library" | "ownership" | "metadata" | "all";

@@ -1,4 +1,5 @@
 import { LOG_LEVELS, type Config, type LogLevel, type SteamAccount } from "../../shared/types.ts";
+import { CONFIG_PATCH_FIELDS, type ConfigPatch } from "../../shared/config.ts";
 import { HttpError } from "../errors.ts";
 import { validationError } from "../request.ts";
 import { discoverSteam, type SteamDiscovery, type SteamDiscoveryFn } from "../steam/discovery.ts";
@@ -33,14 +34,7 @@ export interface ConfigPatchResult {
   meta: { restartRequired: boolean };
 }
 
-const PATCH_FIELDS = new Set([
-  "steamApiKey",
-  "steamRoot",
-  "steamId64",
-  "port",
-  "openBrowser",
-  "logLevel",
-]);
+const PATCH_FIELDS = new Set<string>(CONFIG_PATCH_FIELDS);
 
 /**
  * The live, non-secret configuration view and the atomic `PATCH /api/config`
@@ -186,14 +180,7 @@ export class ConfigStore {
    * Validate and persist any subset of the editable settings. The file write is
    * atomic and 0600; a rejected request writes nothing.
    */
-  patch(body: {
-    steamApiKey?: string;
-    steamRoot?: string;
-    steamId64?: string;
-    port?: number;
-    openBrowser?: boolean;
-    logLevel?: LogLevel;
-  }): ConfigPatchResult {
+  patch(body: ConfigPatch): ConfigPatchResult {
     const record = this.patchRecord(body);
     const before = this.get();
     const restartRequired =
@@ -295,14 +282,7 @@ export class ConfigStore {
     return { data: after, meta: { restartRequired } };
   }
 
-  private patchRecord(record: {
-    steamApiKey?: string;
-    steamRoot?: string;
-    steamId64?: string;
-    port?: number;
-    openBrowser?: boolean;
-    logLevel?: LogLevel;
-  }): Record<string, unknown> {
+  private patchRecord(record: ConfigPatch): Record<string, unknown> {
     const fieldErrors: Record<string, string> = {};
     const present: Record<string, unknown> = {};
 
@@ -313,7 +293,11 @@ export class ConfigStore {
     }
 
     if (record.steamApiKey !== undefined) {
-      present.steamApiKey = record.steamApiKey;
+      if (record.steamApiKey.trim() === "") {
+        fieldErrors.steamApiKey = "must be a non-empty string";
+      } else {
+        present.steamApiKey = record.steamApiKey;
+      }
     }
 
     if (record.steamRoot !== undefined) {

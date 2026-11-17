@@ -6,7 +6,7 @@
  */
 
 import type { Rule } from "../shared/rules.ts";
-import { validateDraftRules } from "./rule-editor.ts";
+import { validateRules } from "../shared/rules.ts";
 
 export interface SmartCollectionDraftHandoff {
   name: string;
@@ -57,7 +57,7 @@ export function readDraftHandoff(state: unknown): SmartCollectionDraftHandoff | 
   ) {
     return null;
   }
-  const validated = validateDraftRules(handoff.rules);
+  const validated = validateRules(handoff.rules);
   if (Object.keys(validated.fieldErrors).length > 0) {
     return null;
   }

@@ -231,6 +231,55 @@ test("the primary Fetch sends all + Fetch", async ({ page }) => {
   }
 });
 
+test("starting a Fetch from idle polls the status until the run finishes", async ({ page }) => {
+  let release: (() => void) | null = null;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const sources = fakeSources().map((source) =>
+    source.name === "steamspy"
+      ? {
+          ...source,
+          async fetch(): Promise<MetadataSourceOutcome> {
+            await gate;
+            return { kind: "ok" };
+          },
+        }
+      : source,
+  );
+  const app = await startTestApp({ games: 10, metadataSources: sources });
+  try {
+    let statusRequests = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/status") {
+        statusRequests += 1;
+      }
+    });
+
+    await page.goto(app.url);
+    await expect(page.locator(".refresh-running")).toHaveCount(0);
+    const fetchButton = page.locator(".topbar").getByRole("button", { name: "Fetch" });
+    await expect(fetchButton).toBeEnabled();
+    const before = statusRequests;
+
+    await fetchButton.click();
+    await expect(page.locator(".refresh-running")).toBeVisible();
+    await expect(fetchButton).toBeDisabled();
+
+    // Starting the run refetches the status once, then polls every 800 ms.
+    await expect.poll(() => statusRequests, { timeout: 5_000 }).toBeGreaterThan(before + 1);
+
+    release!();
+    await expect(page.locator(".refresh-running")).toHaveCount(0, { timeout: 5_000 });
+    await expect(page.locator(".status-card")).toContainText("Library up to date");
+    await expect(page.locator(".toast").getByText("Library up to date")).toBeVisible({
+      timeout: 5_000,
+    });
+  } finally {
+    await app.close();
+  }
+});
+
 test("a partial run with an error keeps the run error, View refresh errors, and Retry", async ({
   page,
 }) => {

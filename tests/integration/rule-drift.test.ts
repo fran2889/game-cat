@@ -8,6 +8,7 @@ import {
   RULE_FIELDS,
   RULE_OPERATORS,
   RULE_PREFIXES,
+  validateRules,
   type Rule,
   type RuleFieldDefinition,
   type RuleValue,
@@ -16,7 +17,6 @@ import {
   allowedOperators,
   changeRuleField,
   validateCollectionName,
-  validateDraftRules,
 } from "../../src/client/rule-editor.ts";
 import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.ts";
 import { createHttpApp } from "../../src/server/http/app.ts";
@@ -117,7 +117,7 @@ async function serverRejects(rule: unknown): Promise<boolean> {
 }
 
 function clientRejects(rule: unknown): boolean {
-  return Object.keys(validateDraftRules([rule]).fieldErrors).length > 0;
+  return Object.keys(validateRules([rule]).fieldErrors).length > 0;
 }
 
 describe("the editor and the API agree about Rule validity", () => {

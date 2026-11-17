@@ -2,13 +2,13 @@ import type BetterSqlite3 from "better-sqlite3";
 import { sql } from "kysely";
 import type {
   GameSummary,
-  Pagination,
   SteamCollectionGamesResponse,
   SteamCollectionKind,
   SteamCollectionSummary,
   SteamCollectionsResponse,
 } from "../../shared/types.ts";
 import { allSync, firstSync, queryFor } from "../db/query.ts";
+import { pagination } from "./pagination.ts";
 import {
   readDataAsOf,
   readTagsForGames,
@@ -49,15 +49,6 @@ function toSummary(row: CollectionRow): SteamCollectionSummary {
     kind: row.kind,
     isDynamic: row.is_dynamic === 1,
     gameCount: row.is_dynamic === 1 ? null : row.game_count,
-  };
-}
-
-function pagination(page: number, pageSize: number, totalItems: number): Pagination {
-  return {
-    page,
-    pageSize,
-    totalItems,
-    totalPages: totalItems === 0 ? 0 : Math.ceil(totalItems / pageSize),
   };
 }
 

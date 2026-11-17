@@ -9,12 +9,13 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { RefreshRun, Status } from "../shared/types.ts";
 import {
   ApiError,
   fetchStatus,
   startRefresh,
+  statusQueryKey,
   statusQueryOptions,
   type RefreshRequestBody,
 } from "./api.ts";
@@ -58,6 +59,7 @@ export function RefreshProvider({
   children,
 }: RefreshProviderProps): ReactElement {
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   // Observe the shell's status query so its 800 ms refetch interval is driven
   // from the same cache entry as App; TanStack Query dedupes concurrent reads.
   useQuery(statusQueryOptions);
@@ -115,7 +117,16 @@ export function RefreshProvider({
       setStarting(true);
       try {
         const run = await startRunMutation.mutateAsync(body);
-        setPendingRun(isRunningStatus(run.status) ? run : null);
+        const running = isRunningStatus(run.status);
+        if (running) {
+          // Seed the status cache with the run the server just accepted so the
+          // 800 ms poll starts immediately, then refetch for the full document.
+          queryClient.setQueryData<Status>(statusQueryKey, (current) =>
+            current === undefined ? current : { ...current, activeRefresh: run },
+          );
+        }
+        void queryClient.refetchQueries({ queryKey: statusQueryKey });
+        setPendingRun(running ? run : null);
         setTrackedId(run.id);
         return run;
       } catch (error) {
@@ -133,7 +144,7 @@ export function RefreshProvider({
         setStarting(false);
       }
     },
-    [applyStatus, showToast, startRunMutation],
+    [applyStatus, queryClient, showToast, startRunMutation],
   );
 
   const startFetch = useCallback(async (): Promise<void> => {

@@ -7,6 +7,7 @@ import type {
   SteamAccount,
   SteamAccountsResponse,
 } from "../../shared/types.ts";
+import type { ConfigPatch } from "../../shared/config.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { parseAppId } from "../app-id.ts";
 import { notFound, validationError } from "../request.ts";
@@ -30,11 +31,10 @@ import {
   rejectRepeatedQueryValues,
   ruleValuesListQuerySchema,
   ruleValuesResponseSchema,
-  steamCollectionGamesQuerySchema,
+  collectionGamesQuerySchema,
   steamCollectionGamesResponseSchema,
   steamCollectionResponseSchema,
   smartCollectionCreateBodySchema,
-  smartCollectionGamesQuerySchema,
   smartCollectionGamesResponseSchema,
   smartCollectionPatchBodySchema,
   smartCollectionResponseSchema,
@@ -44,7 +44,6 @@ import {
   steamCollectionsResponseSchema,
   tagsListQuerySchema,
   tagsResponseSchema,
-  type ConfigPatchBody,
   type GamesListQuery,
   type PageQuery,
   type RefreshBody,
@@ -172,7 +171,7 @@ export interface ConfigRoutes {
 export function registerConfigRoutes(app: FastifyInstance, config: ConfigRoutes): void {
   app.get("/api/config", async () => ({ data: config.get() }));
 
-  app.patch<{ Body: ConfigPatchBody }>(
+  app.patch<{ Body: ConfigPatch }>(
     "/api/config",
     { schema: { body: configPatchBodySchema }, preValidation: rejectCoercedConfigFields },
     async (request) => config.patch(request.body),
@@ -329,7 +328,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     "/api/steam-collections/:id/games",
     {
       schema: {
-        querystring: steamCollectionGamesQuerySchema,
+        querystring: collectionGamesQuerySchema,
         response: { 200: steamCollectionGamesResponseSchema },
       },
       preValidation: rejectRepeatedQueryValues,
@@ -453,7 +452,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     "/api/smart-collections/:id/games",
     {
       schema: {
-        querystring: smartCollectionGamesQuerySchema,
+        querystring: collectionGamesQuerySchema,
         response: { 200: smartCollectionGamesResponseSchema },
       },
       preValidation: rejectRepeatedQueryValues,

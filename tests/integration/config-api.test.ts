@@ -177,6 +177,21 @@ describe("PATCH /api/config", () => {
     expect(configFile(dataDir)).toBe(before);
   });
 
+  it("rejects a whitespace-only Steam API key without writing it", async () => {
+    const dataDir = temp("game-cat-config-blank-key");
+    const server = await start(baseOptions(dataDir, null));
+    const before = configFile(dataDir);
+
+    const result = await patchConfig(server, { steamApiKey: "   " });
+
+    expect(result.status).toBe(422);
+    expect(result.body.error?.code).toBe("VALIDATION_ERROR");
+    expect((result.body.error?.details?.fieldErrors as Record<string, string>).steamApiKey).toBe(
+      "must be a non-empty string",
+    );
+    expect(configFile(dataDir)).toBe(before);
+  });
+
   it("applies a logLevel change immediately to the log sinks", async () => {
     const dataDir = temp("game-cat-config-log-level");
     const sink = new PassThrough();
