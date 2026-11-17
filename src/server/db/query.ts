@@ -18,7 +18,7 @@ export function queryFor(db: BetterSqlite3.Database): Kysely<DatabaseSchema> {
   return query;
 }
 
-/** Run a compiled read and map every row through the query's result type. */
+/** Run a compiled read and cast every row to T; the caller asserts the row shape. */
 export function allSync<T>(db: BetterSqlite3.Database, query: CompiledQuery): T[] {
   return db.prepare(query.sql).all(...query.parameters) as T[];
 }
