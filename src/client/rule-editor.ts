@@ -1,23 +1,32 @@
 import {
-  CONTROL_CHARACTERS,
   MAX_GAME_RULE_IDS,
-  codePointLength,
   RULE_PREFIXES,
+  collectionNameProblem,
   ruleFieldDefinition,
+  validateRules,
   type Rule,
   type RuleField,
   type RuleOperator,
   type RulePrefix,
   type RuleValue,
+  type RuleValidationResult,
 } from "../shared/rules.ts";
 
 /**
  * Client-side Rule editor helpers.
  *
- * These are deliberately pure: they build and edit draft Rules, mirror the
- * Field registry's Operator/value types, and validate the collection name. The
- * shared validator decides whether a draft can be previewed.
+ * These are deliberately pure: they build and edit draft Rules, apply the
+ * editor's typed defaults, and validate the collection name. The shared
+ * validator remains the only owner of Rule validity.
  */
+
+/**
+ * The editor's Rule gate. This is not a second validator: the editor accepts a
+ * draft exactly when the shared grammar does.
+ */
+export function validateDraftRules(input: unknown): RuleValidationResult {
+  return validateRules(input);
+}
 
 export function defaultValueForField(field: RuleField): RuleValue {
   const definition = ruleFieldDefinition(field);
@@ -84,17 +93,16 @@ export function prefixCounts(rules: readonly Rule[]): PrefixCounts {
 }
 
 export function validateCollectionName(name: string): string | null {
-  if (CONTROL_CHARACTERS.test(name)) {
-    return "The name must not contain control characters.";
+  switch (collectionNameProblem(name)) {
+    case "control":
+      return "The name must not contain control characters.";
+    case "empty":
+      return "Enter a name between 1 and 80 characters.";
+    case "too-long":
+      return "The name must be 80 characters or fewer.";
+    case null:
+      return null;
   }
-  const length = codePointLength(name.trim().normalize("NFC"));
-  if (length < 1) {
-    return "Enter a name between 1 and 80 characters.";
-  }
-  if (length > 80) {
-    return "The name must be 80 characters or fewer.";
-  }
-  return null;
 }
 
 /** Parse an hours input into integer minutes; `null` means invalid. */

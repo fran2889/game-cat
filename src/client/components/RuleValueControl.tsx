@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { parseHoursToMinutes, formatMinutesAsHours, sortedGameIds } from "../rule-editor.ts";
 import type { RuleValueField, SteamCollectionSummary } from "../../shared/types.ts";
-import { ruleFieldDefinition, type Rule, type RuleValue } from "../../shared/rules.ts";
+import {
+  ruleFieldDefinition,
+  isRuleValueField,
+  type Rule,
+  type RuleValue,
+} from "../../shared/rules.ts";
 import { GamePicker } from "./GamePicker.tsx";
 
 export interface RuleSuggestions {
@@ -223,10 +228,7 @@ export function RuleValueControl({
       const options =
         rule.field === "tag"
           ? suggestions.tags
-          : rule.field === "genre" ||
-              rule.field === "category" ||
-              rule.field === "developer" ||
-              rule.field === "publisher"
+          : isRuleValueField(rule.field)
             ? suggestions.values[rule.field]
             : [];
       return (
