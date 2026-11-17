@@ -1,4 +1,4 @@
-import { Badge, Box, Card, Checkbox, Group, Stack, Text, Title } from "@mantine/core";
+import { Anchor, Badge, Box, Card, Checkbox, Group, Stack, Text, Title } from "@mantine/core";
 import { Link, useLocation } from "react-router-dom";
 import type { GameSummary } from "../../shared/types.ts";
 import {
@@ -48,18 +48,41 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
       padding="sm"
       radius="md"
       withBorder
+      style={
+        selected
+          ? {
+              borderColor: "var(--mantine-primary-color-filled)",
+              boxShadow: "0 0 0 1px var(--mantine-primary-color-filled)",
+            }
+          : undefined
+      }
     >
-      <Link
+      <Anchor
         className="card-open"
+        component={Link}
         to={{ pathname: `/games/${game.appId}`, search: location.search }}
         state={{ backgroundLocation: location }}
+        c="inherit"
+        display="block"
+        underline="never"
       >
         <Box className="game-cover-wrap">
           <GameCover appId={game.appId} name={game.name} />
-          <Box className="card-pills">
+          <Group
+            className="card-pills"
+            pos="absolute"
+            top={8}
+            left={8}
+            right={8}
+            justify="space-between"
+            align="flex-start"
+            gap={6}
+            wrap="nowrap"
+            style={{ pointerEvents: "none" }}
+          >
             {game.installed === true ? (
               <Badge className="pill pill-installed" color="green" variant="light" tt="none">
-                <Box component="span" className="status-dot" aria-hidden="true" />
+                <Box component="span" w={5} h={5} bg="green.5" bdrs="50%" aria-hidden="true" />
                 Installed
               </Badge>
             ) : game.installed === null ? (
@@ -80,10 +103,10 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
                 {review}
               </Badge>
             )}
-          </Box>
+          </Group>
         </Box>
         <Stack gap={4}>
-          <Title order={3} className="game-name" title={game.name} fz="sm">
+          <Title order={3} title={game.name} fz="sm" lineClamp={1}>
             {game.name}
           </Title>
           <Group className="game-meta" gap={8} justify="space-between" wrap="nowrap">
@@ -96,10 +119,16 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
               </Badge>
             )}
           </Group>
-          <Text component="p" className={`game-review ${tone}`} size="xs" c={reviewColor(tone)}>
+          <Text
+            component="p"
+            className={`game-review ${tone}`}
+            size="xs"
+            c={reviewColor(tone)}
+            truncate
+          >
             {reviewLabel}
           </Text>
-          <Text component="p" className="game-tags" size="xs">
+          <Text component="p" className="game-tags" size="xs" truncate>
             {tags.length > 0 ? tags.join(" · ") : "No tags yet"}
           </Text>
           <Text
@@ -112,7 +141,7 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
             Tags: {game.metadata.tagsStatus}
           </Text>
         </Stack>
-      </Link>
+      </Anchor>
       <Box className="select-check">
         <Checkbox
           size="md"
