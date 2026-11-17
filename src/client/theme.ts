@@ -1,0 +1,129 @@
+import {
+  convertCssVariables,
+  createTheme,
+  DEFAULT_THEME,
+  defaultCssVariablesResolver,
+  mergeMantineTheme,
+  type MantineColorsTuple,
+} from "@mantine/core";
+
+const FONT_FAMILY =
+  'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const FONT_FAMILY_MONOSPACE =
+  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+
+/**
+ * The v1 palette. Every colour the UI uses comes from here; the generated
+ * stylesheet in `theme.generated.css` is derived from the same object.
+ *
+ * Primary shade 8 is the filled accent (#f2b544) and shade 9 is its brighter
+ * hover (#ffc85c). Mantine reads the next shade for `-filled-hover`.
+ */
+const amber: MantineColorsTuple = [
+  "#fff8e6",
+  "#ffefc2",
+  "#ffe39a",
+  "#ffd66b",
+  "#f9c94a",
+  "#f7bd3d",
+  "#f4b23f",
+  "#e6a232",
+  "#f2b544",
+  "#ffc85c",
+];
+
+/**
+ * The original v1 dark ramp, mapped onto Mantine's ten `dark` shades. This is
+ * not a one-to-one copy: Mantine uses dark-7 for the body, dark-6 for the
+ * default surface, dark-5 for hover, dark-4 for the default border, and
+ * dark-0..3 for text and muted text. dark-8 and dark-9 carry the two deepest
+ * surfaces that the prototype used by name.
+ *
+ * | shade | token      | value   | Mantine role                       |
+ * | ----- | ---------- | ------- | ---------------------------------- |
+ * | 0     | text       | #e8eaf0 | body text                          |
+ * | 1     | text-bright| #c9cfdb | strong secondary text              |
+ * | 2     | text-muted | #9aa3b5 | dimmed text                        |
+ * | 3     | text-faint | #8b94a6 | placeholders                       |
+ * | 4     | border     | #2a303c | default border                     |
+ * | 5     | surface-2  | #1b1f27 | default hover                      |
+ * | 6     | surface-1  | #15181e | default surface                    |
+ * | 7     | page       | #0f1115 | body background                    |
+ * | 8     | surface-3  | #222733 | editor/stat surfaces               |
+ * | 9     | surface-4  | #2a303d | selected rows and deep chrome      |
+ *
+ * The prototype's stronger border (#3b4352) is not a Mantine alias; use
+ * `--mantine-color-dark-9` for it when a stronger edge is needed.
+ */
+const dark: MantineColorsTuple = [
+  "#e8eaf0",
+  "#c9cfdb",
+  "#9aa3b5",
+  "#8b94a6",
+  "#2a303c",
+  "#1b1f27",
+  "#15181e",
+  "#0f1115",
+  "#222733",
+  "#2a303d",
+];
+
+const PRIMARY_COLOR = "amber";
+const PRIMARY_SHADE = 8;
+
+export const themeTokens = {
+  primary: {
+    name: PRIMARY_COLOR,
+    shade: PRIMARY_SHADE,
+    shades: amber,
+  },
+  dark: {
+    shades: dark,
+  },
+  fonts: {
+    family: FONT_FAMILY,
+    monospace: FONT_FAMILY_MONOSPACE,
+  },
+} as const;
+
+export const theme = createTheme({
+  primaryColor: PRIMARY_COLOR,
+  primaryShade: PRIMARY_SHADE,
+  colors: { amber, dark },
+  defaultRadius: "md",
+  fontFamily: FONT_FAMILY,
+  fontFamilyMonospace: FONT_FAMILY_MONOSPACE,
+  headings: { fontFamily: FONT_FAMILY },
+  // Yellow is a light primary; dark labels keep AA contrast on filled controls.
+  autoContrast: true,
+});
+
+function changedVariables(
+  current: Record<string, string>,
+  defaults: Record<string, string>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(current).filter(([name, value]) => defaults[name] !== value),
+  );
+}
+
+/**
+ * The CSS Mantine would inject at runtime, derived from the same theme object
+ * and reduced to the variables that differ from Mantine's defaults. The build
+ * writes this to `theme.generated.css`; the provider then runs with
+ * `withCssVariables={false}` and `withGlobalClasses={false}`.
+ */
+export function renderThemeCss(): string {
+  const merged = mergeMantineTheme(DEFAULT_THEME, theme);
+  const current = defaultCssVariablesResolver(merged);
+  const defaults = defaultCssVariablesResolver(DEFAULT_THEME);
+  const css = convertCssVariables(
+    {
+      variables: changedVariables(current.variables, defaults.variables),
+      light: changedVariables(current.light, defaults.light),
+      dark: changedVariables(current.dark, defaults.dark),
+    },
+    ":root",
+  );
+  return `/* Generated from src/client/theme.ts by scripts/generate-theme-css.mjs. */\n${css}\n`;
+}
