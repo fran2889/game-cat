@@ -1,6 +1,7 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { sql } from "kysely";
 import { normalizeNameKey } from "../../shared/names.ts";
+import { RULE_VALUE_FIELDS } from "../../shared/rules.ts";
 import { allSync, queryFor } from "../db/query.ts";
 import type {
   Pagination,
@@ -16,13 +17,6 @@ import type {
  * distinct values, the display spelling, and the distinct-Game count are all
  * computed here, so no new table or write path is needed.
  */
-
-export const RULE_VALUE_FIELDS: readonly RuleValueField[] = [
-  "genre",
-  "category",
-  "developer",
-  "publisher",
-];
 
 const FIELD_COLUMNS: Record<RuleValueField, string> = {
   genre: "genres_json",
