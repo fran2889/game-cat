@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Box, Button, Checkbox, Group, Pill, Stack, Text, TextInput } from "@mantine/core";
 import type { GameSummary } from "../../shared/types.ts";
 import { gamesQueryOptions } from "../api.ts";
 import { sortedGameIds } from "../rule-editor.ts";
@@ -55,20 +56,22 @@ export function GamePicker({ value, onChange, selectedIds, inputId }: GamePicker
   };
 
   return (
-    <div className="game-picker">
-      <div className="game-picker-head">
-        <button
+    <Stack className="game-picker" gap={6}>
+      <Group className="game-picker-head" gap={6} wrap="wrap">
+        <Button
           type="button"
-          className="button button-small"
+          size="compact-sm"
+          variant="default"
           aria-expanded={open}
           aria-controls={`${inputId}-list`}
           onClick={() => setOpen((current) => !current)}
         >
           {open ? "Hide games" : `Choose games (${value.length})`}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="button button-small"
+          size="compact-sm"
+          variant="default"
           onClick={useSelection}
           disabled={selectedIds.length === 0 || selectedIds.length > MAX_GAME_IDS}
           title={
@@ -80,67 +83,77 @@ export function GamePicker({ value, onChange, selectedIds, inputId }: GamePicker
           }
         >
           Use selection ({selectedIds.length})
-        </button>
-        <span className="game-picker-count">
+        </Button>
+        <Text component="span" className="game-picker-count" size="xs" c="gray.5">
           {value.length} {value.length === 1 ? "game" : "games"} in this rule
-        </span>
-      </div>
+        </Text>
+      </Group>
 
       {value.length > 0 && (
-        <ul className="picker-chips" aria-label="Games in this Rule">
+        <Pill.Group className="picker-chips" aria-label="Games in this Rule" gap={4}>
           {value.map((appId) => (
-            <li key={appId} className="chip">
-              <span>#{appId}</span>
-              <button
-                type="button"
-                aria-label={`Remove game ${appId} from this Rule`}
-                onClick={() => onChange(value.filter((id) => id !== appId))}
-              >
-                ×
-              </button>
-            </li>
+            <Pill
+              key={appId}
+              className="chip"
+              withRemoveButton
+              onRemove={() => onChange(value.filter((id) => id !== appId))}
+              removeButtonProps={{ "aria-label": `Remove game ${appId} from this Rule` }}
+            >
+              #{appId}
+            </Pill>
           ))}
-        </ul>
+        </Pill.Group>
       )}
 
       {open && (
-        <div className="game-picker-list" id={`${inputId}-list`}>
-          <label className="sr-only" htmlFor={`${inputId}-search`}>
-            Search Games for this Rule
-          </label>
-          <input
+        <Stack className="game-picker-list" id={`${inputId}-list`} gap={6} p="xs">
+          <TextInput
             id={`${inputId}-search`}
             type="search"
             value={query}
             placeholder="Search game names"
+            aria-label="Search Games for this Rule"
             autoComplete="off"
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => setQuery(event.currentTarget.value)}
           />
           {loading ? (
-            <p className="picker-note" role="status">
+            <Text className="picker-note" size="xs" c="gray.5" role="status">
               Searching…
-            </p>
+            </Text>
           ) : results.length === 0 ? (
-            <p className="picker-note">No Games match that search.</p>
+            <Text className="picker-note" size="xs" c="gray.5">
+              No Games match that search.
+            </Text>
           ) : (
-            <ul className="picker-results">
+            <Box
+              component="ul"
+              className="picker-results"
+              style={{ listStyle: "none", padding: 0, margin: 0 }}
+            >
               {results.map((game) => (
-                <li key={game.appId}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(game.appId)}
-                      onChange={() => toggle(game.appId)}
-                    />
-                    <span>{game.name}</span>
-                    <span className="picker-id">#{game.appId}</span>
-                  </label>
-                </li>
+                <Box component="li" key={game.appId}>
+                  <Checkbox
+                    size="md"
+                    styles={{ input: { width: 24, height: 24 } }}
+                    checked={selected.has(game.appId)}
+                    onChange={() => toggle(game.appId)}
+                    label={
+                      <Group gap="xs" wrap="nowrap">
+                        <Text component="span" size="sm" className="picker-name">
+                          {game.name}
+                        </Text>
+                        <Text component="span" className="picker-id" size="xs" c="gray.5">
+                          #{game.appId}
+                        </Text>
+                      </Group>
+                    }
+                  />
+                </Box>
               ))}
-            </ul>
+            </Box>
           )}
-        </div>
+        </Stack>
       )}
-    </div>
+    </Stack>
   );
 }

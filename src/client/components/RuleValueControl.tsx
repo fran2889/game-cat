@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Checkbox, Group, NativeSelect, Text, TextInput } from "@mantine/core";
 import { parseHoursToMinutes, formatMinutesAsHours, sortedGameIds } from "../rule-editor.ts";
 import type { RuleValueField, SteamCollectionSummary } from "../../shared/types.ts";
 import {
@@ -58,8 +59,8 @@ function HoursInput({
   }, [minutes]);
 
   return (
-    <span className="value-with-unit">
-      <input
+    <Group className="value-with-unit" gap={6} wrap="nowrap">
+      <TextInput
         id={inputId}
         type="text"
         inputMode="decimal"
@@ -67,18 +68,20 @@ function HoursInput({
         aria-invalid={invalid || undefined}
         placeholder="0"
         onChange={(event) => {
-          const next = event.target.value;
+          const next = event.currentTarget.value;
           setDraft(next);
           const converted = parseHoursToMinutes(next);
           onChange(converted === null ? -1 : converted);
         }}
       />
-      <span className="unit">hours</span>
-    </span>
+      <Text component="span" className="unit" size="xs" c="gray.5">
+        hours
+      </Text>
+    </Group>
   );
 }
 
-function NumberInput({
+function NumberField({
   inputId,
   value,
   definition,
@@ -92,7 +95,7 @@ function NumberInput({
   onChange(value: number): void;
 }) {
   return (
-    <input
+    <TextInput
       id={inputId}
       type="number"
       value={Number.isFinite(value) ? value : ""}
@@ -101,7 +104,7 @@ function NumberInput({
       step={1}
       aria-invalid={invalid || undefined}
       onChange={(event) => {
-        const next = Number.parseInt(event.target.value, 10);
+        const next = Number.parseInt(event.currentTarget.value, 10);
         onChange(Number.isSafeInteger(next) ? next : -1);
       }}
     />
@@ -127,44 +130,42 @@ export function RuleValueControl({
   switch (definition.valueKind) {
     case "boolean":
       return (
-        <span className="value-with-unit">
-          <input
+        <Group className="value-with-unit" gap={6} wrap="nowrap">
+          <Checkbox
             id={inputId}
-            type="checkbox"
+            size="md"
+            styles={{ input: { width: 24, height: 24 } }}
             checked={value === true}
             aria-invalid={invalid || undefined}
-            onChange={(event) => onChange(event.target.checked)}
+            onChange={(event) => onChange(event.currentTarget.checked)}
           />
-          <span className="unit">{value === true ? "true" : "false"}</span>
-        </span>
+          <Text component="span" className="unit" size="xs" c="gray.5">
+            {value === true ? "true" : "false"}
+          </Text>
+        </Group>
       );
 
     case "enum":
       return (
-        <select
+        <NativeSelect
           id={inputId}
           value={typeof value === "string" ? value : ""}
           aria-invalid={invalid || undefined}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          {(definition.values ?? []).map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+          data={definition.values ?? []}
+          onChange={(event) => onChange(event.currentTarget.value)}
+        />
       );
 
     case "date":
       return (
-        <input
+        <TextInput
           id={inputId}
           type="date"
           min="1970-01-01"
           max="9999-12-31"
           value={typeof value === "string" ? value : ""}
           aria-invalid={invalid || undefined}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => onChange(event.currentTarget.value)}
         />
       );
 
@@ -180,7 +181,7 @@ export function RuleValueControl({
         );
       }
       return (
-        <NumberInput
+        <NumberField
           inputId={inputId}
           value={typeof value === "number" ? value : Number.NaN}
           definition={definition}
@@ -192,22 +193,25 @@ export function RuleValueControl({
     case "steamCollection": {
       const current = typeof value === "string" ? value : "";
       const known = collections.some((collection) => collection.id === current);
+      const data = [
+        { value: "", label: "Choose a Steam collection" },
+        ...(!known && current !== ""
+          ? [{ value: current, label: `${current} (not mirrored)` }]
+          : []),
+        ...collections.map((collection) => ({
+          value: collection.id,
+          label: `${collection.name}${collection.isDynamic ? " (dynamic)" : ""}`,
+          disabled: collection.isDynamic,
+        })),
+      ];
       return (
-        <select
+        <NativeSelect
           id={inputId}
           value={current}
           aria-invalid={invalid || undefined}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          <option value="">Choose a Steam collection</option>
-          {!known && current !== "" && <option value={current}>{current} (not mirrored)</option>}
-          {collections.map((collection) => (
-            <option key={collection.id} value={collection.id} disabled={collection.isDynamic}>
-              {collection.name}
-              {collection.isDynamic ? " (dynamic)" : ""}
-            </option>
-          ))}
-        </select>
+          data={data}
+          onChange={(event) => onChange(event.currentTarget.value)}
+        />
       );
     }
 
@@ -233,14 +237,14 @@ export function RuleValueControl({
             : [];
       return (
         <>
-          <input
+          <TextInput
             id={inputId}
             type="text"
             value={typeof value === "string" ? value : ""}
             list={options.length > 0 ? listId : undefined}
             autoComplete="off"
             aria-invalid={invalid || undefined}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) => onChange(event.currentTarget.value)}
           />
           {options.length > 0 && (
             <datalist id={listId}>

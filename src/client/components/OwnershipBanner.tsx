@@ -1,3 +1,4 @@
+import { Alert, Badge, Button, Group, Stack, Text } from "@mantine/core";
 import { Link } from "react-router-dom";
 import type { Status } from "../../shared/types.ts";
 import { useRefresh } from "../refresh-context.tsx";
@@ -39,37 +40,45 @@ export function OwnershipBanner({ status }: OwnershipBannerProps) {
     }
   })();
 
+  const warning = state === "partial" || state === "empty";
+
   return (
-    <div
-      className={`banner ${state === "partial" || state === "empty" ? "banner-warning" : "banner-error"}`}
+    <Alert
+      className={`banner ${warning ? "banner-warning" : "banner-error"}`}
       role={state === "invalid_key" || state === "error" ? "alert" : "status"}
+      color={warning ? "yellow" : "red"}
+      variant="light"
+      mb="md"
     >
-      <div>
-        <strong>Ownership incomplete</strong>
-        {error !== null && state !== "empty" && (
-          <span className="refresh-error-code"> {error.code}</span>
-        )}
-        <p>{detail}</p>
-        <p className="ownership-counts">
-          Owned {counts.owned} · Local only {counts.localOnly} · Unknown {counts.unknown}
-        </p>
-      </div>
-      <div className="banner-actions">
-        <Link to="/errors" className="button">
-          View refresh errors
-        </Link>
-        <Link to="/onboarding" className="button">
-          Fix API key
-        </Link>
-        <button
-          type="button"
-          className="button"
-          onClick={() => void startOwnershipRetry()}
-          disabled={isRunning}
-        >
-          Retry
-        </button>
-      </div>
-    </div>
+      <Group align="flex-start" gap="md" wrap="wrap">
+        <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+          <Group gap="xs" wrap="wrap">
+            <Text fw={700}>Ownership incomplete</Text>
+            {error !== null && state !== "empty" && (
+              <Badge className="refresh-error-code" variant="default">
+                {error.code}
+              </Badge>
+            )}
+          </Group>
+          <Text size="sm" c="gray.5">
+            {detail}
+          </Text>
+          <Text className="ownership-counts" size="sm">
+            Owned {counts.owned} · Local only {counts.localOnly} · Unknown {counts.unknown}
+          </Text>
+        </Stack>
+        <Group className="banner-actions" gap="xs" wrap="wrap">
+          <Button component={Link} to="/errors" variant="default">
+            View refresh errors
+          </Button>
+          <Button component={Link} to="/onboarding" variant="default">
+            Fix API key
+          </Button>
+          <Button variant="default" onClick={() => void startOwnershipRetry()} disabled={isRunning}>
+            Retry
+          </Button>
+        </Group>
+      </Group>
+    </Alert>
   );
 }

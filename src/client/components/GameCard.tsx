@@ -1,9 +1,11 @@
+import { Badge, Box, Card, Checkbox, Group, Stack, Text, Title } from "@mantine/core";
 import { Link, useLocation } from "react-router-dom";
 import type { GameSummary } from "../../shared/types.ts";
 import {
   formatPlaytime,
   ownershipLabel,
   reviewCardLabel,
+  reviewColor,
   reviewPillLabel,
   reviewTone,
 } from "../format.ts";
@@ -22,72 +24,104 @@ function ownershipFlag(game: GameSummary): string | null {
   return ownershipLabel(game.ownershipStatus);
 }
 
+function tagStatusColor(status: string): string {
+  if (status === "ok") {
+    return "green";
+  }
+  return status === "stale" || status === "error" ? "red" : "gray";
+}
+
+/** The grid card shared by the Library and Steam Collection views. */
 export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
   const location = useLocation();
   const flag = ownershipFlag(game);
   const review = reviewPillLabel(game.reviewScore);
   const reviewLabel = reviewCardLabel(game.reviewTier, game.reviewCount);
+  const tone = reviewTone(game.reviewScore);
   const tags = game.tags.slice(0, 2).map((tag) => tag.name);
 
   return (
-    <article
+    <Card
+      component="article"
       className={`game-card${selected ? " is-selected" : ""}`}
       data-selected={selected ? "true" : "false"}
+      padding="sm"
+      radius="md"
+      withBorder
     >
       <Link
         className="card-open"
         to={{ pathname: `/games/${game.appId}`, search: location.search }}
         state={{ backgroundLocation: location }}
       >
-        <div className="game-cover-wrap">
+        <Box className="game-cover-wrap">
           <GameCover appId={game.appId} name={game.name} />
-          <div className="card-pills">
+          <Box className="card-pills">
             {game.installed === true ? (
-              <span className="pill pill-installed">
-                <span className="status-dot" aria-hidden="true" />
+              <Badge className="pill pill-installed" color="green" variant="light" tt="none">
+                <Box component="span" className="status-dot" aria-hidden="true" />
                 Installed
-              </span>
+              </Badge>
             ) : game.installed === null ? (
-              <span className="pill pill-installed is-unknown">Unknown</span>
+              <Badge className="pill pill-installed is-unknown" variant="light" tt="none">
+                Unknown
+              </Badge>
             ) : (
               <span />
             )}
             {review !== null && (
-              <span
-                className={`review-pill ${reviewTone(game.reviewScore)}`}
+              <Badge
+                className={`review-pill ${tone}`}
+                color={reviewColor(tone)}
+                variant="light"
+                tt="none"
                 title={game.reviewTier ?? undefined}
               >
                 {review}
-              </span>
+              </Badge>
             )}
-          </div>
-        </div>
-        <div className="game-card-body">
-          <h3 className="game-name" title={game.name}>
+          </Box>
+        </Box>
+        <Stack gap={4}>
+          <Title order={3} className="game-name" title={game.name} fz="sm">
             {game.name}
-          </h3>
-          <p className="game-meta">
-            <span>{formatPlaytime(game.playtimeMinutes)}</span>
-            {flag !== null && <span className="ownership-flag">{flag}</span>}
-          </p>
-          <p className={`game-review review-text ${reviewTone(game.reviewScore)}`}>{reviewLabel}</p>
-          <p className="game-tags">{tags.length > 0 ? tags.join(" · ") : "No tags yet"}</p>
-          <span
+          </Title>
+          <Group className="game-meta" gap={8} justify="space-between" wrap="nowrap">
+            <Text component="span" size="xs">
+              {formatPlaytime(game.playtimeMinutes)}
+            </Text>
+            {flag !== null && (
+              <Badge className="ownership-flag" variant="outline" size="xs" tt="none">
+                {flag}
+              </Badge>
+            )}
+          </Group>
+          <Text component="p" className={`game-review ${tone}`} size="xs" c={reviewColor(tone)}>
+            {reviewLabel}
+          </Text>
+          <Text component="p" className="game-tags" size="xs">
+            {tags.length > 0 ? tags.join(" · ") : "No tags yet"}
+          </Text>
+          <Text
+            component="span"
             className={`tag-status is-${game.metadata.tagsStatus}`}
             title={`Tags: ${game.metadata.tagsStatus}`}
+            size="xs"
+            c={tagStatusColor(game.metadata.tagsStatus)}
           >
             Tags: {game.metadata.tagsStatus}
-          </span>
-        </div>
+          </Text>
+        </Stack>
       </Link>
-      <label className="select-check">
-        <input
-          type="checkbox"
+      <Box className="select-check">
+        <Checkbox
+          size="md"
+          styles={{ input: { width: 24, height: 24 } }}
           checked={selected}
           onChange={() => onToggleSelected(game.appId)}
           aria-label={`Select ${game.name}`}
         />
-      </label>
-    </article>
+      </Box>
+    </Card>
   );
 }

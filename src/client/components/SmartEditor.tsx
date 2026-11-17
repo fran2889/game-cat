@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useBlocker } from "react-router-dom";
+import {
+  Alert,
+  Box,
+  Button,
+  Checkbox,
+  Code,
+  Fieldset,
+  Group,
+  Paper,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import type {
   GameSummary,
   GamesResponse,
@@ -448,203 +462,239 @@ export function SmartEditor({
   const selectedPlatforms = platformsInRules(rules);
 
   return (
-    <section className="smart-editor" aria-labelledby="editor-heading">
-      <h2 id="editor-heading" className="sr-only">
+    <Stack component="section" className="smart-editor" aria-labelledby="editor-heading" gap="md">
+      <Title order={2} id="editor-heading" className="sr-only">
         {collection === null ? "New Smart Collection" : collection.name}
-      </h2>
+      </Title>
 
-      <div className="editor-layout">
-        <section className="editor-pane" aria-label="Rule editor">
-          <div className="editor-name">
-            <label htmlFor="collection-name">Name</label>
-            <input
-              id="collection-name"
-              type="text"
-              value={name}
-              aria-invalid={nameError !== null || undefined}
-              aria-describedby={nameError === null ? undefined : "collection-name-error"}
-              onChange={(event) => updateName(event.target.value)}
-            />
-            {savedId !== null && AUTOSAVE_LABELS[autosaveState.status] !== undefined && (
-              <p
-                className={`editor-save-state is-${autosaveState.status}`}
-                role="status"
-                aria-live="polite"
-                data-testid="save-state"
-              >
-                {AUTOSAVE_LABELS[autosaveState.status]}
-              </p>
-            )}
-            {nameError !== null && (
-              <p className="field-error" id="collection-name-error" role="alert">
-                {nameError}
-                {conflict?.id != null && (
-                  <>
-                    {" "}
-                    <Link to={`/smart/${encodeURIComponent(conflict.id)}`}>
-                      Open the conflicting collection
-                    </Link>
-                    .
-                  </>
-                )}
-              </p>
-            )}
-            {fieldErrors.rules !== undefined && (
-              <p className="field-error" role="alert">
-                {fieldErrors.rules}
-              </p>
-            )}
-            <div className="editor-save">
-              <button type="button" className="primary" onClick={save} disabled={saveDisabled}>
+      <Box className="editor-layout">
+        <Paper
+          component="section"
+          aria-label="Rule editor"
+          className="editor-pane"
+          p="md"
+          radius="md"
+          withBorder
+        >
+          <Stack gap="sm">
+            <Box className="editor-name">
+              <TextInput
+                id="collection-name"
+                label="Name"
+                value={name}
+                aria-invalid={nameError !== null || undefined}
+                aria-describedby={nameError === null ? undefined : "collection-name-error"}
+                onChange={(event) => updateName(event.currentTarget.value)}
+              />
+              {savedId !== null && AUTOSAVE_LABELS[autosaveState.status] !== undefined && (
+                <Text
+                  className={`editor-save-state is-${autosaveState.status}`}
+                  role="status"
+                  aria-live="polite"
+                  data-testid="save-state"
+                  size="sm"
+                  c={autosaveState.status === "failed" ? "red" : "gray.5"}
+                >
+                  {AUTOSAVE_LABELS[autosaveState.status]}
+                </Text>
+              )}
+              {nameError !== null && (
+                <Text
+                  className="field-error"
+                  id="collection-name-error"
+                  role="alert"
+                  size="sm"
+                  c="red"
+                >
+                  {nameError}
+                  {conflict?.id != null && (
+                    <>
+                      {" "}
+                      <Link to={`/smart/${encodeURIComponent(conflict.id)}`}>
+                        Open the conflicting collection
+                      </Link>
+                      .
+                    </>
+                  )}
+                </Text>
+              )}
+              {fieldErrors.rules !== undefined && (
+                <Text className="field-error" role="alert" size="sm" c="red">
+                  {fieldErrors.rules}
+                </Text>
+              )}
+            </Box>
+
+            <Group className="editor-save" gap="xs" wrap="wrap">
+              <Button onClick={save} disabled={saveDisabled}>
                 Save
-              </button>
+              </Button>
               {savedId !== null &&
                 (autosaveState.dirty || autosaveState.status === "failed") &&
                 autosaveState.status !== "saving" && (
-                  <button
-                    type="button"
-                    className="button button-small"
-                    onClick={discard}
-                    disabled={deleting}
-                  >
+                  <Button variant="default" size="compact-sm" onClick={discard} disabled={deleting}>
                     Discard
-                  </button>
+                  </Button>
                 )}
               {savedId !== null && !confirmingDelete && (
-                <button
-                  type="button"
-                  className="button button-small"
+                <Button
+                  variant="default"
+                  size="compact-sm"
                   onClick={() => setConfirmingDelete(true)}
                   disabled={saving || deleting}
                 >
                   Delete
-                </button>
+                </Button>
               )}
-            </div>
+            </Group>
 
             {autosaveState.status === "failed" && autosaveState.canRetry && (
-              <div className="editor-save-failure" role="alert">
-                <p>
-                  {autosaveState.retrying && autosaveState.retryDelay !== null
-                    ? `Save failed. Retrying in ${Math.ceil(autosaveState.retryDelay / 1_000)} s…`
-                    : "Save failed. The server may be unavailable. Your changes are still here."}
-                </p>
-                <button
-                  type="button"
-                  className="button button-small"
-                  onClick={() => autosave.retryNow()}
-                >
-                  Retry
-                </button>
-              </div>
+              <Alert className="editor-save-failure" color="red" role="alert">
+                <Group gap="sm" wrap="wrap">
+                  <Text size="sm">
+                    {autosaveState.retrying && autosaveState.retryDelay !== null
+                      ? `Save failed. Retrying in ${Math.ceil(autosaveState.retryDelay / 1_000)} s…`
+                      : "Save failed. The server may be unavailable. Your changes are still here."}
+                  </Text>
+                  <Button variant="default" size="compact-sm" onClick={() => autosave.retryNow()}>
+                    Retry
+                  </Button>
+                </Group>
+              </Alert>
             )}
 
             {confirmingDelete && (
-              <div
+              <Paper
                 className="editor-confirm"
                 role="alertdialog"
                 aria-label="Delete Smart Collection"
+                p="sm"
+                withBorder
               >
-                <p>Delete “{name.trim() || "this Smart Collection"}”? This cannot be undone.</p>
-                <div className="editor-save">
-                  <button
-                    type="button"
-                    className="button button-small"
-                    onClick={() => void remove()}
-                    disabled={deleting}
-                  >
-                    {deleting ? "Deleting…" : "Delete"}
-                  </button>
-                  <button
-                    type="button"
-                    className="button button-small"
-                    onClick={() => setConfirmingDelete(false)}
-                    disabled={deleting}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+                <Stack gap="sm">
+                  <Text size="sm">
+                    Delete “{name.trim() || "this Smart Collection"}”? This cannot be undone.
+                  </Text>
+                  <Group gap="xs">
+                    <Button
+                      variant="default"
+                      size="compact-sm"
+                      onClick={() => void remove()}
+                      disabled={deleting}
+                    >
+                      {deleting ? "Deleting…" : "Delete"}
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="compact-sm"
+                      onClick={() => setConfirmingDelete(false)}
+                      disabled={deleting}
+                    >
+                      Cancel
+                    </Button>
+                  </Group>
+                </Stack>
+              </Paper>
             )}
 
             {deleteError !== null && (
-              <p className="field-error" role="alert">
+              <Text className="field-error" role="alert" size="sm" c="red">
                 {deleteError}
-              </p>
+              </Text>
             )}
             {saveError !== null && (
-              <p className="field-error" role="alert">
+              <Text className="field-error" role="alert" size="sm" c="red">
                 {saveError}
-              </p>
+              </Text>
             )}
             {saveError === null && savedId === null && (
-              <span className="editor-save-note">Save creates the Smart Collection.</span>
+              <Text className="editor-save-note" size="xs" c="gray.5">
+                Save creates the Smart Collection.
+              </Text>
             )}
             {saveError === null && savedId !== null && autosaveState.status === "saved" && (
-              <span className="editor-save-note">Changes save automatically.</span>
+              <Text className="editor-save-note" size="xs" c="gray.5">
+                Changes save automatically.
+              </Text>
             )}
 
             {blocker.state === "blocked" && (
-              <div
+              <Paper
                 className="editor-confirm"
                 role="alertdialog"
                 aria-label="Leave with a failed save"
+                p="sm"
+                withBorder
               >
-                <p>
-                  Your latest changes could not be saved. Leave this page and lose those changes?
-                </p>
-                <div className="editor-save">
-                  <button
-                    type="button"
-                    className="button button-small"
-                    onClick={() => blocker.proceed()}
-                  >
-                    Leave
-                  </button>
-                  <button
-                    type="button"
-                    className="button button-small"
-                    onClick={() => blocker.reset()}
-                  >
-                    Stay
-                  </button>
-                </div>
-              </div>
+                <Stack gap="sm">
+                  <Text size="sm">
+                    Your latest changes could not be saved. Leave this page and lose those changes?
+                  </Text>
+                  <Group gap="xs">
+                    <Button variant="default" size="compact-sm" onClick={() => blocker.proceed()}>
+                      Leave
+                    </Button>
+                    <Button variant="default" size="compact-sm" onClick={() => blocker.reset()}>
+                      Stay
+                    </Button>
+                  </Group>
+                </Stack>
+              </Paper>
             )}
-          </div>
-
-          <div className="editor-status">
-            <p className="editor-match-count" aria-live="polite" data-testid="match-count">
+          </Stack>
+          <Group className="editor-status" gap="sm" wrap="wrap">
+            <Text
+              component="p"
+              className="editor-match-count"
+              aria-live="polite"
+              data-testid="match-count"
+              fw={700}
+            >
               {preview === null
                 ? rulesInvalid
                   ? "No preview yet"
                   : "Loading matches…"
                 : `${totalItems} matches`}
-            </p>
+            </Text>
             {pending && (
-              <span className="updating" role="status">
+              <Text className="updating" role="status" size="sm" c="yellow">
                 Updating…
-              </span>
+              </Text>
             )}
-          </div>
+          </Group>
 
-          <div className="prefix-callout" aria-label="Global prefix summary">
-            <p className="prefix-counts" data-testid="prefix-counts">
-              {counts.AND} AND · {counts.OR} OR · {counts.NOT} NOT
-            </p>
-            <p>
-              Prefixes group globally: every AND must match, at least one OR must match, no NOT may
-              match. They are not evaluated row by row.
-            </p>
-            <p className="prefix-not-copy">
-              NOT removes matching games. It does not require the field to have a value.
-            </p>
-          </div>
+          <Paper
+            className="prefix-callout"
+            aria-label="Global prefix summary"
+            p="sm"
+            radius="sm"
+            withBorder
+          >
+            <Stack gap={4}>
+              <Text className="prefix-counts" data-testid="prefix-counts" fw={700}>
+                {counts.AND} AND · {counts.OR} OR · {counts.NOT} NOT
+              </Text>
+              <Text size="sm" c="gray.5">
+                Prefixes group globally: every AND must match, at least one OR must match, no NOT
+                may match. They are not evaluated row by row.
+              </Text>
+              <Text className="prefix-not-copy" size="sm" c="gray.5">
+                NOT removes matching games. It does not require the field to have a value.
+              </Text>
+            </Stack>
+          </Paper>
 
           {rules.length === 0 ? (
-            <p className="editor-no-rules">No rules yet. Add a rule below, or pick a quick add.</p>
+            <Text className="editor-no-rules" size="sm" c="gray.5">
+              No rules yet. Add a rule below, or pick a quick add.
+            </Text>
           ) : (
-            <ol className="rule-list">
+            <Stack
+              component="ol"
+              className="rule-list"
+              gap="xs"
+              style={{ listStyle: "none", padding: 0, margin: 0 }}
+            >
               {rules.map((rule, index) => (
                 <RuleRow
                   key={index}
@@ -662,54 +712,56 @@ export function SmartEditor({
                   onRemove={() => updateRules(rules.filter((_, position) => position !== index))}
                 />
               ))}
-            </ol>
+            </Stack>
           )}
 
-          <div className="editor-actions">
-            <button type="button" className="button" onClick={() => addRules([emptyRule()])}>
+          <Group className="editor-actions" gap="xs">
+            <Button variant="default" onClick={() => addRules([emptyRule()])}>
               + Add rule
-            </button>
-          </div>
+            </Button>
+          </Group>
 
-          <section className="quick-add" aria-labelledby="quick-add-heading">
-            <h3 id="quick-add-heading">Quick add</h3>
-            <div className="quick-add-row">
-              {QUICK_ADD_FIELDS.map((field) => (
-                <button
-                  key={field}
-                  type="button"
-                  className="button button-small"
-                  onClick={() => addRules([emptyRule(field)])}
-                >
-                  {ruleFieldDefinition(field)?.label ?? field}
-                </button>
-              ))}
-            </div>
-            <fieldset className="platform-add">
-              <legend>Platform</legend>
-              {PLATFORM_VALUES.map((platform) => (
-                <label key={platform}>
-                  <input
-                    type="checkbox"
-                    checked={selectedPlatforms.includes(platform)}
-                    onChange={() => updateRules(togglePlatformRule(rules, platform))}
-                  />
-                  {platform}
-                </label>
-              ))}
-            </fieldset>
-            <p className="quick-add-note">
-              Each platform adds one <code>AND platform has</code> rule.
-            </p>
-          </section>
-        </section>
-
-        <section className="preview-pane" aria-label="Live preview">
-          <header className="preview-head">
-            {preview !== null && totalItems > 0 && !rulesInvalid && (
-              <span className="preview-range">{formatRange(page, PAGE_SIZE, totalItems)}</span>
-            )}
-          </header>
+          <Paper className="quick-add" p="sm" radius="sm" withBorder>
+            <Stack gap="sm">
+              <Title order={3} size="sm" c="gray.5" tt="uppercase">
+                Quick add
+              </Title>
+              <Group className="quick-add-row" gap="xs" wrap="wrap">
+                {QUICK_ADD_FIELDS.map((field) => (
+                  <Button
+                    key={field}
+                    variant="default"
+                    size="compact-sm"
+                    onClick={() => addRules([emptyRule(field)])}
+                  >
+                    {ruleFieldDefinition(field)?.label ?? field}
+                  </Button>
+                ))}
+              </Group>
+              <Fieldset className="platform-add" legend="Platform">
+                <Group gap="md" wrap="wrap">
+                  {PLATFORM_VALUES.map((platform) => (
+                    <Checkbox
+                      key={platform}
+                      label={platform}
+                      checked={selectedPlatforms.includes(platform)}
+                      onChange={() => updateRules(togglePlatformRule(rules, platform))}
+                    />
+                  ))}
+                </Group>
+              </Fieldset>
+              <Text className="quick-add-note" size="xs" c="gray.5">
+                Each platform adds one <Code>AND platform has</Code> rule.
+              </Text>
+            </Stack>
+          </Paper>
+        </Paper>
+        <Stack component="section" aria-label="Live preview" className="preview-pane" gap="sm">
+          {preview !== null && totalItems > 0 && !rulesInvalid && (
+            <Text className="preview-range" size="sm" c="gray.5">
+              {formatRange(page, PAGE_SIZE, totalItems)}
+            </Text>
+          )}
 
           {selectedCount > 0 && (
             <SelectionBar
@@ -720,36 +772,37 @@ export function SmartEditor({
           )}
 
           {rulesInvalid && (
-            <p className="preview-invalid" role="status">
+            <Text className="preview-invalid" role="status" size="sm" c="red">
               Fix the highlighted rules to update the preview.
-            </p>
+            </Text>
           )}
 
           {previewError !== null && (
-            <div className="banner banner-error" role="alert">
-              <div>
-                <strong>The preview could not be loaded.</strong>
-                <p>{previewError}</p>
-              </div>
-            </div>
+            <Alert color="red" role="alert" title="The preview could not be loaded.">
+              <Text size="sm">{previewError}</Text>
+            </Alert>
           )}
 
           {preview === null && !rulesInvalid && (
-            <p className="preview-loading" role="status">
+            <Text className="preview-loading" role="status" c="gray.5">
               Loading matches…
-            </p>
+            </Text>
           )}
 
           {preview !== null && rules.length === 0 && (
-            <p className="editor-empty-copy" data-testid="empty-rules-copy">
-              No rules. This matches all {totalItems} games. Add a rule to narrow it.
-            </p>
+            <Paper className="editor-empty-copy" p="md" radius="md" withBorder>
+              <Text size="sm" c="gray.5" data-testid="empty-rules-copy">
+                No rules. This matches all {totalItems} games. Add a rule to narrow it.
+              </Text>
+            </Paper>
           )}
 
           {preview !== null && rules.length > 0 && totalItems === 0 && (
-            <p className="editor-empty-copy" data-testid="no-matches-copy">
-              No games match these rules. An OR rule widens the result; a NOT rule removes games.
-            </p>
+            <Paper className="editor-empty-copy" p="md" radius="md" withBorder>
+              <Text size="sm" c="gray.5" data-testid="no-matches-copy">
+                No games match these rules. An OR rule widens the result; a NOT rule removes games.
+              </Text>
+            </Paper>
           )}
 
           {preview !== null && rows.length > 0 && <GameResults games={rows} />}
@@ -765,12 +818,12 @@ export function SmartEditor({
           )}
 
           {dataAsOf !== null && (
-            <footer className="results-footer">
+            <Text component="footer" className="results-footer" size="xs" c="gray.5" ta="center">
               Data as of <time dateTime={dataAsOf}>{formatTimestamp(dataAsOf)}</time>
-            </footer>
+            </Text>
           )}
-        </section>
-      </div>
-    </section>
+        </Stack>
+      </Box>
+    </Stack>
   );
 }

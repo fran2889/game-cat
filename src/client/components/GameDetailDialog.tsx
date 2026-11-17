@@ -1,7 +1,22 @@
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import type { GameDetail } from "../../shared/types.ts";
+import {
+  ActionIcon,
+  Badge,
+  Box,
+  Button,
+  Group,
+  Modal,
+  Paper,
+  ScrollArea,
+  SimpleGrid,
+  Skeleton,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
+import type { GameDetail, ReviewTone } from "../../shared/types.ts";
 import { ApiError, gameDetailQueryOptions } from "../api.ts";
 import {
   dash,
@@ -12,6 +27,7 @@ import {
   formatTimestamp,
   ownershipLabel,
   platformLabels,
+  reviewColor,
   reviewSummaryLabel,
   reviewTone,
 } from "../format.ts";
@@ -55,7 +71,6 @@ function sourceStatusLabel(
 export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const parsed = /^\d+$/.test(appId) ? Number.parseInt(appId, 10) : null;
   const appIdValue = parsed !== null && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
@@ -82,83 +97,26 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
         ? { kind: "ready", detail }
         : { kind: "loading" };
 
-  const closeTo = useCallback(
-    (destination: { pathname: string; search: string; hash: string }) => {
-      navigate(
-        { pathname: destination.pathname, search: destination.search, hash: destination.hash },
-        { replace: true },
-      );
-    },
-    [navigate],
-  );
+  const closeTo = (destination: { pathname: string; search: string; hash: string }) => {
+    navigate(
+      { pathname: destination.pathname, search: destination.search, hash: destination.hash },
+      { replace: true },
+    );
+  };
 
+  // Mantine's Modal owns the focus trap, Escape handling, and overlay click.
+  // Focus restoration is explicit here because closing navigates and unmounts
+  // the modal in the same render; capturing the opener keeps the documented
+  // "return to the card" behaviour deterministic.
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog === null) {
-      return;
-    }
     restoreFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (!dialog.open) {
-      try {
-        dialog.showModal();
-      } catch {
-        // A browser without showModal still renders the panel; focus is best effort.
-      }
-    }
     return () => {
-      if (dialog.open) {
-        dialog.close();
-      }
       const restore = restoreFocusRef.current;
       if (restore !== null && document.contains(restore)) {
         restore.focus();
       }
     };
-  }, []);
-
-  // Native modal dialogs contain focus in Chromium, but leaving the document
-  // for browser chrome breaks the documented trap. Keep Tab and Shift+Tab
-  // inside the panel explicitly.
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      const dialog = dialogRef.current;
-      if (event.key !== "Tab" || dialog === null || !dialog.open) {
-        return;
-      }
-      const focusable = Array.from(
-        dialog.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((element) => element.getClientRects().length > 0);
-      if (focusable.length === 0) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (first === undefined || last === undefined) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const active = document.activeElement;
-      if (!dialog.contains(active)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-        return;
-      }
-      if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   const close = () => closeTo(background);
@@ -172,246 +130,359 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
   })();
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="detail-dialog"
-      aria-label={detail?.name ?? "Game detail"}
-      onCancel={(event) => {
-        event.preventDefault();
-        close();
-      }}
-      onClick={(event) => {
-        if (event.target === dialogRef.current) {
-          close();
-        }
-      }}
+    <Modal.Root
+      opened
+      onClose={close}
+      trapFocus
+      closeOnEscape
+      returnFocus={false}
+      yOffset={0}
+      transitionProps={{ duration: 0 }}
     >
-      <section className="detail-panel" aria-labelledby="detail-title">
-        <button
-          type="button"
-          className="icon-button detail-close"
-          aria-label="Close game detail"
-          onClick={close}
-        >
-          ×
-        </button>
-
-        {state.kind === "loading" && (
-          <div className="detail-loading" aria-busy="true" aria-label="Loading game detail">
-            <div className="skeleton-cover detail-skeleton-cover" />
-            <div className="skeleton-line" />
-            <div className="skeleton-line short" />
-          </div>
-        )}
-
-        {state.kind === "not_found" && (
-          <div className="detail-state" role="status">
-            <p className="placeholder-kicker">Library</p>
-            <h2 id="detail-title">Not found</h2>
-            <p>That Game does not exist in this Library. Check the address, or return to it.</p>
-            <Link
-              to="/"
-              className="primary"
-              onClick={(event) => {
-                event.preventDefault();
-                closeTo({ pathname: "/", search: "", hash: "" });
-              }}
+      <Modal.Overlay />
+      <Modal.Content
+        className="detail-dialog"
+        aria-label={detail?.name ?? "Game detail"}
+        styles={{
+          inner: { padding: 0, alignItems: "stretch", justifyContent: "flex-end" },
+          content: {
+            flex: "0 0 min(560px, 100vw)",
+            width: "min(560px, 100vw)",
+            maxWidth: "none",
+            marginLeft: "auto",
+            marginRight: 0,
+            borderRadius: 0,
+          },
+        }}
+      >
+        <Modal.Body p={0} h="100%">
+          <Box
+            className="detail-panel"
+            pos="relative"
+            h="100%"
+            style={{ display: "flex", flexDirection: "column" }}
+          >
+            <ActionIcon
+              className="detail-close"
+              aria-label="Close game detail"
+              onClick={close}
+              variant="default"
+              size="lg"
+              pos="absolute"
+              top={10}
+              right={10}
+              style={{ zIndex: 3 }}
             >
-              Back to Library
-            </Link>
-          </div>
-        )}
+              ×
+            </ActionIcon>
 
-        {state.kind === "error" && (
-          <div className="detail-state" role="alert">
-            <h2 id="detail-title">Cannot load this Game</h2>
-            <p>{state.message}</p>
-            <button type="button" className="button" onClick={() => void detailQuery.refetch()}>
-              Retry
-            </button>
-          </div>
-        )}
-
-        {detail !== null && (
-          <>
-            <div className="detail-banner">
-              <GameCover appId={detail.appId} name={detail.name} className="detail-cover" />
-              <div className="detail-banner-text">
-                <h2 id="detail-title">{detail.name}</h2>
-                <div className="detail-badges">
-                  <span className={`badge ${installed ? "is-good" : ""}`}>
-                    {detail.installed === true
-                      ? "Installed"
-                      : detail.installed === false
-                        ? "Not installed"
-                        : "Install unknown"}
-                  </span>
-                  <span
-                    className={`badge ${detail.ownershipStatus === "owned" ? "is-good" : "is-warn"}`}
-                  >
-                    {ownershipLabel(detail.ownershipStatus)}
-                  </span>
-                  <span className="badge">App {detail.appId}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="detail-scroll" tabIndex={0} role="region" aria-label="Game details">
-              <div className="stat-grid">
-                <Stat label="Playtime" value={formatPlaytime(detail.playtimeMinutes)} />
-                <Stat label="Last played" value={formatDate(detail.lastPlayedAt)} />
-                <Stat label="Released" value={dash(detail.releaseDateRaw ?? detail.releaseYear)} />
-                <Stat label="Metacritic" value={dash(detail.metacriticScore)} />
-                <Stat label="Review" value={reviewSummary} tone={reviewTone(detail.reviewScore)} />
-                <Stat label="Type" value={dash(detail.type)} />
-                <Stat
-                  label="Platforms"
-                  value={platformLabels(detail.platforms).join(", ") || "—"}
-                />
-                <Stat label="Size on disk" value={formatBytes(detail.sizeOnDiskBytes)} />
-              </div>
-
-              <DetailSection title="Genres">
-                <ChipRow values={detail.genres} />
-              </DetailSection>
-              <DetailSection title="Storefront Categories">
-                <ChipRow values={detail.categories} />
-              </DetailSection>
-              <DetailSection title="Developers">
-                <ChipRow values={detail.developers} />
-              </DetailSection>
-              <DetailSection title="Publishers">
-                <ChipRow values={detail.publishers} />
-              </DetailSection>
-
-              <DetailSection title="Tags · SteamSpy votes">
-                {detail.tags.length === 0 ? (
-                  <p>No tags yet</p>
-                ) : (
-                  <div className="tag-row">
-                    {detail.tags.map((tag) => (
-                      <span className="tag-chip" key={tag.name}>
-                        {tag.name}
-                        <span className="votes">{formatCount(tag.votes)}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </DetailSection>
-
-              <DetailSection title="Steam Collections">
-                {detail.steamCollections.length === 0 ? (
-                  <p>—</p>
-                ) : (
-                  <div className="chip-row">
-                    {detail.steamCollections.map((collection) => (
-                      <span className="chip" key={collection.id}>
-                        {collection.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </DetailSection>
-
-              <DetailSection title="Metadata status">
-                <div className="source-list">
-                  {(
-                    [
-                      ["Tags", "tags", detail.metadata.tagsStatus, detail.metadata.tagsFetchedAt],
-                      [
-                        "Storefront",
-                        "store",
-                        detail.metadata.storeStatus,
-                        detail.metadata.storeFetchedAt,
-                      ],
-                      [
-                        "Reviews",
-                        "review",
-                        detail.metadata.reviewStatus,
-                        detail.metadata.reviewFetchedAt,
-                      ],
-                    ] as const
-                  ).map(([label, source, status, fetchedAt]) => (
-                    <span key={label}>
-                      <span aria-hidden="true">●</span>
-                      <strong>{label}:</strong> {sourceStatusLabel(source, status, detail)}
-                      {fetchedAt !== null && fetchedAt !== undefined && (
-                        <span className="source-time"> · {formatTimestamp(fetchedAt)}</span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              </DetailSection>
-            </div>
-
-            <p className="launch-note">
-              Launch opens the game through Steam. game-cat never writes Steam files; the store link
-              is safe.
-            </p>
-            <div className="detail-actions">
-              <a
-                className="primary"
-                href={`https://store.steampowered.com/app/${detail.appId}/`}
-                target="_blank"
-                rel="noopener noreferrer"
+            {state.kind === "loading" && (
+              <Box
+                className="detail-loading"
+                aria-busy="true"
+                aria-label="Loading game detail"
+                p="xl"
+                pt={56}
               >
-                View on Steam Store
-              </a>
-              {installed ? (
-                <a
-                  className="button"
-                  href={`steam://rungameid/${detail.appId}`}
-                  onClick={() => showToast("Opening Steam…")}
+                <Stack gap="sm">
+                  <Skeleton height={180} radius="md" />
+                  <Skeleton height={12} radius="xl" />
+                  <Skeleton height={12} radius="xl" width="55%" />
+                </Stack>
+              </Box>
+            )}
+
+            {state.kind === "not_found" && (
+              <Stack className="detail-state" role="status" gap="sm" m="auto" p="xl" maw={420}>
+                <Text size="xs" c="gray.5" tt="uppercase" fw={700}>
+                  Library
+                </Text>
+                <Title order={2} id="detail-title">
+                  Not found
+                </Title>
+                <Text c="gray.5">
+                  That Game does not exist in this Library. Check the address, or return to it.
+                </Text>
+                <Group>
+                  <Button
+                    component={Link}
+                    to="/"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      closeTo({ pathname: "/", search: "", hash: "" });
+                    }}
+                  >
+                    Back to Library
+                  </Button>
+                </Group>
+              </Stack>
+            )}
+
+            {state.kind === "error" && (
+              <Stack className="detail-state" role="alert" gap="sm" m="auto" p="xl" maw={420}>
+                <Title order={2} id="detail-title">
+                  Cannot load this Game
+                </Title>
+                <Text c="gray.5">{state.message}</Text>
+                <Group>
+                  <Button variant="default" onClick={() => void detailQuery.refetch()}>
+                    Retry
+                  </Button>
+                </Group>
+              </Stack>
+            )}
+
+            {detail !== null && (
+              <>
+                <Box
+                  className="detail-banner"
+                  pos="relative"
+                  style={{ aspectRatio: "460 / 215", flex: "none" }}
                 >
-                  Launch
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  className="button"
-                  disabled
-                  title="Install the game in Steam to launch it."
+                  <GameCover appId={detail.appId} name={detail.name} className="detail-cover" />
+                  <Box
+                    className="detail-banner-text"
+                    pos="absolute"
+                    left={16}
+                    right={16}
+                    bottom={12}
+                  >
+                    <Title order={2} id="detail-title" size="h4">
+                      {detail.name}
+                    </Title>
+                    <Group className="detail-badges" gap={6} mt={6}>
+                      <Badge className="badge" color={installed ? "green" : "gray"} variant="light">
+                        {detail.installed === true
+                          ? "Installed"
+                          : detail.installed === false
+                            ? "Not installed"
+                            : "Install unknown"}
+                      </Badge>
+                      <Badge
+                        className="badge"
+                        color={detail.ownershipStatus === "owned" ? "green" : "yellow"}
+                        variant="light"
+                        tt="none"
+                      >
+                        {ownershipLabel(detail.ownershipStatus)}
+                      </Badge>
+                      <Badge className="badge" variant="default" tt="none">
+                        App {detail.appId}
+                      </Badge>
+                    </Group>
+                  </Box>
+                </Box>
+
+                <ScrollArea
+                  className="detail-scroll"
+                  style={{ flex: 1, minHeight: 0 }}
+                  type="auto"
+                  p="md"
+                  viewportProps={{
+                    tabIndex: 0,
+                    role: "region",
+                    "aria-label": "Game details",
+                  }}
                 >
-                  Launch
-                </button>
-              )}
-            </div>
-          </>
-        )}
-      </section>
-    </dialog>
+                  <SimpleGrid className="stat-grid" cols={2} spacing="xs">
+                    <Stat label="Playtime" value={formatPlaytime(detail.playtimeMinutes)} />
+                    <Stat label="Last played" value={formatDate(detail.lastPlayedAt)} />
+                    <Stat
+                      label="Released"
+                      value={dash(detail.releaseDateRaw ?? detail.releaseYear)}
+                    />
+                    <Stat label="Metacritic" value={dash(detail.metacriticScore)} />
+                    <Stat
+                      label="Review"
+                      value={reviewSummary}
+                      tone={reviewTone(detail.reviewScore)}
+                    />
+                    <Stat label="Type" value={dash(detail.type)} />
+                    <Stat
+                      label="Platforms"
+                      value={platformLabels(detail.platforms).join(", ") || "—"}
+                    />
+                    <Stat label="Size on disk" value={formatBytes(detail.sizeOnDiskBytes)} />
+                  </SimpleGrid>
+
+                  <DetailSection title="Genres">
+                    <ChipRow values={detail.genres} />
+                  </DetailSection>
+                  <DetailSection title="Storefront Categories">
+                    <ChipRow values={detail.categories} />
+                  </DetailSection>
+                  <DetailSection title="Developers">
+                    <ChipRow values={detail.developers} />
+                  </DetailSection>
+                  <DetailSection title="Publishers">
+                    <ChipRow values={detail.publishers} />
+                  </DetailSection>
+
+                  <DetailSection title="Tags · SteamSpy votes">
+                    {detail.tags.length === 0 ? (
+                      <Text c="gray.5" size="sm">
+                        No tags yet
+                      </Text>
+                    ) : (
+                      <Group className="tag-row" gap={4}>
+                        {detail.tags.map((tag) => (
+                          <Badge className="tag-chip" key={tag.name} variant="default">
+                            {tag.name}
+                            <Text component="span" className="votes" size="xs" c="gray.5">
+                              {" "}
+                              {formatCount(tag.votes)}
+                            </Text>
+                          </Badge>
+                        ))}
+                      </Group>
+                    )}
+                  </DetailSection>
+
+                  <DetailSection title="Steam Collections">
+                    {detail.steamCollections.length === 0 ? (
+                      <Text c="gray.5" size="sm">
+                        —
+                      </Text>
+                    ) : (
+                      <Group className="chip-row" gap={4}>
+                        {detail.steamCollections.map((collection) => (
+                          <Badge className="chip" key={collection.id} variant="default" tt="none">
+                            {collection.name}
+                          </Badge>
+                        ))}
+                      </Group>
+                    )}
+                  </DetailSection>
+
+                  <DetailSection title="Metadata status">
+                    <Stack className="source-list" gap={4}>
+                      {(
+                        [
+                          [
+                            "Tags",
+                            "tags",
+                            detail.metadata.tagsStatus,
+                            detail.metadata.tagsFetchedAt,
+                          ],
+                          [
+                            "Storefront",
+                            "store",
+                            detail.metadata.storeStatus,
+                            detail.metadata.storeFetchedAt,
+                          ],
+                          [
+                            "Reviews",
+                            "review",
+                            detail.metadata.reviewStatus,
+                            detail.metadata.reviewFetchedAt,
+                          ],
+                        ] as const
+                      ).map(([label, source, status, fetchedAt]) => (
+                        <Text key={label} component="p" size="sm" c="gray.5">
+                          <Text component="span" aria-hidden="true">
+                            ●{" "}
+                          </Text>
+                          <Text component="span" fw={700} c="var(--mantine-color-text)">
+                            {label}:
+                          </Text>{" "}
+                          {sourceStatusLabel(source, status, detail)}
+                          {fetchedAt !== null && fetchedAt !== undefined && (
+                            <Text component="span" c="gray.5">
+                              {" "}
+                              · {formatTimestamp(fetchedAt)}
+                            </Text>
+                          )}
+                        </Text>
+                      ))}
+                    </Stack>
+                  </DetailSection>
+                </ScrollArea>
+
+                <Text className="launch-note" size="xs" c="yellow" px="md" py="xs" mx="md" my="xs">
+                  Launch opens the game through Steam. game-cat never writes Steam files; the store
+                  link is safe.
+                </Text>
+                <Group className="detail-actions" gap="sm" px="md" py="sm" wrap="wrap">
+                  <Button
+                    component="a"
+                    href={`https://store.steampowered.com/app/${detail.appId}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View on Steam Store
+                  </Button>
+                  {installed ? (
+                    <Button
+                      component="a"
+                      variant="default"
+                      href={`steam://rungameid/${detail.appId}`}
+                      onClick={() => showToast("Opening Steam…")}
+                    >
+                      Launch
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="default"
+                      disabled
+                      title="Install the game in Steam to launch it."
+                    >
+                      Launch
+                    </Button>
+                  )}
+                </Group>
+              </>
+            )}
+          </Box>
+        </Modal.Body>
+      </Modal.Content>
+    </Modal.Root>
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
+function Stat({ label, value, tone }: { label: string; value: string; tone?: ReviewTone }) {
   return (
-    <div className="stat">
-      <div className="stat-label">{label}</div>
-      <div className={`stat-value${tone === undefined ? "" : ` review-text ${tone}`}`}>{value}</div>
-    </div>
+    <Paper className="stat" p="xs" radius="sm" withBorder>
+      <Text className="stat-label" size="xs" c="gray.5" tt="uppercase" fw={700}>
+        {label}
+      </Text>
+      <Text
+        className="stat-value"
+        size="sm"
+        fw={600}
+        c={tone === undefined ? undefined : reviewColor(tone)}
+      >
+        {value}
+      </Text>
+    </Paper>
   );
 }
 
 function DetailSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="detail-section">
-      <h3>{title}</h3>
+    <Stack className="detail-section" gap={6} mt="md">
+      <Title order={3} size="xs" c="gray.5" tt="uppercase">
+        {title}
+      </Title>
       {children}
-    </div>
+    </Stack>
   );
 }
 
 function ChipRow({ values }: { values: string[] }) {
   if (values.length === 0) {
-    return <p>—</p>;
+    return (
+      <Text c="gray.5" size="sm">
+        —
+      </Text>
+    );
   }
   return (
-    <div className="chip-row">
+    <Group className="chip-row" gap={4}>
       {values.map((value) => (
-        <span className="chip" key={value}>
+        <Badge className="chip" key={value} variant="default" tt="none">
           {value}
-        </span>
+        </Badge>
       ))}
-    </div>
+    </Group>
   );
 }

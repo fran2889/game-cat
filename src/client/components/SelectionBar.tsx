@@ -1,3 +1,4 @@
+import { Button, Group, Paper, Text } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { ApiError } from "../api.ts";
 import {
@@ -22,7 +23,7 @@ export interface SelectionBarProps {
 
 /**
  * Selection actions shared by every Library-like view. The New from selection
- * handoff is router state so #31/#32 can open the editor without re-fetching.
+ * handoff is router state so the editor opens without re-fetching.
  */
 export function SelectionBar({
   onAddToRules,
@@ -70,65 +71,80 @@ export function SelectionBar({
   ].join(" ");
 
   return (
-    <div className="selection-bar" role="region" aria-label="Selection actions">
-      <span className="selection-count">{formatCount(selectedCount)} selected</span>
-      {explanation !== "" && <span className="selection-hint">{explanation}</span>}
-      <div className="selection-actions">
-        <button
-          type="button"
-          className="button"
-          onClick={clearSelection}
-          disabled={selectedCount === 0}
-        >
-          Clear
-        </button>
-        <button
-          type="button"
-          className="button"
-          onClick={() => void refreshSelected()}
-          disabled={refreshDisabled}
-          title={
-            isRunning
-              ? "A Refresh is already running."
-              : selectedCount > MAX_SELECTION_FOR_REFRESH
-                ? `Refresh selected supports up to ${formatCount(MAX_SELECTION_FOR_REFRESH)} Games.`
-                : undefined
-          }
-        >
-          Refresh selected
-        </button>
-        <button
-          type="button"
-          className="primary"
-          onClick={createFromSelection}
-          disabled={newDisabled}
-          title={
-            selectedCount > MAX_SELECTION_FOR_NEW
-              ? `New from selection supports up to ${formatCount(MAX_SELECTION_FOR_NEW)} Games.`
-              : selectedCount === 0
-                ? "Select at least one game to create a Smart Collection."
-                : undefined
-          }
-        >
-          + New from selection
-        </button>
-        {onAddToRules !== undefined && (
-          <button
-            type="button"
-            className="button"
-            onClick={onAddToRules}
-            disabled={addToRulesDisabled || selectedCount === 0}
+    <Paper
+      component="div"
+      className="selection-bar"
+      role="region"
+      aria-label="Selection actions"
+      p="xs"
+      radius="md"
+      withBorder
+    >
+      <Group gap="sm" wrap="wrap">
+        <Text component="span" className="selection-count" fw={700}>
+          {formatCount(selectedCount)} selected
+        </Text>
+        {explanation !== "" && (
+          <Text component="span" className="selection-hint" size="xs" c="gray.5">
+            {explanation}
+          </Text>
+        )}
+        <Group className="selection-actions" gap="xs" ml="auto">
+          <Button
+            size="compact-xs"
+            variant="default"
+            onClick={clearSelection}
+            disabled={selectedCount === 0}
+          >
+            Clear
+          </Button>
+          <Button
+            size="compact-xs"
+            variant="default"
+            onClick={() => void refreshSelected()}
+            disabled={refreshDisabled}
             title={
-              addToRulesDisabledReason ??
-              (selectedCount === 0
-                ? "Select at least one game to add to the current rules."
-                : undefined)
+              isRunning
+                ? "A Refresh is already running."
+                : selectedCount > MAX_SELECTION_FOR_REFRESH
+                  ? `Refresh selected supports up to ${formatCount(MAX_SELECTION_FOR_REFRESH)} Games.`
+                  : undefined
             }
           >
-            Add to current rules
-          </button>
-        )}
-      </div>
-    </div>
+            Refresh selected
+          </Button>
+          <Button
+            size="compact-xs"
+            onClick={createFromSelection}
+            disabled={newDisabled}
+            title={
+              selectedCount > MAX_SELECTION_FOR_NEW
+                ? `New from selection supports up to ${formatCount(MAX_SELECTION_FOR_NEW)} Games.`
+                : selectedCount === 0
+                  ? "Select at least one game to create a Smart Collection."
+                  : undefined
+            }
+          >
+            + New from selection
+          </Button>
+          {onAddToRules !== undefined && (
+            <Button
+              size="compact-xs"
+              variant="default"
+              onClick={onAddToRules}
+              disabled={addToRulesDisabled || selectedCount === 0}
+              title={
+                addToRulesDisabledReason ??
+                (selectedCount === 0
+                  ? "Select at least one game to add to the current rules."
+                  : undefined)
+              }
+            >
+              Add to current rules
+            </Button>
+          )}
+        </Group>
+      </Group>
+    </Paper>
   );
 }

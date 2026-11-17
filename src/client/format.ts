@@ -154,6 +154,22 @@ export function reviewTone(score: number | null): ReviewTone {
   return "bad";
 }
 
+/** Mantine colour name for a Review tone; keeps the tone visible without CSS. */
+export function reviewColor(tone: ReviewTone): string {
+  switch (tone) {
+    case "great":
+      return "green";
+    case "good":
+      return "teal";
+    case "mixed":
+      return "yellow";
+    case "bad":
+      return "red";
+    default:
+      return "gray";
+  }
+}
+
 export function reviewPillLabel(score: number | null): string | null {
   return score === null ? null : `${score}%`;
 }

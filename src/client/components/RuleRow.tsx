@@ -1,4 +1,15 @@
 import {
+  ActionIcon,
+  Box,
+  Button,
+  Group,
+  Input,
+  NativeSelect,
+  Paper,
+  Stack,
+  Text,
+} from "@mantine/core";
+import {
   RULE_FIELD_DEFINITIONS,
   RULE_PREFIXES,
   ruleFieldDefinition,
@@ -21,6 +32,12 @@ const OPERATOR_LABELS: Record<RuleOperator, string> = {
   lte: "is at most",
   gt: "is greater than",
   gte: "is at least",
+};
+
+const PREFIX_COLORS: Record<RulePrefix, string> = {
+  AND: "green",
+  OR: "yellow",
+  NOT: "red",
 };
 
 export interface RuleRowProps {
@@ -61,83 +78,109 @@ export function RuleRow({
     rule.field === "game" ? "Games" : rule.field === "playtime" ? "Hours" : "Value";
 
   return (
-    <li className={`rule-row${invalid ? " is-invalid" : ""}`} data-rule-index={index}>
-      <div className="rule-prefix" role="group" aria-label={`Rule ${index + 1} prefix`}>
-        {RULE_PREFIXES.map((prefix) => (
-          <button
-            key={prefix}
-            type="button"
-            className={`seg-button prefix-${prefix.toLowerCase()}`}
-            aria-pressed={rule.prefix === prefix}
-            aria-label={`${prefix} prefix for Rule ${index + 1}`}
-            onClick={() => onChange(changeRulePrefix(rule, prefix as RulePrefix))}
+    <Paper
+      component="li"
+      className={`rule-row${invalid ? " is-invalid" : ""}`}
+      data-rule-index={index}
+      p="sm"
+      radius="sm"
+      withBorder
+    >
+      <Box className="rule-grid">
+        <Group className="rule-head" justify="space-between" align="center" gap="xs" wrap="nowrap">
+          <Box className="rule-prefix" role="group" aria-label={`Rule ${index + 1} prefix`}>
+            <Button.Group>
+              {RULE_PREFIXES.map((prefix) => {
+                const active = rule.prefix === prefix;
+                return (
+                  <Button
+                    key={prefix}
+                    type="button"
+                    className={`seg-button prefix-${prefix.toLowerCase()}`}
+                    size="compact-sm"
+                    variant={active ? "filled" : "default"}
+                    color={active ? PREFIX_COLORS[prefix] : "gray"}
+                    aria-pressed={active}
+                    aria-label={`${prefix} prefix for Rule ${index + 1}`}
+                    miw={48}
+                    px={6}
+                    onClick={() => onChange(changeRulePrefix(rule, prefix as RulePrefix))}
+                  >
+                    {prefix}
+                  </Button>
+                );
+              })}
+            </Button.Group>
+          </Box>
+          <ActionIcon
+            className="rule-remove"
+            variant="subtle"
+            aria-label={`Remove rule ${index + 1}`}
+            onClick={onRemove}
           >
-            {prefix}
-          </button>
-        ))}
-      </div>
+            ×
+          </ActionIcon>
+        </Group>
 
-      <div className="rule-field">
-        <label htmlFor={fieldId}>Field</label>
-        <select
-          id={fieldId}
-          value={rule.field}
-          onChange={(event) => onChange(changeRuleField(rule, event.target.value as RuleField))}
-        >
-          {RULE_FIELD_DEFINITIONS.map((definition) => (
-            <option key={definition.field} value={definition.field}>
-              {definition.label}
-            </option>
-          ))}
-        </select>
-      </div>
+        <Box className="rule-fields">
+          <NativeSelect
+            className="rule-field"
+            id={fieldId}
+            label="Field"
+            value={rule.field}
+            data={RULE_FIELD_DEFINITIONS.map((definition) => ({
+              value: definition.field,
+              label: definition.label,
+            }))}
+            onChange={(event) =>
+              onChange(changeRuleField(rule, event.currentTarget.value as RuleField))
+            }
+          />
 
-      <div className="rule-operator">
-        <label htmlFor={operatorId}>Operator</label>
-        <select
-          id={operatorId}
-          value={rule.operator}
-          onChange={(event) =>
-            onChange(changeRuleOperator(rule, event.target.value as RuleOperator))
-          }
-        >
-          {(ruleFieldDefinition(rule.field)?.operators ?? []).map((operator) => (
-            <option key={operator} value={operator}>
-              {OPERATOR_LABELS[operator]}
-            </option>
-          ))}
-        </select>
-      </div>
+          <NativeSelect
+            className="rule-operator"
+            id={operatorId}
+            label="Operator"
+            value={rule.operator}
+            data={(ruleFieldDefinition(rule.field)?.operators ?? []).map((operator) => ({
+              value: operator,
+              label: OPERATOR_LABELS[operator],
+            }))}
+            onChange={(event) =>
+              onChange(changeRuleOperator(rule, event.currentTarget.value as RuleOperator))
+            }
+          />
 
-      <div className="rule-value">
-        <label htmlFor={valueId}>{valueLabel}</label>
-        <RuleValueControl
-          rule={rule}
-          inputId={valueId}
-          suggestions={suggestions}
-          collections={collections}
-          selectedIds={selectedIds}
-          invalid={invalid}
-          onChange={(value: RuleValue) => onChange({ ...rule, value })}
-        />
-      </div>
-
-      <button
-        type="button"
-        className="icon-button rule-remove"
-        aria-label={`Remove rule ${index + 1}`}
-        onClick={onRemove}
-      >
-        ×
-      </button>
+          <Input.Wrapper className="rule-value" id={valueId} label={valueLabel}>
+            <RuleValueControl
+              rule={rule}
+              inputId={valueId}
+              suggestions={suggestions}
+              collections={collections}
+              selectedIds={selectedIds}
+              invalid={invalid}
+              onChange={(value: RuleValue) => onChange({ ...rule, value })}
+            />
+          </Input.Wrapper>
+        </Box>
+      </Box>
 
       {invalid && (
-        <ul className="rule-errors" aria-label={`Rule ${index + 1} validation`}>
+        <Stack
+          component="ul"
+          className="rule-errors"
+          gap={2}
+          mt="xs"
+          aria-label={`Rule ${index + 1} validation`}
+          style={{ listStyle: "none", padding: 0 }}
+        >
           {rowErrors.map((message) => (
-            <li key={message}>{message}</li>
+            <Text component="li" key={message} size="xs" c="red">
+              {message}
+            </Text>
           ))}
-        </ul>
+        </Stack>
       )}
-    </li>
+    </Paper>
   );
 }
