@@ -24,7 +24,7 @@ test("a deep link opens the detail dialog over the Library with every documented
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.goto(`${app.url}games/620`);
 
-  const dialog = page.locator("dialog.detail-dialog");
+  const dialog = page.locator('[role="dialog"].detail-dialog');
   await expect(dialog).toBeVisible();
   await expect(page.locator(".game-grid").first()).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Portal 2" })).toBeVisible();
@@ -55,7 +55,7 @@ test("a deep link opens the detail dialog over the Library with every documented
   expect(pageErrors).toEqual([]);
 
   const focusInside = await page.evaluate(() => {
-    const dialogElement = document.querySelector("dialog.detail-dialog");
+    const dialogElement = document.querySelector('[role="dialog"].detail-dialog');
     return dialogElement?.contains(document.activeElement) ?? false;
   });
   expect(focusInside).toBe(true);
@@ -72,7 +72,7 @@ test("closing restores focus to the card that opened the dialog", async ({ page 
   await card.focus();
   await card.press("Enter");
 
-  const dialog = page.locator("dialog.detail-dialog");
+  const dialog = page.locator('[role="dialog"].detail-dialog');
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
 
@@ -80,9 +80,23 @@ test("closing restores focus to the card that opened the dialog", async ({ page 
   await expect(page.locator(".game-card .card-open").first()).toBeFocused();
 });
 
+test("clicking outside the dialog closes it and restores focus", async ({ page }) => {
+  await page.goto(app.url);
+  const card = page.locator(".game-card .card-open").first();
+  await card.focus();
+  await card.press("Enter");
+
+  const dialog = page.locator('[role="dialog"].detail-dialog');
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(4, 4);
+
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".game-card .card-open").first()).toBeFocused();
+});
+
 test("Launch is disabled for a Game that is not installed", async ({ page }) => {
   await page.goto(`${app.url}games/570`);
-  const dialog = page.locator("dialog.detail-dialog");
+  const dialog = page.locator('[role="dialog"].detail-dialog');
   await expect(dialog).toBeVisible();
 
   const launch = dialog.getByRole("button", { name: "Launch" });
@@ -94,7 +108,7 @@ test("Launch is disabled for a Game that is not installed", async ({ page }) => 
 
 test("missing detail fields use the documented copy", async ({ page }) => {
   await page.goto(`${app.url}games/730`);
-  const dialog = page.locator("dialog.detail-dialog");
+  const dialog = page.locator('[role="dialog"].detail-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("No tags yet")).toBeVisible();
   await expect(dialog.getByText("Reviews unavailable", { exact: true })).toBeVisible();
@@ -103,7 +117,7 @@ test("missing detail fields use the documented copy", async ({ page }) => {
 
 test("an unknown Game shows Not found with a way back to the Library", async ({ page }) => {
   await page.goto(`${app.url}games/999999`);
-  const dialog = page.locator("dialog.detail-dialog");
+  const dialog = page.locator('[role="dialog"].detail-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Not found" })).toBeVisible();
   await dialog.getByRole("link", { name: "Back to Library" }).click();

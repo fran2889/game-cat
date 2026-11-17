@@ -59,7 +59,7 @@ test("a saved Smart Collection editor has no serious axe violations", async ({ p
 
 test("the Game detail dialog has no serious axe violations", async ({ page }) => {
   await page.goto(`${app.url}games/620`);
-  const dialog = page.locator("dialog.detail-dialog");
+  const dialog = page.locator('[role="dialog"].detail-dialog');
   await expect(dialog.getByRole("heading", { name: "Portal 2" })).toBeVisible();
   await expectNoSeriousA11yViolations(page, "Game detail dialog");
 });
