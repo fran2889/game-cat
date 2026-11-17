@@ -95,7 +95,7 @@ test("the TopBar Tab order follows its visual order", async ({ page }) => {
 
 test("the Game detail dialog traps focus and closes on Escape", async ({ page }) => {
   await page.goto(`${app.url}games/620`);
-  const dialog = page.locator("dialog.detail-dialog");
+  const dialog = page.locator('[role="dialog"].detail-dialog');
   await expect(dialog.getByRole("heading", { name: "Portal 2" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Close game detail" })).toBeFocused();
 
@@ -103,7 +103,7 @@ test("the Game detail dialog traps focus and closes on Escape", async ({ page })
     await page.keyboard.press("Tab");
     expect(
       await page.evaluate(() => {
-        const element = document.querySelector("dialog.detail-dialog");
+        const element = document.querySelector('[role="dialog"].detail-dialog');
         return element?.contains(document.activeElement) ?? false;
       }),
       `Tab ${index + 1} left the open dialog`,
@@ -112,7 +112,7 @@ test("the Game detail dialog traps focus and closes on Escape", async ({ page })
   await page.keyboard.press("Shift+Tab");
   expect(
     await page.evaluate(() => {
-      const element = document.querySelector("dialog.detail-dialog");
+      const element = document.querySelector('[role="dialog"].detail-dialog');
       return element?.contains(document.activeElement) ?? false;
     }),
   ).toBe(true);
@@ -147,11 +147,11 @@ test("keyboard-only Library browsing: search, layout, selection, detail, and foc
   await tabTo(page, rowLink, "the Portal 2 row link");
   await page.keyboard.press("Enter");
 
-  const dialog = page.locator("dialog.detail-dialog");
+  const dialog = page.locator('[role="dialog"].detail-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "Portal 2" })).toBeVisible();
   const focusInside = await page.evaluate(() => {
-    const element = document.querySelector("dialog.detail-dialog");
+    const element = document.querySelector('[role="dialog"].detail-dialog');
     return element?.contains(document.activeElement) ?? false;
   });
   expect(focusInside).toBe(true);
