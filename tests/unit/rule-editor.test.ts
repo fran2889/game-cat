@@ -11,7 +11,6 @@ import {
   prefixCounts,
   togglePlatformRule,
   validateCollectionName,
-  validateDraftRules,
 } from "../../src/client/rule-editor.ts";
 import { validateRules, type Rule } from "../../src/shared/rules.ts";
 
@@ -43,9 +42,9 @@ describe("editor Rule construction", () => {
 
 describe("editor Rule gate", () => {
   it("accepts an empty draft and a valid typed Rule", () => {
-    expect(validateDraftRules([])).toEqual({ rules: [], fieldErrors: {} });
+    expect(validateRules([])).toEqual({ rules: [], fieldErrors: {} });
     expect(
-      validateDraftRules([{ prefix: "AND", field: "playtime", operator: "lt", value: 600 }]),
+      validateRules([{ prefix: "AND", field: "playtime", operator: "lt", value: 600 }]),
     ).toEqual({
       rules: [{ prefix: "AND", field: "playtime", operator: "lt", value: 600 }],
       fieldErrors: {},
@@ -53,7 +52,7 @@ describe("editor Rule gate", () => {
   });
 
   it("reports the shared validator's dotted errors without client-only rules", () => {
-    const result = validateDraftRules([
+    const result = validateRules([
       { prefix: "AND", field: "tag", operator: "has", value: "" },
       { prefix: "AND", field: "playtime", operator: "is", value: 600 },
       { prefix: "AND", field: "installed", operator: "is", value: "true" },
