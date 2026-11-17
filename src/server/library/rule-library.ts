@@ -1,7 +1,8 @@
 import type BetterSqlite3 from "better-sqlite3";
-import type { GameSummary, GameOrder, GameSort, Pagination } from "../../shared/types.ts";
+import type { GameSummary, GameOrder, GameSort } from "../../shared/types.ts";
 import type { Rule } from "../../shared/rules.ts";
 import { readTagsForGames, toGameSummary, type GameListResult, type GamesRow } from "./games.ts";
+import { pagination } from "./pagination.ts";
 import { compileRules, type RuleTarget } from "./rule-evaluator.ts";
 
 /**
@@ -239,15 +240,6 @@ function compareGames(left: GamesRow, right: GamesRow, sort: GameSort, order: Ga
     return order === "desc" ? -difference : difference;
   }
   return left.app_id - right.app_id;
-}
-
-export function pagination(page: number, pageSize: number, totalItems: number): Pagination {
-  return {
-    page,
-    pageSize,
-    totalItems,
-    totalPages: totalItems === 0 ? 0 : Math.ceil(totalItems / pageSize),
-  };
 }
 
 /** Sort and page matched rows, then load Tags for the visible page only. */

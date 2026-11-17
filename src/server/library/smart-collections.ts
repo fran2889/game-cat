@@ -23,13 +23,8 @@ import { allSync, firstSync, queryFor } from "../db/query.ts";
 import { notFound } from "../request.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 import { readDataAsOf } from "./games.ts";
-import {
-  countLibraryMatches,
-  evaluateLibrary,
-  pageMatches,
-  pagination,
-  readLibrary,
-} from "./rule-library.ts";
+import { pagination } from "./pagination.ts";
+import { countLibraryMatches, evaluateLibrary, pageMatches, readLibrary } from "./rule-library.ts";
 
 export interface SmartCollectionsQuery {
   page: number;
