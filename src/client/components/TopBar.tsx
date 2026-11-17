@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import {
+  ActionIcon,
+  Box,
+  Button,
+  Group,
+  Kbd,
+  NativeSelect,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import type { Status } from "../../shared/types.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { GAME_SORT_OPTIONS } from "../browse.ts";
@@ -102,87 +114,94 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
 
   return (
     <header className="topbar">
-      <button
-        type="button"
+      <ActionIcon
         className="icon-button mobile-menu"
+        variant="subtle"
         aria-label="Open navigation"
         aria-controls="sidebar"
         aria-expanded={sidebarOpen}
         onClick={onOpenSidebar}
       >
         ☰
-      </button>
+      </ActionIcon>
 
-      <div className="crumb">
-        <span className="crumb-kicker">{breadcrumb.kicker}</span>
-        <h1>{breadcrumb.title}</h1>
-        <span className="crumb-sub">
+      <Stack className="crumb" gap={0} miw={0}>
+        <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+          {breadcrumb.kicker}
+        </Text>
+        <Title order={1} size="h4" fw={700} lineClamp={1}>
+          {breadcrumb.title}
+        </Title>
+        <Text className="crumb-sub" size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
           {location.pathname === "/onboarding"
             ? "Steam folder, Account, key, and scan"
             : `${status?.library.gameCount ?? 0} games`}
-        </span>
-      </div>
+        </Text>
+      </Stack>
 
-      <div className="topbar-tools">
+      <Group className="topbar-tools" gap="xs" wrap="wrap">
         {searchEnabled && (
-          <div className="search-wrap">
-            <span className="search-icon" aria-hidden="true">
-              ⌕
-            </span>
-            <input
-              ref={searchRef}
-              type="search"
-              value={draft}
-              placeholder="Search game names"
-              aria-label="Search game names"
-              autoComplete="off"
-              onChange={(event) => setDraft(event.target.value)}
-            />
-            <kbd aria-hidden="true">/</kbd>
-            {draft !== "" && (
-              <button
-                type="button"
-                className="search-clear"
-                aria-label="Clear search"
-                onClick={() => {
-                  setDraft("");
-                  clearSearch();
-                }}
-              >
-                ×
-              </button>
-            )}
-          </div>
+          <TextInput
+            className="search-wrap"
+            ref={searchRef}
+            type="search"
+            size="sm"
+            value={draft}
+            placeholder="Search game names"
+            aria-label="Search game names"
+            autoComplete="off"
+            leftSection={
+              <Text component="span" aria-hidden="true" c="dimmed">
+                ⌕
+              </Text>
+            }
+            rightSection={
+              draft === "" ? (
+                <Kbd aria-hidden="true">/</Kbd>
+              ) : (
+                <ActionIcon
+                  aria-label="Clear search"
+                  variant="subtle"
+                  size="sm"
+                  onClick={() => {
+                    setDraft("");
+                    clearSearch();
+                  }}
+                >
+                  ×
+                </ActionIcon>
+              )
+            }
+            onChange={(event) => setDraft(event.currentTarget.value)}
+          />
         )}
 
-        <label className="select-wrap">
-          <span className="sr-only">Sort by</span>
-          <select
-            aria-label="Sort by"
-            value={sort}
-            onChange={(event) => setSort(event.target.value as typeof sort)}
-          >
-            {GAME_SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <NativeSelect
+          className="select-wrap"
+          aria-label="Sort by"
+          size="sm"
+          w={160}
+          value={sort}
+          data={GAME_SORT_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+          }))}
+          onChange={(event) => setSort(event.currentTarget.value as typeof sort)}
+        />
 
-        <button
-          type="button"
+        <ActionIcon
           className="icon-button"
           aria-label={order === "desc" ? "Sort descending" : "Sort ascending"}
           aria-pressed={order === "desc"}
+          variant="subtle"
           onClick={toggleOrder}
         >
           {order === "desc" ? "↓" : "↑"}
-        </button>
+        </ActionIcon>
 
-        <button
-          type="button"
+        <Button
           className="toggle-button"
+          variant={installedPressed ? "light" : "default"}
           aria-pressed={installedPressed}
           disabled={viewKind === "installed"}
           title={
@@ -193,49 +212,50 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
           onClick={() => setInstalledOnly(!installedOnly)}
         >
           ✓ Installed
-        </button>
+        </Button>
 
-        <div className="segmented" role="group" aria-label="Layout">
-          <button
-            type="button"
-            className="seg-button"
-            aria-label="Grid view"
-            aria-pressed={layout === "grid"}
-            onClick={() => setLayout("grid")}
-          >
-            ▦
-          </button>
-          <button
-            type="button"
-            className="seg-button"
-            aria-label="Table view"
-            aria-pressed={layout === "table"}
-            onClick={() => setLayout("table")}
-          >
-            ☰
-          </button>
-        </div>
+        <Box className="segmented" role="group" aria-label="Layout">
+          <Button.Group>
+            <Button
+              variant={layout === "grid" ? "light" : "default"}
+              aria-label="Grid view"
+              aria-pressed={layout === "grid"}
+              px={8}
+              onClick={() => setLayout("grid")}
+            >
+              ▦
+            </Button>
+            <Button
+              variant={layout === "table" ? "light" : "default"}
+              aria-label="Table view"
+              aria-pressed={layout === "table"}
+              px={8}
+              onClick={() => setLayout("table")}
+            >
+              ☰
+            </Button>
+          </Button.Group>
+        </Box>
 
-        <button
-          type="button"
+        <Button
           className="primary"
           onClick={() => void startFetch()}
           disabled={isRunning}
           title={isRunning ? "A Refresh is already running." : undefined}
         >
           Fetch
-        </button>
+        </Button>
 
-        <Link to="/smart/new" className="button">
+        <Button component={Link} to="/smart/new" variant="default">
           + New collection
-        </Link>
+        </Button>
 
         {status === null && (
-          <button type="button" className="button" onClick={onRetryStatus}>
+          <Button variant="default" onClick={onRetryStatus}>
             Retry
-          </button>
+          </Button>
         )}
-      </div>
+      </Group>
     </header>
   );
 }

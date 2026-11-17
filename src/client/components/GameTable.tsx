@@ -1,4 +1,4 @@
-import { Checkbox, Table, Text, UnstyledButton } from "@mantine/core";
+import { Anchor, Box, Checkbox, Table, Text, UnstyledButton } from "@mantine/core";
 import { Link, useLocation } from "react-router-dom";
 import type { GameSummary } from "../../shared/types.ts";
 import type { TableSortField } from "../browse.ts";
@@ -99,7 +99,18 @@ export function GameTable({ games }: GameTableProps) {
             const review = reviewSummaryLabel(game.reviewScore, game.reviewTier, game.reviewCount);
             const tags = game.tags.slice(0, 3).map((tag) => tag.name);
             return (
-              <Table.Tr key={game.appId} className={selected ? "is-selected" : undefined}>
+              <Table.Tr
+                key={game.appId}
+                className={selected ? "is-selected" : undefined}
+                style={
+                  selected
+                    ? {
+                        backgroundColor:
+                          "color-mix(in srgb, var(--mantine-primary-color-filled) 6%, transparent)",
+                      }
+                    : undefined
+                }
+              >
                 <Table.Td>
                   <Checkbox
                     size="md"
@@ -110,21 +121,28 @@ export function GameTable({ games }: GameTableProps) {
                   />
                 </Table.Td>
                 <Table.Td>
-                  <Link
-                    className="table-game"
+                  <Anchor
+                    component={Link}
                     to={{ pathname: `/games/${game.appId}`, search: location.search }}
                     state={{ backgroundLocation: location }}
+                    miw={190}
+                    c="inherit"
+                    underline="never"
+                    display="flex"
+                    style={{ alignItems: "center", gap: 9, flexWrap: "nowrap" }}
                   >
                     <GameCover appId={game.appId} name={game.name} className="table-thumb" />
-                    <span>
-                      <span className="table-game-name">{game.name}</span>
+                    <Box miw={0}>
+                      <Text component="span" display="block" fw={600} truncate>
+                        {game.name}
+                      </Text>
                       {game.ownershipStatus !== "owned" && (
-                        <span className="table-game-sub">
+                        <Text component="span" display="block" size="xs" c="dimmed">
                           {ownershipLabel(game.ownershipStatus)}
-                        </span>
+                        </Text>
                       )}
-                    </span>
-                  </Link>
+                    </Box>
+                  </Anchor>
                 </Table.Td>
                 <Table.Td>
                   {game.installed === true ? "Yes" : game.installed === false ? "No" : "—"}

@@ -13,6 +13,9 @@ export function PlaceholderView({ kicker, title, description, children }: Placeh
     <Paper
       component="section"
       className="placeholder"
+      maw={640}
+      mx="auto"
+      my="xl"
       aria-labelledby="placeholder-heading"
       p="lg"
       radius="lg"

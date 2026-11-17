@@ -3,6 +3,7 @@ import { keepPreviousData, useMutation, useQueries, useQuery } from "@tanstack/r
 import { Link, useBlocker } from "react-router-dom";
 import {
   Alert,
+  Anchor,
   Box,
   Button,
   Checkbox,
@@ -14,6 +15,7 @@ import {
   Text,
   TextInput,
   Title,
+  VisuallyHidden,
 } from "@mantine/core";
 import type {
   GameSummary,
@@ -463,15 +465,18 @@ export function SmartEditor({
 
   return (
     <Stack component="section" className="smart-editor" aria-labelledby="editor-heading" gap="md">
-      <Title order={2} id="editor-heading" className="sr-only">
-        {collection === null ? "New Smart Collection" : collection.name}
-      </Title>
+      <VisuallyHidden>
+        <Title order={2} id="editor-heading">
+          {collection === null ? "New Smart Collection" : collection.name}
+        </Title>
+      </VisuallyHidden>
 
       <Box className="editor-layout">
         <Paper
           component="section"
           aria-label="Rule editor"
           className="editor-pane"
+          miw={0}
           p="md"
           radius="md"
           withBorder
@@ -510,9 +515,14 @@ export function SmartEditor({
                   {conflict?.id != null && (
                     <>
                       {" "}
-                      <Link to={`/smart/${encodeURIComponent(conflict.id)}`}>
+                      <Anchor
+                        component={Link}
+                        to={`/smart/${encodeURIComponent(conflict.id)}`}
+                        size="sm"
+                        underline="always"
+                      >
                         Open the conflicting collection
-                      </Link>
+                      </Anchor>
                       .
                     </>
                   )}
@@ -756,7 +766,13 @@ export function SmartEditor({
             </Stack>
           </Paper>
         </Paper>
-        <Stack component="section" aria-label="Live preview" className="preview-pane" gap="sm">
+        <Stack
+          component="section"
+          aria-label="Live preview"
+          className="preview-pane"
+          miw={0}
+          gap="sm"
+        >
           {preview !== null && totalItems > 0 && !rulesInvalid && (
             <Text className="preview-range" size="sm" c="gray.5">
               {formatRange(page, PAGE_SIZE, totalItems)}

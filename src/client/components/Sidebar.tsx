@@ -1,6 +1,21 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import {
+  ActionIcon,
+  Anchor,
+  Avatar,
+  Badge,
+  Box,
+  Button,
+  Divider,
+  Group,
+  NavLink,
+  Paper,
+  Stack,
+  Text,
+  ThemeIcon,
+} from "@mantine/core";
 import type { Status } from "../../shared/types.ts";
 import { steamCollectionsQueryOptions } from "../api.ts";
 import { formatCount, formatRelativeTime } from "../format.ts";
@@ -14,9 +29,6 @@ export interface SidebarProps {
   onClose(): void;
   onRetryStatus(): void;
 }
-
-const navClass = ({ isActive }: { isActive: boolean }): string =>
-  `side-item${isActive ? " is-active" : ""}`;
 
 export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) {
   const location = useLocation();
@@ -52,191 +64,280 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
       className={`sidebar${open ? " is-open" : ""}`}
       aria-label="Library navigation"
     >
-      <div className="brand">
-        <span className="brand-mark" aria-hidden="true">
-          GC
-        </span>
-        <span className="brand-name">game-cat</span>
-        {status !== null && <span className="brand-version">v{status.app.version}</span>}
-        <button
-          type="button"
+      <Group className="brand" gap={10} px="sm" py="sm" wrap="nowrap">
+        <ThemeIcon size={30} radius="md" variant="light" color="yellow" aria-hidden="true">
+          <Text size="xs" fw={800} lts="0.03em">
+            GC
+          </Text>
+        </ThemeIcon>
+        <Text fw={700} size="sm">
+          game-cat
+        </Text>
+        {status !== null && (
+          <Badge variant="default" size="xs" radius="xl" tt="none" ff="mono" ml="auto">
+            v{status.app.version}
+          </Badge>
+        )}
+        <ActionIcon
           className="icon-button sidebar-close"
           aria-label="Close navigation"
+          variant="subtle"
           onClick={onClose}
         >
           ×
-        </button>
-      </div>
+        </ActionIcon>
+      </Group>
 
-      <nav className="side-section" aria-label="Views">
-        <div className="side-list">
-          <NavLink to="/" end className={navClass} onClick={onClose}>
-            <span className="side-icon" aria-hidden="true">
-              ▤
-            </span>
-            <span className="label">All games</span>
-            <span className="count">{gameCount}</span>
-          </NavLink>
-          <NavLink to="/installed" className={navClass} onClick={onClose}>
-            <span className="side-icon" aria-hidden="true">
-              ✓
-            </span>
-            <span className="label">Installed</span>
-            <span className="count">{installedCount}</span>
-          </NavLink>
-        </div>
-      </nav>
+      <Stack component="nav" aria-label="Views" gap={1} px="sm" py="xs">
+        <SidebarLink
+          to="/"
+          label="All games"
+          icon="▤"
+          count={formatCount(gameCount)}
+          active={location.pathname === "/"}
+          onNavigate={onClose}
+        />
+        <SidebarLink
+          to="/installed"
+          label="Installed"
+          icon="✓"
+          count={formatCount(installedCount)}
+          active={location.pathname === "/installed"}
+          onNavigate={onClose}
+        />
+      </Stack>
 
-      <section className="side-section" aria-labelledby="smart-heading">
-        <div className="side-heading">
-          <h2 id="smart-heading">Smart collections</h2>
-          <NavLink
+      <Stack component="section" aria-labelledby="smart-heading" gap={1} px="sm" py="xs">
+        <Group justify="space-between" gap="xs" px="xs" pt="xs" pb={6} wrap="nowrap">
+          <Text component="h2" id="smart-heading" size="xs" fw={700} tt="uppercase" c="dimmed">
+            Smart collections
+          </Text>
+          <ActionIcon
+            component={Link}
             to="/smart/new"
-            className="icon-button"
             aria-label="New Smart Collection"
+            variant="subtle"
+            size="sm"
             onClick={onClose}
           >
             +
-          </NavLink>
-        </div>
+          </ActionIcon>
+        </Group>
         {smartError !== null ? (
-          <p className="side-empty">
+          <Text size="xs" c="dimmed" px="xs" py={4}>
             Smart Collections could not be loaded.{" "}
-            <button
-              type="button"
-              className="button button-small"
+            <Button
+              size="compact-xs"
+              variant="default"
               onClick={() => void reloadSmartCollections()}
             >
               Retry
-            </button>
-          </p>
+            </Button>
+          </Text>
         ) : smartLoading && smartCollections.length === 0 ? (
-          <p className="side-empty">Loading Smart Collections…</p>
+          <Text size="xs" c="dimmed" px="xs" py={4}>
+            Loading Smart Collections…
+          </Text>
         ) : smartCollections.length === 0 ? (
-          <p className="side-empty">
+          <Text size="xs" c="dimmed" px="xs" py={4}>
             No Smart Collections yet.{" "}
-            <NavLink to="/smart/new" onClick={onClose}>
+            <Anchor component={Link} to="/smart/new" size="xs" underline="always" onClick={onClose}>
               Create one
-            </NavLink>
+            </Anchor>
             .
-          </p>
+          </Text>
         ) : (
-          <div className="side-list" data-testid="smart-collection-list">
+          <Stack gap={1} data-testid="smart-collection-list">
             {smartCollections.map((collection) => (
-              <NavLink
+              <SidebarLink
                 key={collection.id}
                 to={`/smart/${encodeURIComponent(collection.id)}`}
-                className={navClass}
-                onClick={onClose}
+                label={collection.name}
+                icon="✦"
+                count={formatCount(collection.matchCount)}
+                active={location.pathname === `/smart/${encodeURIComponent(collection.id)}`}
                 title={collection.name}
-              >
-                <span className="side-icon" aria-hidden="true">
-                  ✦
-                </span>
-                <span className="label">{collection.name}</span>
-                <span className="count">{formatCount(collection.matchCount)}</span>
-              </NavLink>
+                onNavigate={onClose}
+              />
             ))}
-          </div>
+          </Stack>
         )}
-      </section>
+      </Stack>
 
-      <section className="side-section" aria-labelledby="steam-heading">
-        <div className="side-heading">
-          <h2 id="steam-heading">Steam collections</h2>
-        </div>
-        <p className="side-note">Read-only mirror · never written back</p>
+      <Stack component="section" aria-labelledby="steam-heading" gap={1} px="sm" py="xs">
+        <Group gap="xs" px="xs" pt="xs" pb={6}>
+          <Text component="h2" id="steam-heading" size="xs" fw={700} tt="uppercase" c="dimmed">
+            Steam collections
+          </Text>
+        </Group>
+        <Text size="xs" c="dimmed" px="xs">
+          Read-only mirror · never written back
+        </Text>
         {steamCollections.length === 0 ? (
-          <p className="side-empty">No Steam Collections mirrored yet. They appear after a scan.</p>
+          <Text size="xs" c="dimmed" px="xs" py={4}>
+            No Steam Collections mirrored yet. They appear after a scan.
+          </Text>
         ) : (
-          <div className="side-list">
+          <Stack gap={1}>
             {steamCollections.map((collection) => (
-              <NavLink
+              <SidebarLink
                 key={collection.id}
                 to={`/steam/${encodeURIComponent(collection.id)}`}
-                className={navClass}
-                onClick={onClose}
+                label={collection.name}
+                icon="🔒"
+                count={collection.isDynamic ? "dyn" : String(collection.gameCount ?? 0)}
+                active={location.pathname === `/steam/${encodeURIComponent(collection.id)}`}
                 title={collection.isDynamic ? `${collection.name} (dynamic)` : collection.name}
-              >
-                <span className="side-lock" role="img" aria-label="Read-only">
-                  🔒
-                </span>
-                <span className="label">{collection.name}</span>
-                <span className="count">
-                  {collection.isDynamic ? "dyn" : (collection.gameCount ?? 0)}
-                </span>
-              </NavLink>
+                onNavigate={onClose}
+              />
             ))}
-          </div>
+          </Stack>
         )}
-      </section>
+      </Stack>
 
-      <div className="sidebar-foot">
-        <section className="status-card" aria-label="Refresh status" aria-live="polite">
-          <div className="status-line">
-            <span
-              className={`status-dot ${unhealthy ? "status-warn" : "status-ok"}`}
-              aria-hidden="true"
-            />
-            <strong>{cardTitle}</strong>
-          </div>
-          {status === null ? (
-            <p className="status-meta">Waiting for the server.</p>
-          ) : (
-            <>
-              <p className="status-meta">
-                {formatCount(gameCount)} games · {formatCount(installedCount)} installed
-              </p>
-              <p className="status-meta">Data as of {formatRelativeTime(refreshedAt)}</p>
-            </>
-          )}
-          <button
-            type="button"
-            className="button status-button"
-            onClick={() => void startFetch()}
-            disabled={isRunning || status === null}
-          >
-            Fetch
-          </button>
-          <NavLink to="/errors" className="status-link" onClick={onClose}>
-            View refresh errors
-          </NavLink>
-        </section>
+      <Divider mt="auto" />
+      <Stack gap="sm" p="sm">
+        <Paper
+          component="section"
+          className="status-card"
+          aria-label="Refresh status"
+          aria-live="polite"
+          p="sm"
+          radius="md"
+          withBorder
+        >
+          <Stack gap={6}>
+            <Group gap={6} wrap="nowrap">
+              <Box
+                aria-hidden="true"
+                w={7}
+                h={7}
+                bg={unhealthy ? "yellow.5" : "green.5"}
+                bdrs="50%"
+                style={{
+                  flex: "none",
+                  boxShadow: "0 0 0 2px var(--mantine-color-dark-8)",
+                }}
+              />
+              <Text component="strong" size="sm">
+                {cardTitle}
+              </Text>
+            </Group>
+            {status === null ? (
+              <Text size="xs" c="dimmed">
+                Waiting for the server.
+              </Text>
+            ) : (
+              <>
+                <Text size="xs" c="dimmed">
+                  {formatCount(gameCount)} games · {formatCount(installedCount)} installed
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Data as of {formatRelativeTime(refreshedAt)}
+                </Text>
+              </>
+            )}
+            <Button
+              variant="default"
+              fullWidth
+              onClick={() => void startFetch()}
+              disabled={isRunning || status === null}
+            >
+              Fetch
+            </Button>
+            <Anchor
+              component={Link}
+              to="/errors"
+              size="xs"
+              c="dimmed"
+              ta="center"
+              underline="hover"
+              onClick={onClose}
+            >
+              View refresh errors
+            </Anchor>
+          </Stack>
+        </Paper>
 
-        <section className="account" aria-label="Steam Account">
-          <span className="avatar" aria-hidden="true">
+        <Group component="section" aria-label="Steam Account" gap={9} p={2} wrap="nowrap">
+          <Avatar radius="xl" size={30} color="yellow" variant="light" aria-hidden="true">
             {account === null ? "?" : account.personaName.slice(0, 1).toUpperCase()}
-          </span>
-          <div className="account-copy">
-            <p className="account-name">
+          </Avatar>
+          <Box miw={0}>
+            <Text size="xs" fw={600} truncate>
               {account === null ? "No Steam Account" : account.personaName}
-            </p>
-            <p className="account-meta">
+            </Text>
+            <Text size="xs" c="dimmed" truncate>
               {account === null ? "Choose one during setup" : account.steamId64}
-            </p>
-          </div>
-        </section>
+            </Text>
+          </Box>
+        </Group>
 
         {status?.steam.ambiguous === true && (
-          <p className="side-empty" role="status" data-testid="ambiguous-account-warning">
+          <Text size="xs" c="dimmed" role="status" data-testid="ambiguous-account-warning">
             Several Steam Accounts were found.{" "}
-            <NavLink to="/settings" onClick={onClose}>
+            <Anchor component={Link} to="/settings" size="xs" underline="always" onClick={onClose}>
               Choose Account
-            </NavLink>
+            </Anchor>
             .
-          </p>
+          </Text>
         )}
 
-        <NavLink to="/settings" className="status-link" onClick={onClose}>
+        <Anchor
+          component={Link}
+          to="/settings"
+          size="xs"
+          c="dimmed"
+          ta="center"
+          underline="hover"
+          onClick={onClose}
+        >
           Settings
-        </NavLink>
+        </Anchor>
 
         {location.pathname === "/onboarding" && (
-          <button type="button" className="button" onClick={onRetryStatus}>
+          <Button variant="default" onClick={onRetryStatus}>
             Recheck status
-          </button>
+          </Button>
         )}
-      </div>
+      </Stack>
     </aside>
+  );
+}
+
+interface SidebarLinkProps {
+  to: string;
+  label: string;
+  icon: string;
+  count: string;
+  active: boolean;
+  title?: string;
+  onNavigate(): void;
+}
+
+/** One sidebar row. Mantine owns the shape, hover, and active treatment. */
+function SidebarLink({ to, label, icon, count, active, title, onNavigate }: SidebarLinkProps) {
+  return (
+    <NavLink
+      component={Link}
+      to={to}
+      className="side-item"
+      label={label}
+      title={title}
+      active={active}
+      aria-current={active ? "page" : undefined}
+      onClick={onNavigate}
+      noWrap
+      leftSection={
+        <Text component="span" size="xs" aria-hidden="true">
+          {icon}
+        </Text>
+      }
+      rightSection={
+        <Text component="span" size="xs" ff="mono" c={active ? undefined : "dimmed"}>
+          {count}
+        </Text>
+      }
+    />
   );
 }
