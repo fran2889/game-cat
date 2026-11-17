@@ -58,14 +58,32 @@ test("grid cards show the documented badges, ownership, tags, and cover fallback
   await expect(card.locator(".game-tags")).toHaveText("Puzzle · Co-op");
   await expect(card.locator(".ownership-flag")).toHaveText("Local only");
   await expect(card.locator(".game-cover-fallback")).toHaveText("P2");
+
+  // The portrait capsule runs flush to the card edge, so the card itself has
+  // no padding and the cover keeps the 2/3 library-capsule ratio.
+  await expect(card).toHaveCSS("padding", "0px");
+  const cover = card.locator(".game-cover-wrap");
+  await expect(cover).toHaveCSS("aspect-ratio", "2 / 3");
+  const cardBox = await card.boundingBox();
+  const coverBox = await cover.boundingBox();
+  expect(cardBox).not.toBeNull();
+  expect(coverBox).not.toBeNull();
+  expect(coverBox?.width).toBeCloseTo((cardBox?.width ?? 0) - 2, 0);
+
+  // Status-only lines are gone; tag names remain.
+  await expect(card.locator(".game-review")).toHaveCount(0);
+  await expect(card.locator(".tag-status")).toHaveCount(0);
 });
 
-test("review tier and count appear on cards", async ({ page }) => {
+test("the review badge keeps the tier and count in its tooltip", async ({ page }) => {
   await page.goto(app.url);
   await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
   const card = page.locator(".game-card");
   await expect(card).toHaveCount(1);
-  await expect(card.locator(".game-review")).toHaveText("Overwhelmingly Positive · 1,000 reviews");
+  const badge = card.locator(".review-pill");
+  await expect(badge).toHaveText("98%");
+  await expect(badge).toHaveAttribute("title", "Overwhelmingly Positive · 1,000 reviews");
+  await expect(card.locator(".game-review")).toHaveCount(0);
 });
 
 test("an unknown stored layout falls back to grid", async ({ page }) => {

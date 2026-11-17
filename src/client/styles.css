@@ -135,14 +135,25 @@ main {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
 
-/* Steam header art has one fixed aspect ratio; the wrapper clips the CDN
- * image and the initials fallback. */
+/* Grid cards use the portrait library capsule, flush to the card edge. The
+ * wrapper clips the CDN image and the initials fallback. */
 .game-cover-wrap {
   position: relative;
-  aspect-ratio: 460 / 215;
+  aspect-ratio: 2 / 3;
   background: var(--mantine-color-dark-6);
   overflow: hidden;
-  border-radius: var(--mantine-radius-sm);
+}
+
+.game-card {
+  overflow: hidden;
+}
+
+.game-card:hover {
+  border-color: var(--mantine-color-dark-9);
+}
+
+.game-card.is-selected:hover {
+  border-color: var(--mantine-primary-color-filled);
 }
 
 .game-cover,
