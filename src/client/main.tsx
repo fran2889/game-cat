@@ -9,11 +9,21 @@ import "@mantine/core/styles.css";
 import "./styles.css";
 
 // The v1 contract keeps the dark appearance. Mantine supplies the component
-// styling; the bespoke tokens in styles.css continue to theme the shell.
+// styling; the remaining stylesheet keeps only shell layout. Theme variables
+// are normally injected through a runtime <style> tag, which the strict CSP
+// blocks, so styles.css restates these font tokens in its CSP bridge.
+const FONT_FAMILY =
+  'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const FONT_FAMILY_MONOSPACE =
+  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+
 const theme = createTheme({
   primaryColor: "yellow",
   primaryShade: { light: 5, dark: 5 },
   defaultRadius: "md",
+  fontFamily: FONT_FAMILY,
+  fontFamilyMonospace: FONT_FAMILY_MONOSPACE,
+  headings: { fontFamily: FONT_FAMILY },
   // Yellow is a light primary; dark labels keep AA contrast on filled controls.
   autoContrast: true,
 });
