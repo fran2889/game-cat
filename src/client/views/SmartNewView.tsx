@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { validateRules } from "../../shared/rules.ts";
 import { SmartEditor } from "../components/SmartEditor.tsx";
+import { validateDraftRules } from "../rule-editor.ts";
 import { NEW_COLLECTION_NAME, readDraftHandoff } from "../smart-handoff.ts";
 import { useSmartCollections } from "../smart-collections-context.tsx";
 
@@ -20,7 +20,7 @@ export function SmartNewView() {
     if (handoff === null) {
       return [];
     }
-    const validated = validateRules(handoff.rules);
+    const validated = validateDraftRules(handoff.rules);
     return Object.keys(validated.fieldErrors).length === 0 ? validated.rules : [];
   }, [handoff]);
 

@@ -6,7 +6,12 @@ import {
   type GameSort,
   type RuleValueField,
 } from "../../shared/types.ts";
-import { RULE_VALUE_FIELDS } from "../library/rule-values.ts";
+import {
+  RULE_FIELDS,
+  RULE_OPERATORS,
+  RULE_PREFIXES,
+  RULE_VALUE_FIELDS,
+} from "../../shared/rules.ts";
 import { validationError } from "../request.ts";
 
 /**
@@ -476,32 +481,12 @@ const rule = {
   type: "object",
   required: ["prefix", "field", "operator", "value"],
   properties: {
-    prefix: { type: "string", enum: ["AND", "OR", "NOT"] },
+    prefix: { type: "string", enum: [...RULE_PREFIXES] },
     field: {
       type: "string",
-      enum: [
-        "name",
-        "playtime",
-        "installed",
-        "ownershipStatus",
-        "lastPlayed",
-        "releaseYear",
-        "metacriticScore",
-        "reviewScore",
-        "reviewTier",
-        "reviewCount",
-        "storefrontType",
-        "platform",
-        "genre",
-        "category",
-        "developer",
-        "publisher",
-        "tag",
-        "steamCollection",
-        "game",
-      ],
+      enum: [...RULE_FIELDS],
     },
-    operator: { type: "string", enum: ["is", "contains", "has", "in", "lt", "lte", "gt", "gte"] },
+    operator: { type: "string", enum: [...RULE_OPERATORS] },
     value: {
       anyOf: [
         { type: "string" },

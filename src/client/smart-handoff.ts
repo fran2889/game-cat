@@ -5,19 +5,13 @@
  * keeping it here makes the handoff testable without the editor.
  */
 
-export type RulePrefix = "AND" | "OR" | "NOT";
-
-export interface RuleDraft {
-  prefix: RulePrefix;
-  field: string;
-  operator: string;
-  value: unknown;
-}
+import type { Rule } from "../shared/rules.ts";
+import { validateDraftRules } from "./rule-editor.ts";
 
 export interface SmartCollectionDraftHandoff {
   name: string;
   sourceAppIds: number[];
-  rules: RuleDraft[];
+  rules: Rule[];
 }
 
 export const SMART_COLLECTION_DRAFT_STATE = "smartCollectionDraft";
@@ -43,19 +37,6 @@ export function handoffFromSelection(appIds: Iterable<number>): SmartCollectionD
   };
 }
 
-function isRuleDraft(value: unknown): value is RuleDraft {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const rule = value as Record<string, unknown>;
-  return (
-    (rule.prefix === "AND" || rule.prefix === "OR" || rule.prefix === "NOT") &&
-    typeof rule.field === "string" &&
-    typeof rule.operator === "string" &&
-    "value" in rule
-  );
-}
-
 function isNumberArray(value: unknown): value is number[] {
   return Array.isArray(value) && value.every((entry) => Number.isSafeInteger(entry));
 }
@@ -72,13 +53,16 @@ export function readDraftHandoff(state: unknown): SmartCollectionDraftHandoff | 
   if (
     typeof handoff.name !== "string" ||
     !isNumberArray(handoff.sourceAppIds) ||
-    !Array.isArray(handoff.rules) ||
-    !handoff.rules.every(isRuleDraft)
+    !Array.isArray(handoff.rules)
   ) {
     return null;
   }
+  const validated = validateDraftRules(handoff.rules);
+  if (Object.keys(validated.fieldErrors).length > 0) {
+    return null;
+  }
   const sourceAppIds = handoff.sourceAppIds;
-  const rules = handoff.rules;
+  const rules = validated.rules;
   const gameRule = rules[0];
   if (
     rules.length !== 1 ||
