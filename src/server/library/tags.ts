@@ -1,8 +1,9 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { sql, type SqlBool } from "kysely";
-import type { Pagination, TagSummary, TagsResponse } from "../../shared/types.ts";
+import type { TagSummary, TagsResponse } from "../../shared/types.ts";
 import { allSync, firstSync, queryFor } from "../db/query.ts";
+import { pagination } from "./pagination.ts";
 
 /**
  * `GET /api/tags` typeahead (spec §4.3, AC-A6).
@@ -15,15 +16,6 @@ export interface TagsQuery {
   query: string | null;
   page: number;
   pageSize: number;
-}
-
-function pagination(page: number, pageSize: number, totalItems: number): Pagination {
-  return {
-    page,
-    pageSize,
-    totalItems,
-    totalPages: totalItems === 0 ? 0 : Math.ceil(totalItems / pageSize),
-  };
 }
 
 export class TagsRepository {
