@@ -27,6 +27,7 @@ import {
   MAX_GAME_RULE_IDS,
   RULE_VALUE_FIELDS,
   ruleFieldDefinition,
+  validateRules,
   type Rule,
   type RuleField,
 } from "../../shared/rules.ts";
@@ -64,7 +65,6 @@ import {
   prefixCounts,
   togglePlatformRule,
   validateCollectionName,
-  validateDraftRules,
   platformsInRules,
 } from "../rule-editor.ts";
 import { NEW_COLLECTION_NAME } from "../smart-handoff.ts";
@@ -254,7 +254,7 @@ export function SmartEditor({
 
   useEffect(() => () => autosave.dispose(), [autosave]);
 
-  const validation = validateDraftRules(rules);
+  const validation = validateRules(rules);
   const clientFieldErrors = validation.fieldErrors;
   const fieldErrors = useMemo(
     () => ({ ...clientFieldErrors, ...serverFieldErrors }),
@@ -308,7 +308,7 @@ export function SmartEditor({
 
   const updateRules = useCallback(
     (next: Rule[]) => {
-      const nextInvalid = Object.keys(validateDraftRules(next).fieldErrors).length > 0;
+      const nextInvalid = Object.keys(validateRules(next).fieldErrors).length > 0;
       autosave.updateDraft({ name, rules: next }, localNameError === null && !nextInvalid);
       setRules(next);
       setPage(1);
