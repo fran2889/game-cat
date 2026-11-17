@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { sql } from "kysely";
 import type BetterSqlite3 from "better-sqlite3";
 import {
-  CONTROL_CHARACTERS,
   MAX_RULE_NAME_CODE_POINTS,
-  codePointLength,
+  collectionNameProblem,
+  normalizeCollectionName,
   validateRules,
   type Rule,
 } from "../../shared/rules.ts";
@@ -77,17 +77,16 @@ export function validateSmartCollectionName(
     fieldErrors.name = value === undefined ? "is required" : "must be a string";
     return null;
   }
-  if (CONTROL_CHARACTERS.test(value)) {
+  const problem = collectionNameProblem(value);
+  if (problem === "control") {
     fieldErrors.name = "must not contain control characters";
     return null;
   }
-  const name = value.normalize("NFC").trim();
-  const length = codePointLength(name);
-  if (length < 1 || length > MAX_RULE_NAME_CODE_POINTS) {
+  if (problem !== null) {
     fieldErrors.name = `must be 1-${MAX_RULE_NAME_CODE_POINTS} characters`;
     return null;
   }
-  return name;
+  return normalizeCollectionName(value);
 }
 
 /** Validate `POST /api/smart-collections`; `rules` defaults to `[]`. */
