@@ -8,7 +8,7 @@
  */
 
 import { normalizeNameKey } from "./names.ts";
-import { GAME_SORTS, type GameOrder, type GameSort } from "./types.ts";
+import { GAME_SORTS, type GameOrder, type GameSort, type RuleValueField } from "./types.ts";
 
 export const RULE_PREFIXES = ["AND", "OR", "NOT"] as const;
 export type RulePrefix = (typeof RULE_PREFIXES)[number];
@@ -258,6 +258,18 @@ export function isRuleOperator(value: unknown): value is RuleOperator {
   return typeof value === "string" && (RULE_OPERATORS as readonly string[]).includes(value);
 }
 
+/** The four storefront-backed Rule value pickers (§4.3). */
+export const RULE_VALUE_FIELDS: readonly RuleValueField[] = [
+  "genre",
+  "category",
+  "developer",
+  "publisher",
+];
+
+export function isRuleValueField(value: string): value is RuleValueField {
+  return (RULE_VALUE_FIELDS as readonly string[]).includes(value);
+}
+
 export const MAX_RULES = 100;
 export const MAX_RULE_VALUE_BYTES = 16 * 1024;
 export const MAX_RULE_TEXT_CODE_POINTS = 200;
@@ -266,6 +278,24 @@ export const MAX_GAME_RULE_IDS = 1_000;
 export const MAX_RULE_NAME_CODE_POINTS = 80;
 
 export const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F-\u009F]/;
+
+/** The API's Smart Collection name rules, shared with the editor (§2.5, §4.4). */
+export type CollectionNameProblem = "control" | "empty" | "too-long";
+
+export function normalizeCollectionName(value: string): string {
+  return value.normalize("NFC").trim();
+}
+
+export function collectionNameProblem(value: string): CollectionNameProblem | null {
+  if (CONTROL_CHARACTERS.test(value)) {
+    return "control";
+  }
+  const length = codePointLength(normalizeCollectionName(value));
+  if (length < 1) {
+    return "empty";
+  }
+  return length > MAX_RULE_NAME_CODE_POINTS ? "too-long" : null;
+}
 
 /**
  * Rule text uses the same normalization as every name key (§2.7); the alias
