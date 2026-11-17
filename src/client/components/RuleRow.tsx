@@ -89,7 +89,7 @@ export function RuleRow({
       component="li"
       className={`rule-row${invalid ? " is-invalid" : ""}`}
       data-rule-index={index}
-      p="sm"
+      p="xs"
       radius="sm"
       withBorder
       style={{ "--rule-accent": PREFIX_ACCENTS[rule.prefix] } as CSSProperties}

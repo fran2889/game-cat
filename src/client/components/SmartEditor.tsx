@@ -8,7 +8,6 @@ import {
   Button,
   Checkbox,
   Code,
-  Fieldset,
   Group,
   Paper,
   Stack,
@@ -497,11 +496,11 @@ export function SmartEditor({
           radius="md"
           withBorder
         >
-          <Stack gap="sm">
+          <Stack gap="xs">
             <Box className="editor-name">
               <TextInput
                 id="collection-name"
-                label="Name"
+                aria-label="Name"
                 value={name}
                 aria-invalid={nameError !== null || undefined}
                 aria-describedby={nameError === null ? undefined : "collection-name-error"}
@@ -552,7 +551,7 @@ export function SmartEditor({
             </Box>
 
             <Group className="editor-save" gap="xs" wrap="wrap">
-              <Button onClick={save} disabled={saveDisabled}>
+              <Button size="compact-sm" onClick={save} disabled={saveDisabled}>
                 Save
               </Button>
               <Button variant="default" size="compact-sm" onClick={discard} disabled={deleting}>
@@ -692,19 +691,19 @@ export function SmartEditor({
           <Paper
             className="prefix-callout"
             aria-label="Global prefix summary"
-            p="sm"
+            p="xs"
             radius="sm"
             withBorder
           >
             <Stack gap={4}>
-              <Text className="prefix-counts" data-testid="prefix-counts" fw={700}>
+              <Text className="prefix-counts" data-testid="prefix-counts" size="xs" fw={700}>
                 {counts.AND} AND · {counts.OR} OR · {counts.NOT} NOT
               </Text>
-              <Text size="sm" c="gray.5">
+              <Text size="xs" c="gray.5">
                 Prefixes group globally: every AND must match, at least one OR must match, no NOT
                 may match. They are not evaluated row by row.
               </Text>
-              <Text className="prefix-not-copy" size="sm" c="gray.5">
+              <Text className="prefix-not-copy" size="xs" c="gray.5">
                 NOT removes matching games. It does not require the field to have a value.
               </Text>
             </Stack>
@@ -742,14 +741,20 @@ export function SmartEditor({
           )}
 
           <Group className="editor-actions" gap="xs">
-            <Button variant="default" fullWidth mt="sm" onClick={() => addRules([emptyRule()])}>
+            <Button
+              variant="default"
+              size="compact-sm"
+              fullWidth
+              mt="sm"
+              onClick={() => addRules([emptyRule()])}
+            >
               + Add rule
             </Button>
           </Group>
 
-          <Paper className="quick-add" p="sm" radius="sm" withBorder>
-            <Stack gap="sm">
-              <Title order={3} size="sm" c="gray.5" tt="uppercase">
+          <Paper className="quick-add" p="xs" radius="sm" withBorder>
+            <Stack gap="xs">
+              <Title order={3} size="xs" c="gray.5" tt="uppercase">
                 Quick add
               </Title>
               <Group className="quick-add-row" gap="xs" wrap="wrap">
@@ -764,18 +769,22 @@ export function SmartEditor({
                   </Button>
                 ))}
               </Group>
-              <Fieldset className="platform-add" legend="Platform">
+              <Box className="platform-add">
+                <Text component="p" size="xs" c="gray.5" mb={4}>
+                  Platform
+                </Text>
                 <Group gap="md" wrap="wrap">
                   {PLATFORM_VALUES.map((platform) => (
                     <Checkbox
                       key={platform}
+                      size="xs"
                       label={platform}
                       checked={selectedPlatforms.includes(platform)}
                       onChange={() => updateRules(togglePlatformRule(rules, platform))}
                     />
                   ))}
                 </Group>
-              </Fieldset>
+              </Box>
               <Text className="quick-add-note" size="xs" c="gray.5">
                 Each platform adds one <Code>AND platform has</Code> rule.
               </Text>
