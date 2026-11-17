@@ -744,57 +744,10 @@ main {
   color: var(--text-muted);
 }
 
-.empty-illustration {
-  display: flex;
-  gap: 6px;
-  align-items: flex-end;
-  height: 54px;
-  margin-bottom: 4px;
-}
-
-.empty-illustration span {
-  display: block;
-  width: 34px;
-  border-radius: 6px 6px 3px 3px;
-  background: linear-gradient(180deg, var(--surface-4), var(--surface-2));
-  border: 1px solid var(--border-strong);
-}
-
-.empty-illustration span:nth-child(1) {
-  height: 34px;
-}
-
-.empty-illustration span:nth-child(2) {
-  height: 48px;
-  border-color: #5a451a;
-}
-
-.empty-illustration span:nth-child(3) {
-  height: 40px;
-}
-
-.empty-path {
-  font-size: 13px;
-}
-
-.empty-path code {
-  color: var(--text);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 5px;
-  overflow-wrap: anywhere;
-}
-
 .empty-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.empty-note {
-  font-size: 12px;
-  color: var(--text-faint);
 }
 
 .placeholder-kicker {
@@ -1119,15 +1072,6 @@ main {
   gap: 10px;
   color: var(--text-muted);
   font-size: 12px;
-}
-
-.library-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--text-muted);
-  font-size: 12.5px;
 }
 
 .game-grid {
