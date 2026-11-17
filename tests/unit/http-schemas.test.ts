@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  configPatchBodySchema,
   gameContractDefinitions,
   gameDetailResponseSchema,
   gamesResponseSchema,
 } from "../../src/server/http/schemas.ts";
+import { CONFIG_PATCH_FIELDS } from "../../src/shared/config.ts";
 
 interface SchemaDocument {
   definitions: Record<string, unknown>;
@@ -42,5 +44,12 @@ describe("Games response schemas", () => {
   it("match the contract list and detail envelopes", () => {
     expect(root(gamesResponseSchema)).toEqual(contract.gamesResponse);
     expect(root(gameDetailResponseSchema)).toEqual(contract.gameDetailResponse);
+  });
+});
+
+describe("Config patch schema", () => {
+  it("accepts exactly the shared Config patch field set, all optional", () => {
+    expect(Object.keys(configPatchBodySchema.properties)).toEqual([...CONFIG_PATCH_FIELDS]);
+    expect(configPatchBodySchema).not.toHaveProperty("required");
   });
 });
