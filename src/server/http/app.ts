@@ -27,6 +27,9 @@ const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self'",
+  // Mantine sets spacing, alignment, and positioning as element style
+  // attributes. Allow only those; style-src still blocks injected stylesheets.
+  "style-src-attr 'unsafe-inline'",
   "img-src 'self' data: https://*.steamstatic.com https://*.akamaihd.net",
   "connect-src 'self'",
   "font-src 'self'",

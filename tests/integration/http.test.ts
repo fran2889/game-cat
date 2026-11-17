@@ -143,10 +143,18 @@ describe("static React shell", () => {
     expect(response.headers["x-frame-options"]).toBe("DENY");
     expect(response.headers["referrer-policy"]).toBe("no-referrer");
     expect(response.headers["x-content-type-options"]).toBe("nosniff");
-    const csp = String(response.headers["content-security-policy"]);
-    expect(csp).toContain("default-src 'self'");
-    expect(csp).toContain("script-src 'self'");
-    expect(csp).not.toContain("'unsafe-inline'");
+    const directives = new Map(
+      String(response.headers["content-security-policy"])
+        .split("; ")
+        .map((directive) => {
+          const [name, ...values] = directive.split(" ");
+          return [name, values.join(" ")];
+        }),
+    );
+    expect(directives.get("default-src")).toBe("'self'");
+    expect(directives.get("script-src")).toBe("'self'");
+    expect(directives.get("style-src")).toBe("'self'");
+    expect(directives.get("style-src-attr")).toBe("'unsafe-inline'");
   });
 
   it("falls back to the shell for extensionless client routes", async () => {
