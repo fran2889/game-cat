@@ -1,0 +1,82 @@
+import { expect, test } from "@playwright/test";
+import { blockExternalRequests, startTestApp, type TestApp } from "./fixture.ts";
+
+let app: TestApp;
+
+test.beforeAll(async () => {
+  app = await startTestApp({ games: 130 });
+});
+
+test.afterAll(async () => {
+  await app?.close();
+});
+
+test.beforeEach(async ({ context }) => {
+  await blockExternalRequests(context);
+});
+
+test("the editor is a right rail with a full-width Add rule and prefix accents", async ({
+  page,
+}) => {
+  await page.goto(`${app.url}smart/new`);
+  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.locator(".game-grid .game-card").first()).toBeVisible();
+
+  const previewBox = await page.locator(".preview-pane").boundingBox();
+  const editorBox = await page.locator(".editor-pane").boundingBox();
+  expect(previewBox).not.toBeNull();
+  expect(editorBox).not.toBeNull();
+  expect(editorBox?.x).toBeGreaterThan(previewBox?.x ?? 0);
+  expect(editorBox?.width).toBeCloseTo(370, 0);
+
+  const add = page.getByRole("button", { name: "+ Add rule" });
+  const actionsBox = await page.locator(".editor-actions").boundingBox();
+  const addBox = await add.boundingBox();
+  expect(addBox?.width).toBeCloseTo(actionsBox?.width ?? 0, 0);
+
+  await add.click();
+  const row = page.locator('[data-rule-index="0"]');
+  await expect(row).toHaveCSS("border-left-width", "3px");
+  await expect(row).toHaveCSS("border-left-color", "rgb(34, 139, 230)");
+
+  const or = page.getByRole("button", { name: "OR prefix for Rule 1" });
+  await or.click();
+  await expect(row).toHaveCSS("border-left-color", "rgb(253, 126, 20)");
+  // The filled variant uses orange shade 8; the edge uses shade 6.
+  await expect(or).toHaveCSS("background-color", "rgb(217, 72, 15)");
+});
+
+test("Discard is available on a new collection and leaves without saving", async ({ page }) => {
+  await page.goto(`${app.url}smart/new`);
+  const discard = page.getByRole("button", { name: "Discard" });
+  await expect(discard).toBeVisible();
+
+  await page.getByLabel("Name").fill("Draft that will be discarded");
+  await discard.click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "All games" })).toBeVisible();
+});
+
+test("leaving a dirty new collection asks before discarding", async ({ page }) => {
+  await page.goto(`${app.url}smart/new`);
+  await page.getByLabel("Name").fill("Unsaved draft");
+  await page.getByRole("link", { name: "All games" }).click();
+
+  const dialog = page.getByRole("alertdialog", { name: "Leave with unsaved changes" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Stay" }).click();
+  await expect(page).toHaveURL(/\/smart\/new$/);
+});
+
+test("the editor preview stays in grid when the Library is in table view", async ({ page }) => {
+  await page.goto(app.url);
+  await page.getByRole("button", { name: "Table view" }).click();
+  await expect(page.locator(".game-table")).toBeVisible();
+
+  await page.getByRole("link", { name: "+ New collection" }).click();
+  await expect(page).toHaveURL(/\/smart\/new$/);
+  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.locator(".game-grid .game-card").first()).toBeVisible();
+  await expect(page.locator(".game-table")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Table view" })).toHaveCount(0);
+});

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
   ActionIcon,
   Box,
@@ -35,9 +36,15 @@ const OPERATOR_LABELS: Record<RuleOperator, string> = {
 };
 
 const PREFIX_COLORS: Record<RulePrefix, string> = {
-  AND: "green",
-  OR: "yellow",
+  AND: "blue",
+  OR: "orange",
   NOT: "red",
+};
+
+const PREFIX_ACCENTS: Record<RulePrefix, string> = {
+  AND: "var(--mantine-color-blue-6)",
+  OR: "var(--mantine-color-orange-6)",
+  NOT: "var(--mantine-color-red-6)",
 };
 
 export interface RuleRowProps {
@@ -85,6 +92,7 @@ export function RuleRow({
       p="sm"
       radius="sm"
       withBorder
+      style={{ "--rule-accent": PREFIX_ACCENTS[rule.prefix] } as CSSProperties}
     >
       <Stack gap={8}>
         <Group className="rule-head" justify="space-between" align="center" gap="xs" wrap="nowrap">
