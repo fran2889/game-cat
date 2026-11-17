@@ -14,6 +14,8 @@ const theme = createTheme({
   primaryColor: "yellow",
   primaryShade: { light: 5, dark: 5 },
   defaultRadius: "md",
+  // Yellow is a light primary; dark labels keep AA contrast on filled controls.
+  autoContrast: true,
 });
 
 const container = document.getElementById("root");
