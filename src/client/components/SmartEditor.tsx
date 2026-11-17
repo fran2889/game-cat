@@ -496,7 +496,7 @@ export function SmartEditor({
           radius="md"
           withBorder
         >
-          <Stack gap="xs">
+          <Stack gap="sm">
             <Box className="editor-name">
               <TextInput
                 id="collection-name"
@@ -666,130 +666,129 @@ export function SmartEditor({
                 </Stack>
               </Paper>
             )}
-          </Stack>
-          <Group className="editor-status" gap="sm" wrap="wrap">
-            <Text
-              component="p"
-              className="editor-match-count"
-              aria-live="polite"
-              data-testid="match-count"
-              fw={700}
-            >
-              {preview === null
-                ? rulesInvalid
-                  ? "No preview yet"
-                  : "Loading matches…"
-                : `${totalItems} matches`}
-            </Text>
-            {pending && (
-              <Text className="updating" role="status" size="sm" c="yellow">
-                Updating…
+            <Group className="editor-status" gap="sm" wrap="wrap">
+              <Text
+                component="p"
+                className="editor-match-count"
+                aria-live="polite"
+                data-testid="match-count"
+                fw={700}
+              >
+                {preview === null
+                  ? rulesInvalid
+                    ? "No preview yet"
+                    : "Loading matches…"
+                  : `${totalItems} matches`}
               </Text>
-            )}
-          </Group>
-
-          <Paper
-            className="prefix-callout"
-            aria-label="Global prefix summary"
-            p="xs"
-            radius="sm"
-            withBorder
-          >
-            <Stack gap={4}>
-              <Text className="prefix-counts" data-testid="prefix-counts" size="xs" fw={700}>
-                {counts.AND} AND · {counts.OR} OR · {counts.NOT} NOT
-              </Text>
-              <Text size="xs" c="gray.5">
-                Prefixes group globally: every AND must match, at least one OR must match, no NOT
-                may match. They are not evaluated row by row.
-              </Text>
-              <Text className="prefix-not-copy" size="xs" c="gray.5">
-                NOT removes matching games. It does not require the field to have a value.
-              </Text>
-            </Stack>
-          </Paper>
-
-          {rules.length === 0 ? (
-            <Text className="editor-no-rules" size="sm" c="gray.5">
-              No rules yet. Add a rule below, or pick a quick add.
-            </Text>
-          ) : (
-            <Stack
-              component="ol"
-              className="rule-list"
-              gap="xs"
-              style={{ listStyle: "none", padding: 0, margin: 0 }}
-            >
-              {rules.map((rule, index) => (
-                <RuleRow
-                  key={index}
-                  index={index}
-                  rule={rule}
-                  fieldErrors={fieldErrors}
-                  suggestions={suggestions}
-                  collections={collections}
-                  selectedIds={selectedIds}
-                  onChange={(next) =>
-                    updateRules(
-                      rules.map((current, position) => (position === index ? next : current)),
-                    )
-                  }
-                  onRemove={() => updateRules(rules.filter((_, position) => position !== index))}
-                />
-              ))}
-            </Stack>
-          )}
-
-          <Group className="editor-actions" gap="xs">
-            <Button
-              variant="default"
-              size="compact-sm"
-              fullWidth
-              mt="sm"
-              onClick={() => addRules([emptyRule()])}
-            >
-              + Add rule
-            </Button>
-          </Group>
-
-          <Paper className="quick-add" p="xs" radius="sm" withBorder>
-            <Stack gap="xs">
-              <Title order={3} size="xs" c="gray.5" tt="uppercase">
-                Quick add
-              </Title>
-              <Group className="quick-add-row" gap="xs" wrap="wrap">
-                {QUICK_ADD_FIELDS.map((field) => (
-                  <Button
-                    key={field}
-                    variant="default"
-                    size="compact-sm"
-                    onClick={() => addRules([emptyRule(field)])}
-                  >
-                    {ruleFieldDefinition(field)?.label ?? field}
-                  </Button>
-                ))}
-              </Group>
-              <Box className="platform-add">
-                <Text component="p" size="xs" c="gray.5" mb={4}>
-                  Platform
+              {pending && (
+                <Text className="updating" role="status" size="sm" c="yellow">
+                  Updating…
                 </Text>
-                <Group gap="md" wrap="wrap">
-                  {PLATFORM_VALUES.map((platform) => (
-                    <Checkbox
-                      key={platform}
-                      size="xs"
-                      label={platform}
-                      checked={selectedPlatforms.includes(platform)}
-                      onChange={() => updateRules(togglePlatformRule(rules, platform))}
-                    />
+              )}
+            </Group>
+
+            <Paper
+              className="prefix-callout"
+              aria-label="Global prefix summary"
+              p="xs"
+              radius="sm"
+              withBorder
+            >
+              <Stack gap={4}>
+                <Text className="prefix-counts" data-testid="prefix-counts" size="xs" fw={700}>
+                  {counts.AND} AND · {counts.OR} OR · {counts.NOT} NOT
+                </Text>
+                <Text size="xs" c="gray.5">
+                  Prefixes group globally: every AND must match, at least one OR must match, no NOT
+                  may match. They are not evaluated row by row.
+                </Text>
+                <Text className="prefix-not-copy" size="xs" c="gray.5">
+                  NOT removes matching games. It does not require the field to have a value.
+                </Text>
+              </Stack>
+            </Paper>
+
+            {rules.length === 0 ? (
+              <Text className="editor-no-rules" size="sm" c="gray.5">
+                No rules yet. Add a rule below, or pick a quick add.
+              </Text>
+            ) : (
+              <Stack
+                component="ol"
+                className="rule-list"
+                gap="xs"
+                style={{ listStyle: "none", padding: 0, margin: 0 }}
+              >
+                {rules.map((rule, index) => (
+                  <RuleRow
+                    key={index}
+                    index={index}
+                    rule={rule}
+                    fieldErrors={fieldErrors}
+                    suggestions={suggestions}
+                    collections={collections}
+                    selectedIds={selectedIds}
+                    onChange={(next) =>
+                      updateRules(
+                        rules.map((current, position) => (position === index ? next : current)),
+                      )
+                    }
+                    onRemove={() => updateRules(rules.filter((_, position) => position !== index))}
+                  />
+                ))}
+              </Stack>
+            )}
+
+            <Group className="editor-actions" gap="xs">
+              <Button
+                variant="default"
+                size="compact-sm"
+                fullWidth
+                onClick={() => addRules([emptyRule()])}
+              >
+                + Add rule
+              </Button>
+            </Group>
+
+            <Paper className="quick-add" p="xs" radius="sm" withBorder>
+              <Stack gap="xs">
+                <Title order={3} size="xs" c="gray.5" tt="uppercase">
+                  Quick add
+                </Title>
+                <Group className="quick-add-row" gap="xs" wrap="wrap">
+                  {QUICK_ADD_FIELDS.map((field) => (
+                    <Button
+                      key={field}
+                      variant="default"
+                      size="compact-sm"
+                      onClick={() => addRules([emptyRule(field)])}
+                    >
+                      {ruleFieldDefinition(field)?.label ?? field}
+                    </Button>
                   ))}
                 </Group>
-              </Box>
-              <Text className="quick-add-note" size="xs" c="gray.5">
-                Each platform adds one <Code>AND platform has</Code> rule.
-              </Text>
-            </Stack>
-          </Paper>
+                <Box className="platform-add">
+                  <Text component="p" size="xs" c="gray.5" mb={4}>
+                    Platform
+                  </Text>
+                  <Group gap="md" wrap="wrap">
+                    {PLATFORM_VALUES.map((platform) => (
+                      <Checkbox
+                        key={platform}
+                        size="xs"
+                        label={platform}
+                        checked={selectedPlatforms.includes(platform)}
+                        onChange={() => updateRules(togglePlatformRule(rules, platform))}
+                      />
+                    ))}
+                  </Group>
+                </Box>
+                <Text className="quick-add-note" size="xs" c="gray.5">
+                  Each platform adds one <Code>AND platform has</Code> rule.
+                </Text>
+              </Stack>
+            </Paper>
+          </Stack>
         </Paper>
         <Stack
           component="section"
