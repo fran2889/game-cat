@@ -1,8 +1,25 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Box, Button, Paper, Skeleton, Stack, Text, Title } from "@mantine/core";
 import { ApiError, smartCollectionQueryOptions } from "../api.ts";
 import { SmartEditor } from "../components/SmartEditor.tsx";
 import { useSmartCollections } from "../smart-collections-context.tsx";
+
+function LoadingCollection() {
+  return (
+    <Box component="section" aria-busy="true" aria-label="Loading the Smart Collection">
+      <Box className="skeleton-grid">
+        {Array.from({ length: 4 }, (_, index) => (
+          <Paper key={index} p="sm" radius="md" withBorder>
+            <Skeleton height={100} radius="sm" mb="sm" />
+            <Skeleton height={10} radius="xl" />
+            <Skeleton height={10} radius="xl" width="55%" mt={7} />
+          </Paper>
+        ))}
+      </Box>
+    </Box>
+  );
+}
 
 /**
  * `/smart/{id}`: the saved editor. Name and Rule edits autosave after the
@@ -28,50 +45,45 @@ export function SmartCollectionView() {
 
   if (missing) {
     return (
-      <section className="empty-library" aria-labelledby="smart-collection-missing">
-        <h2 id="smart-collection-missing">Smart Collection not found.</h2>
-        <p>It may have been deleted. Choose another Collection from the sidebar.</p>
-        <div className="empty-actions">
-          <Link to="/" className="button">
-            Back to the Library
-          </Link>
-        </div>
-      </section>
+      <Paper
+        component="section"
+        aria-labelledby="smart-collection-missing"
+        p="lg"
+        radius="lg"
+        withBorder
+      >
+        <Stack gap="sm">
+          <Title order={2} id="smart-collection-missing">
+            Smart Collection not found.
+          </Title>
+          <Text c="gray.5">
+            It may have been deleted. Choose another Collection from the sidebar.
+          </Text>
+          <Box>
+            <Button component={Link} to="/" variant="default">
+              Back to the Library
+            </Button>
+          </Box>
+        </Stack>
+      </Paper>
     );
   }
 
   if (error !== null) {
     return (
-      <div className="banner banner-error" role="alert">
-        <div>
-          <strong>Cannot load this Smart Collection.</strong>
-          <p>{error}</p>
-        </div>
-        <button type="button" className="button" onClick={() => void collectionQuery.refetch()}>
-          Retry
-        </button>
-      </div>
+      <Alert color="red" role="alert" title="Cannot load this Smart Collection.">
+        <Stack gap="sm" align="flex-start">
+          <Text size="sm">{error}</Text>
+          <Button variant="default" onClick={() => void collectionQuery.refetch()}>
+            Retry
+          </Button>
+        </Stack>
+      </Alert>
     );
   }
 
   if (collection === null) {
-    return (
-      <section
-        className="library-loading"
-        aria-busy="true"
-        aria-label="Loading the Smart Collection"
-      >
-        <div className="skeleton-grid">
-          {Array.from({ length: 4 }, (_, index) => (
-            <div className="skeleton-card" key={index}>
-              <div className="skeleton-cover" />
-              <div className="skeleton-line" />
-              <div className="skeleton-line short" />
-            </div>
-          ))}
-        </div>
-      </section>
-    );
+    return <LoadingCollection />;
   }
 
   return (
