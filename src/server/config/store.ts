@@ -313,7 +313,11 @@ export class ConfigStore {
     }
 
     if (record.steamApiKey !== undefined) {
-      present.steamApiKey = record.steamApiKey;
+      if (record.steamApiKey.trim() === "") {
+        fieldErrors.steamApiKey = "must be a non-empty string";
+      } else {
+        present.steamApiKey = record.steamApiKey;
+      }
     }
 
     if (record.steamRoot !== undefined) {
