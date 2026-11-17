@@ -1,3 +1,4 @@
+import { Box } from "@mantine/core";
 import type { GameSummary } from "../../shared/types.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { GameCard } from "./GameCard.tsx";
@@ -16,7 +17,7 @@ export function GameResults({ games }: GameResultsProps) {
   }
 
   return (
-    <div className="game-grid">
+    <Box className="game-grid">
       {games.map((game) => (
         <GameCard
           key={game.appId}
@@ -25,6 +26,6 @@ export function GameResults({ games }: GameResultsProps) {
           onToggleSelected={toggleSelected}
         />
       ))}
-    </div>
+    </Box>
   );
 }
