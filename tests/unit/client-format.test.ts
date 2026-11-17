@@ -24,6 +24,7 @@ describe("playtime formatting", () => {
 describe("cover presentation", () => {
   it("derives the cover from the App ID and tinted initials from the name", () => {
     expect(coverUrl(620)).toContain("/620/header.jpg");
+    expect(coverUrl(620, "library")).toContain("/620/library_600x900.jpg");
     expect(initialsFor("Portal 2")).toBe("P2");
     expect(initialsFor("Counter-Strike 2")).toBe("CS");
     expect(initialsFor("")).toBe("?");
