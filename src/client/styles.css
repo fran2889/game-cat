@@ -13,45 +13,9 @@
  * 3. The custom Refresh progress bar, cover fallback, and detail banner
  *    gradient.
  *
- * Keep the CSP bridge below in sync with `createTheme` in `main.tsx`.
+ * Theme variables live in `theme.generated.css`, derived from `theme.ts` at
+ * build time. Nothing here restates the theme.
  */
-
-/* Mantine applies theme overrides through runtime style tags, which the
- * documented strict `style-src 'self'` CSP blocks. Restate the theme's
- * primary colour, font, anchor, and dimmed-text tokens so controls and
- * secondary copy keep the v1 appearance and AA contrast. */
-:root,
-:root[data-mantine-color-scheme="dark"] {
-  --mantine-primary-color-0: var(--mantine-color-yellow-0);
-  --mantine-primary-color-1: var(--mantine-color-yellow-1);
-  --mantine-primary-color-2: var(--mantine-color-yellow-2);
-  --mantine-primary-color-3: var(--mantine-color-yellow-3);
-  --mantine-primary-color-4: var(--mantine-color-yellow-4);
-  --mantine-primary-color-5: var(--mantine-color-yellow-5);
-  --mantine-primary-color-6: var(--mantine-color-yellow-6);
-  --mantine-primary-color-7: var(--mantine-color-yellow-7);
-  --mantine-primary-color-8: var(--mantine-color-yellow-8);
-  --mantine-primary-color-9: var(--mantine-color-yellow-9);
-  --mantine-primary-color-contrast: var(--mantine-color-black);
-  --mantine-primary-color-filled: var(--mantine-color-yellow-filled);
-  --mantine-primary-color-filled-hover: var(--mantine-color-yellow-filled-hover);
-  --mantine-primary-color-light: var(--mantine-color-yellow-light);
-  --mantine-primary-color-light-hover: var(--mantine-color-yellow-light-hover);
-  --mantine-primary-color-light-color: var(--mantine-color-yellow-light-color);
-  --mantine-font-family:
-    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  --mantine-font-family-monospace:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  --mantine-font-family-headings:
-    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  /* Mantine 9's default dimmed token (#828282) is 4.03:1 on dark-7 and 4.28:1
-   * on dark-8, below AA for the shell's secondary copy; gray-5 is 7.48:1. */
-  --mantine-color-dimmed: var(--mantine-color-gray-5);
-  /* Mantine defaults anchors to blue; v1 uses the primary accent. */
-  --mantine-color-anchor: var(--mantine-primary-color-filled);
-}
 
 /* The jump target and the skip link are bespoke because Mantine has no
  * skip-link component. The link must stay off-canvas until focused. */
@@ -85,7 +49,7 @@
   top: 0;
   height: 100vh;
   overflow-y: auto;
-  background: var(--mantine-color-dark-8);
+  background: var(--mantine-color-dark-6);
   border-right: 1px solid var(--mantine-color-dark-4);
   display: flex;
   flex-direction: column;
@@ -125,7 +89,7 @@
   gap: var(--mantine-spacing-md);
   min-height: 64px;
   padding: var(--mantine-spacing-sm) var(--mantine-spacing-lg);
-  background: color-mix(in srgb, var(--mantine-color-dark-9) 94%, transparent);
+  background: color-mix(in srgb, var(--mantine-color-dark-7) 92%, transparent);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--mantine-color-dark-4);
 }

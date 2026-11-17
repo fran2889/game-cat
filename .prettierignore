@@ -9,3 +9,4 @@ playwright-report/
 *.sqlite-*
 migrations/
 .idea/
+src/client/theme.generated.css
