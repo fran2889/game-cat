@@ -1,6 +1,24 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
+import {
+  Alert,
+  Anchor,
+  Box,
+  Button,
+  Checkbox,
+  Code,
+  DataList,
+  Fieldset,
+  Group,
+  NativeSelect,
+  Paper,
+  PasswordInput,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { ApiError, patchConfig, steamAccountsQueryOptions, type ConfigPatch } from "../api.ts";
 import { useToast } from "../components/ToastProvider.tsx";
 import { LOG_LEVELS } from "../../shared/types.ts";
@@ -51,9 +69,9 @@ export function SettingsView() {
 
   if (config === null) {
     return (
-      <section className="settings" aria-busy="true">
-        <p>Loading settings…</p>
-      </section>
+      <Box component="section" className="settings" aria-busy="true">
+        <Text>Loading settings…</Text>
+      </Box>
     );
   }
 
@@ -134,204 +152,178 @@ export function SettingsView() {
   };
 
   return (
-    <section className="settings" aria-labelledby="settings-heading">
-      <header className="settings-head">
-        <p className="placeholder-kicker">Settings</p>
-        <h2 id="settings-heading">Configuration</h2>
-        <p>
-          game-cat reads these settings from the data directory. Secrets are write-only and are
-          never shown here.
-        </p>
-      </header>
+    <Stack component="section" className="settings" aria-labelledby="settings-heading" gap="md">
+      <Paper component="header" className="settings-head" p="lg" radius="lg" withBorder>
+        <Stack gap={4}>
+          <Text size="xs" c="gray.5" tt="uppercase" fw={700}>
+            Settings
+          </Text>
+          <Title order={2} id="settings-heading">
+            Configuration
+          </Title>
+          <Text c="gray.5">
+            game-cat reads these settings from the data directory. Secrets are write-only and are
+            never shown here.
+          </Text>
+        </Stack>
+      </Paper>
 
-      <dl className="settings-facts">
-        <div>
-          <dt>Data directory</dt>
-          <dd>
-            <code>{config.dataDir}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>Listening URL</dt>
-          <dd>
-            <code>{config.listeningUrl}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>Steam Web API key</dt>
-          <dd>
+      <DataList className="settings-facts" orientation="vertical" gap="sm">
+        <DataList.Item>
+          <DataList.ItemLabel c="gray.5">Data directory</DataList.ItemLabel>
+          <DataList.ItemValue>
+            <Code>{config.dataDir}</Code>
+          </DataList.ItemValue>
+        </DataList.Item>
+        <DataList.Item>
+          <DataList.ItemLabel c="gray.5">Listening URL</DataList.ItemLabel>
+          <DataList.ItemValue>
+            <Code>{config.listeningUrl}</Code>
+          </DataList.ItemValue>
+        </DataList.Item>
+        <DataList.Item>
+          <DataList.ItemLabel c="gray.5">Steam Web API key</DataList.ItemLabel>
+          <DataList.ItemValue>
             {config.steamApiKeySet ? "Configured" : "Not configured"} ·{" "}
             {KEY_SOURCE_LABEL[config.steamApiKeySource] ?? config.steamApiKeySource}
-          </dd>
-        </div>
-        <div>
-          <dt>Selected Account</dt>
-          <dd>
+          </DataList.ItemValue>
+        </DataList.Item>
+        <DataList.Item>
+          <DataList.ItemLabel c="gray.5">Selected Account</DataList.ItemLabel>
+          <DataList.ItemValue>
             {status?.steam.account === null || status?.steam.account === undefined
               ? "No Steam Account selected"
               : `${status.steam.account.personaName} · ${status.steam.account.steamId64}`}
-          </dd>
-        </div>
-      </dl>
+          </DataList.ItemValue>
+        </DataList.Item>
+      </DataList>
 
       {formError !== null && (
-        <div className="banner banner-error" role="alert">
-          <div>
-            <strong>The settings are not saved.</strong>
-            <p>{formError}</p>
-          </div>
-        </div>
+        <Alert color="red" variant="light" role="alert" title="The settings are not saved.">
+          <Text size="sm">{formError}</Text>
+        </Alert>
       )}
 
       {restartRequired === true && (
-        <div className="banner banner-warning" role="status">
-          <div>
-            <strong>Restart required.</strong>
-            <p>
-              The listening socket does not move until the next start. The current address is{" "}
-              <code>{config.listeningUrl}</code>; after restart game-cat will listen on the new
-              port.
-            </p>
-          </div>
-        </div>
+        <Alert color="yellow" variant="light" role="status" title="Restart required.">
+          <Text size="sm">
+            The listening socket does not move until the next start. The current address is{" "}
+            <Code>{config.listeningUrl}</Code>; after restart game-cat will listen on the new port.
+          </Text>
+        </Alert>
       )}
 
-      <form
+      <Box
+        component="form"
         className="settings-form"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void save();
         }}
       >
-        <fieldset>
-          <legend>Steam</legend>
-
-          <div className="field">
-            <label htmlFor="settings-steam-root">Steam root</label>
-            <input
-              id="settings-steam-root"
-              type="text"
-              value={steamRoot}
-              autoComplete="off"
-              aria-invalid={fieldErrors.steamRoot !== undefined}
-              onChange={(event) => setSteamRoot(event.target.value)}
-            />
-            {fieldErrors.steamRoot !== undefined && (
-              <p className="field-error">{fieldErrors.steamRoot}</p>
-            )}
-            <p className="field-hint">
-              A configured path is authoritative. A missing folder is reported, not replaced by
-              auto-discovery.
-            </p>
-          </div>
-
-          <div className="field">
-            <label htmlFor="settings-account">Steam Account</label>
-            <select
-              id="settings-account"
-              value={steamId64}
-              onChange={(event) => setSteamId64(event.target.value)}
-            >
-              {accountOptions.length === 0 && <option value="">No Account detected</option>}
-              {accountOptions.map((account) => (
-                <option key={account.steamId64} value={account.steamId64}>
-                  {account.personaName} · {account.steamId64}
-                </option>
-              ))}
-            </select>
-            {fieldErrors.steamId64 !== undefined && (
-              <p className="field-error">{fieldErrors.steamId64}</p>
-            )}
-            <p className="field-hint">
-              Switching Accounts requires a new data directory. AccountName is never shown.
-            </p>
-          </div>
-
-          <div className="field">
-            <label htmlFor="settings-api-key">Steam Web API key</label>
-            <input
-              id="settings-api-key"
-              type="password"
-              value={apiKey}
-              placeholder={config.steamApiKeySet ? "•••••••• (saved)" : "Paste your key"}
-              autoComplete="off"
-              disabled={envManaged}
-              aria-describedby="settings-api-key-hint"
-              onChange={(event) => setApiKey(event.target.value)}
-            />
-            <p className="field-hint" id="settings-api-key-hint">
-              {envManaged
-                ? "Managed by GAME_CAT_STEAM_API_KEY. Change the environment variable and restart to replace the key."
-                : "Write-only. Leave blank to keep the saved key."}{" "}
-              <a href={API_KEY_URL} target="_blank" rel="noopener noreferrer">
-                Get a Steam Web API key
-              </a>
-            </p>
-            {fieldErrors.steamApiKey !== undefined && (
-              <p className="field-error">{fieldErrors.steamApiKey}</p>
-            )}
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Server</legend>
-
-          <div className="settings-row">
-            <div className="field">
-              <label htmlFor="settings-port">Port</label>
-              <input
-                id="settings-port"
-                type="number"
-                min={0}
-                max={65535}
-                value={port}
-                aria-invalid={fieldErrors.port !== undefined}
-                onChange={(event) => setPort(event.target.value)}
+        <Stack gap="md">
+          <Fieldset legend="Steam">
+            <Stack gap="md">
+              <TextInput
+                id="settings-steam-root"
+                label="Steam root"
+                value={steamRoot}
+                autoComplete="off"
+                aria-invalid={fieldErrors.steamRoot !== undefined}
+                error={fieldErrors.steamRoot}
+                onChange={(event) => setSteamRoot(event.currentTarget.value)}
+                description="A configured path is authoritative. A missing folder is reported, not replaced by auto-discovery."
               />
-              {fieldErrors.port !== undefined && <p className="field-error">{fieldErrors.port}</p>}
-              <p className="field-hint">
-                0 asks the OS for a free port. A port change takes effect on the next start.
-              </p>
-            </div>
 
-            <div className="field">
-              <label htmlFor="settings-log-level">Log level</label>
-              <select
-                id="settings-log-level"
-                value={logLevel}
-                onChange={(event) => setLogLevel(event.target.value)}
-              >
-                {LOG_LEVELS.map((level) => (
-                  <option key={level} value={level}>
-                    {level}
-                  </option>
-                ))}
-              </select>
-              <p className="field-hint">Applies immediately.</p>
-            </div>
-          </div>
+              <NativeSelect
+                id="settings-account"
+                label="Steam Account"
+                value={steamId64}
+                error={fieldErrors.steamId64}
+                data={
+                  accountOptions.length === 0
+                    ? [{ value: "", label: "No Account detected" }]
+                    : accountOptions.map((account) => ({
+                        value: account.steamId64,
+                        label: `${account.personaName} · ${account.steamId64}`,
+                      }))
+                }
+                onChange={(event) => setSteamId64(event.currentTarget.value)}
+                description="Switching Accounts requires a new data directory. AccountName is never shown."
+              />
 
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={openBrowser}
-              onChange={(event) => setOpenBrowser(event.target.checked)}
-            />
-            <span>Open the browser on the next start</span>
-          </label>
-        </fieldset>
+              <PasswordInput
+                id="settings-api-key"
+                label="Steam Web API key"
+                value={apiKey}
+                placeholder={config.steamApiKeySet ? "•••••••• (saved)" : "Paste your key"}
+                autoComplete="off"
+                disabled={envManaged}
+                error={fieldErrors.steamApiKey}
+                onChange={(event) => setApiKey(event.currentTarget.value)}
+                description={
+                  <>
+                    {envManaged
+                      ? "Managed by GAME_CAT_STEAM_API_KEY. Change the environment variable and restart to replace the key."
+                      : "Write-only. Leave blank to keep the saved key."}{" "}
+                    <Anchor href={API_KEY_URL} target="_blank" rel="noopener noreferrer">
+                      Get a Steam Web API key
+                    </Anchor>
+                  </>
+                }
+              />
+            </Stack>
+          </Fieldset>
 
-        <div className="settings-actions">
-          <button type="submit" className="primary" disabled={saving}>
-            {saving ? "Saving…" : "Save settings"}
-          </button>
-          {restartRequired === false && (
-            <span className="field-hint" role="status">
-              Settings saved. No restart required.
-            </span>
-          )}
-        </div>
-      </form>
-    </section>
+          <Fieldset legend="Server">
+            <Stack gap="md">
+              <Box className="settings-row">
+                <TextInput
+                  id="settings-port"
+                  label="Port"
+                  type="number"
+                  min={0}
+                  max={65535}
+                  value={port}
+                  aria-invalid={fieldErrors.port !== undefined}
+                  error={fieldErrors.port}
+                  onChange={(event) => setPort(event.currentTarget.value)}
+                  description="0 asks the OS for a free port. A port change takes effect on the next start."
+                />
+
+                <NativeSelect
+                  id="settings-log-level"
+                  label="Log level"
+                  value={logLevel}
+                  data={LOG_LEVELS.map((level) => ({ value: level, label: level }))}
+                  onChange={(event) => setLogLevel(event.currentTarget.value)}
+                  description="Applies immediately."
+                />
+              </Box>
+
+              <Checkbox
+                size="md"
+                styles={{ input: { width: 24, height: 24 } }}
+                label="Open the browser on the next start"
+                checked={openBrowser}
+                onChange={(event) => setOpenBrowser(event.currentTarget.checked)}
+              />
+            </Stack>
+          </Fieldset>
+
+          <Group className="settings-actions" gap="sm">
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving…" : "Save settings"}
+            </Button>
+            {restartRequired === false && (
+              <Text size="xs" c="gray.5" role="status">
+                Settings saved. No restart required.
+              </Text>
+            )}
+          </Group>
+        </Stack>
+      </Box>
+    </Stack>
   );
 }
