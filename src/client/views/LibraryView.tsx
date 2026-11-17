@@ -8,22 +8,19 @@ import {
   Code,
   Group,
   Paper,
-  SimpleGrid,
   Skeleton,
   Stack,
   Text,
   Title,
 } from "@mantine/core";
 import { useReducedMotion } from "@mantine/hooks";
-import type { GameSummary } from "../../shared/types.ts";
 import { ApiError, gamesQueryOptions, startLibraryScan } from "../api.ts";
 import { useBrowse } from "../browse-context.tsx";
-import { LibraryCard } from "../components/library/LibraryCard.tsx";
-import { LibraryPagination } from "../components/library/LibraryPagination.tsx";
-import { LibraryResultsHeader } from "../components/library/LibraryResultsHeader.tsx";
-import { LibrarySelectionBar } from "../components/library/LibrarySelectionBar.tsx";
-import { LibraryTable } from "../components/library/LibraryTable.tsx";
+import { GameResults } from "../components/GameResults.tsx";
 import { OwnershipBanner } from "../components/OwnershipBanner.tsx";
+import { Pagination } from "../components/Pagination.tsx";
+import { ResultsHeader } from "../components/ResultsHeader.tsx";
+import { SelectionBar } from "../components/SelectionBar.tsx";
 import { useToast } from "../components/ToastProvider.tsx";
 import { formatTimestamp } from "../format.ts";
 import type { ShellContext } from "../shell-context.ts";
@@ -39,7 +36,7 @@ function LoadingGrid() {
 
   return (
     <Box component="section" aria-busy="true" aria-label="Loading the Library">
-      <SimpleGrid className="skeleton-grid" cols={{ base: 2, sm: 3, md: 4, lg: 5 }} spacing="md">
+      <Box className="skeleton-grid">
         {Array.from({ length: 8 }, (_, index) => (
           <Paper className="skeleton-card" key={index} p="sm" radius="md" withBorder>
             <Skeleton
@@ -60,29 +57,8 @@ function LoadingGrid() {
             />
           </Paper>
         ))}
-      </SimpleGrid>
+      </Box>
     </Box>
-  );
-}
-
-function LibraryResults({ games }: { games: GameSummary[] }) {
-  const { layout, isSelected, toggleSelected } = useBrowse();
-
-  if (layout === "table") {
-    return <LibraryTable games={games} />;
-  }
-
-  return (
-    <SimpleGrid className="game-grid" cols={{ base: 2, sm: 3, md: 4, lg: 5 }} spacing="md">
-      {games.map((game) => (
-        <LibraryCard
-          key={game.appId}
-          game={game}
-          selected={isSelected(game.appId)}
-          onToggleSelected={toggleSelected}
-        />
-      ))}
-    </SimpleGrid>
   );
 }
 
@@ -204,7 +180,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
           <Title order={2} id="steam-missing-heading">
             Steam was not found.
           </Title>
-          <Text c="dimmed">
+          <Text c="gray.5">
             Install or start Steam, then scan again. A moved library, a Flatpak install, or a fresh
             Steam install can all leave the Library empty.
           </Text>
@@ -239,7 +215,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
         <Box component="section" aria-label="Search results">
           <Stack gap="md">
             {banners}
-            {selectedCount > 0 && <LibrarySelectionBar />}
+            {selectedCount > 0 && <SelectionBar />}
             <Paper
               component="section"
               className="empty-library"
@@ -253,7 +229,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
                 <Title order={2} id="no-results-heading">
                   No games match &quot;{search}&quot;.
                 </Title>
-                <Text c="dimmed">
+                <Text c="gray.5">
                   Search looks at game names only. Tags, genres, and playtime belong in Rules.
                 </Text>
                 <Group gap="sm" wrap="wrap">
@@ -273,7 +249,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
       <Box component="section" aria-label={mode === "installed" ? "Installed games" : "All games"}>
         <Stack gap="md">
           {banners}
-          {selectedCount > 0 && <LibrarySelectionBar />}
+          {selectedCount > 0 && <SelectionBar />}
           <Paper
             component="section"
             className="empty-library"
@@ -286,7 +262,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
               <Title order={2} id="empty-heading">
                 {heading}
               </Title>
-              <Text c="dimmed">
+              <Text c="gray.5">
                 {mode === "installed"
                   ? "No app manifest reports an installed Game yet. Nothing has been moved or deleted."
                   : "Nothing has been scanned yet, or Steam has no local Games for this Account. A moved Steam library, a Flatpak install, or a fresh Steam install can all leave this list empty."}
@@ -308,8 +284,8 @@ export function LibraryView({ mode }: LibraryViewProps) {
     <Box component="section" aria-label={mode === "installed" ? "Installed games" : "All games"}>
       <Stack gap="md">
         {banners}
-        <LibrarySelectionBar />
-        <LibraryResultsHeader
+        <SelectionBar />
+        <ResultsHeader
           totalItems={totalItems}
           shownItems={rows.length}
           filtered={filtered}
@@ -319,9 +295,9 @@ export function LibraryView({ mode }: LibraryViewProps) {
           onSelectShown={() => selectShown(rows.map((game) => game.appId))}
           onClearSelection={clearSelection}
         />
-        <LibraryResults games={rows} />
+        <GameResults games={rows} />
         {totalItems > 0 && (
-          <LibraryPagination
+          <Pagination
             page={page}
             pageSize={PAGE_SIZE}
             totalItems={totalItems}
