@@ -448,7 +448,7 @@ export const steamCollectionsQuerySchema = {
   },
 };
 
-export const steamCollectionGamesQuerySchema = {
+export const collectionGamesQuerySchema = {
   type: "object",
   properties: {
     page: pageProperty(1, Number.MAX_SAFE_INTEGER),
@@ -578,16 +578,6 @@ export const smartCollectionsListQuerySchema = {
     page: pageProperty(1, Number.MAX_SAFE_INTEGER),
     pageSize: pageProperty(60, 200),
     sort: { type: "string", enum: ["name", "updatedAt"], default: "name" },
-    order: { type: "string", enum: ["asc", "desc"], default: "asc" },
-  },
-};
-
-export const smartCollectionGamesQuerySchema = {
-  type: "object",
-  properties: {
-    page: pageProperty(1, Number.MAX_SAFE_INTEGER),
-    pageSize: pageProperty(60, 200),
-    sort: { type: "string", enum: [...GAME_SORTS], default: "name" },
     order: { type: "string", enum: ["asc", "desc"], default: "asc" },
   },
 };
