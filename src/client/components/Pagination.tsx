@@ -1,3 +1,4 @@
+import { Button, Group, Text } from "@mantine/core";
 import { formatRange } from "../browse.ts";
 
 export interface PaginationProps {
@@ -16,27 +17,29 @@ export function Pagination({
   onPageChange,
 }: PaginationProps) {
   return (
-    <nav className="pagination" aria-label="Pagination">
-      <button
-        type="button"
-        className="button"
+    <Group component="nav" className="pagination" aria-label="Pagination" gap="sm" justify="center">
+      <Button
+        size="compact-sm"
+        variant="default"
         onClick={() => onPageChange(Math.max(1, page - 1))}
         disabled={page <= 1}
       >
         Previous
-      </button>
-      <span aria-live="polite">
+      </Button>
+      <Text component="span" aria-live="polite">
         Page {page} of {totalPages}
-      </span>
-      <span className="pagination-range">{formatRange(page, pageSize, totalItems)}</span>
-      <button
-        type="button"
-        className="button"
+      </Text>
+      <Text component="span" className="pagination-range" c="gray.5">
+        {formatRange(page, pageSize, totalItems)}
+      </Text>
+      <Button
+        size="compact-sm"
+        variant="default"
         onClick={() => onPageChange(Math.min(totalPages, page + 1))}
         disabled={page >= totalPages}
       >
         Next
-      </button>
-    </nav>
+      </Button>
+    </Group>
   );
 }
