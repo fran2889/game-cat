@@ -10,7 +10,6 @@ import {
   Modal,
   Paper,
   ScrollArea,
-  SimpleGrid,
   Skeleton,
   Stack,
   Text,
@@ -240,13 +239,7 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
                   style={{ aspectRatio: "460 / 215", flex: "none" }}
                 >
                   <GameCover appId={detail.appId} name={detail.name} className="detail-cover" />
-                  <Box
-                    className="detail-banner-text"
-                    pos="absolute"
-                    left={16}
-                    right={16}
-                    bottom={12}
-                  >
+                  <Box pos="absolute" left={16} right={16} bottom={12} style={{ zIndex: 2 }}>
                     <Title order={2} id="detail-title" size="h4">
                       {detail.name}
                     </Title>
@@ -284,7 +277,7 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
                     "aria-label": "Game details",
                   }}
                 >
-                  <SimpleGrid className="stat-grid" cols={2} spacing="xs">
+                  <Box className="stat-grid">
                     <Stat label="Playtime" value={formatPlaytime(detail.playtimeMinutes)} />
                     <Stat label="Last played" value={formatDate(detail.lastPlayedAt)} />
                     <Stat
@@ -303,7 +296,7 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
                       value={platformLabels(detail.platforms).join(", ") || "—"}
                     />
                     <Stat label="Size on disk" value={formatBytes(detail.sizeOnDiskBytes)} />
-                  </SimpleGrid>
+                  </Box>
 
                   <DetailSection title="Genres">
                     <ChipRow values={detail.genres} />
@@ -441,16 +434,11 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: ReviewTone }) {
   return (
-    <Paper className="stat" p="xs" radius="sm" withBorder>
-      <Text className="stat-label" size="xs" c="gray.5" tt="uppercase" fw={700}>
+    <Paper p="xs" radius="sm" withBorder>
+      <Text size="xs" c="gray.5" tt="uppercase" fw={700}>
         {label}
       </Text>
-      <Text
-        className="stat-value"
-        size="sm"
-        fw={600}
-        c={tone === undefined ? undefined : reviewColor(tone)}
-      >
+      <Text size="sm" fw={600} c={tone === undefined ? undefined : reviewColor(tone)}>
         {value}
       </Text>
     </Paper>

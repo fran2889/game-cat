@@ -6,6 +6,9 @@ export function NotFoundView() {
     <Paper
       component="section"
       className="placeholder"
+      maw={640}
+      mx="auto"
+      my="xl"
       aria-labelledby="not-found-heading"
       p="lg"
       radius="lg"

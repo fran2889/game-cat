@@ -171,6 +171,9 @@ export function LibraryView({ mode }: LibraryViewProps) {
       <Paper
         component="section"
         className="empty-library"
+        maw={640}
+        mx="auto"
+        my="xl"
         aria-labelledby="steam-missing-heading"
         p="lg"
         radius="lg"
@@ -219,6 +222,9 @@ export function LibraryView({ mode }: LibraryViewProps) {
             <Paper
               component="section"
               className="empty-library"
+              maw={640}
+              mx="auto"
+              my="xl"
               role="status"
               aria-labelledby="no-results-heading"
               p="lg"
@@ -253,6 +259,9 @@ export function LibraryView({ mode }: LibraryViewProps) {
           <Paper
             component="section"
             className="empty-library"
+            maw={640}
+            mx="auto"
+            my="xl"
             aria-labelledby="empty-heading"
             p="lg"
             radius="lg"
