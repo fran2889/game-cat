@@ -55,10 +55,12 @@ test("Rule edits update counts, debounce preview, and skip the API while invalid
   await expect(page.locator('[data-rule-index="0"] .rule-errors')).toContainText(
     "must not be empty",
   );
+  await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
   await page.waitForTimeout(700);
   expect(previewCalls).toBe(initialCalls);
 
   await page.locator('[data-rule-index="0"] .rule-value input').fill("Puzzle");
+  await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
   await expect(page.getByTestId("match-count")).toHaveText("1 matches");
   expect(previewCalls).toBeGreaterThan(initialCalls);
   await expect(page.locator(".game-grid .game-card")).toHaveCount(1);
