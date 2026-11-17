@@ -7,7 +7,13 @@ import type {
   RuleValueField,
   SteamCollectionSummary,
 } from "../../shared/types.ts";
-import { MAX_GAME_RULE_IDS, validateRules, type Rule, type RuleField } from "../../shared/rules.ts";
+import {
+  MAX_GAME_RULE_IDS,
+  RULE_VALUE_FIELDS,
+  ruleFieldDefinition,
+  type Rule,
+  type RuleField,
+} from "../../shared/rules.ts";
 import type { SmartCollection } from "../../shared/smart-collections.ts";
 import {
   ApiError,
@@ -42,24 +48,15 @@ import {
   prefixCounts,
   togglePlatformRule,
   validateCollectionName,
+  validateDraftRules,
   platformsInRules,
 } from "../rule-editor.ts";
 import { NEW_COLLECTION_NAME } from "../smart-handoff.ts";
 
 const PAGE_SIZE = 60;
-const QUICK_ADD_FIELDS: ReadonlyArray<{ field: RuleField; label: string }> = [
-  { field: "tag", label: "Tag" },
-  { field: "playtime", label: "Playtime" },
-  { field: "steamCollection", label: "Steam collection" },
-  { field: "game", label: "Game list" },
-];
-
-const RULE_VALUE_FIELDS: readonly RuleValueField[] = [
-  "genre",
-  "category",
-  "developer",
-  "publisher",
-];
+/** The editor curates these shortcuts; their labels come from the Field registry. */
+const QUICK_ADD_FIELDS: readonly RuleField[] = ["tag", "playtime", "steamCollection", "game"];
+const PLATFORM_VALUES = ruleFieldDefinition("platform")?.values ?? [];
 
 const AUTOSAVE_LABELS: Partial<Record<AutosaveStatus, string>> = {
   saved: "Saved",
@@ -241,7 +238,7 @@ export function SmartEditor({
 
   useEffect(() => () => autosave.dispose(), [autosave]);
 
-  const validation = validateRules(rules);
+  const validation = validateDraftRules(rules);
   const clientFieldErrors = validation.fieldErrors;
   const fieldErrors = useMemo(
     () => ({ ...clientFieldErrors, ...serverFieldErrors }),
@@ -295,7 +292,7 @@ export function SmartEditor({
 
   const updateRules = useCallback(
     (next: Rule[]) => {
-      const nextInvalid = Object.keys(validateRules(next).fieldErrors).length > 0;
+      const nextInvalid = Object.keys(validateDraftRules(next).fieldErrors).length > 0;
       autosave.updateDraft({ name, rules: next }, localNameError === null && !nextInvalid);
       setRules(next);
       setPage(1);
@@ -677,20 +674,20 @@ export function SmartEditor({
           <section className="quick-add" aria-labelledby="quick-add-heading">
             <h3 id="quick-add-heading">Quick add</h3>
             <div className="quick-add-row">
-              {QUICK_ADD_FIELDS.map((quick) => (
+              {QUICK_ADD_FIELDS.map((field) => (
                 <button
-                  key={quick.field}
+                  key={field}
                   type="button"
                   className="button button-small"
-                  onClick={() => addRules([emptyRule(quick.field)])}
+                  onClick={() => addRules([emptyRule(field)])}
                 >
-                  {quick.label}
+                  {ruleFieldDefinition(field)?.label ?? field}
                 </button>
               ))}
             </div>
             <fieldset className="platform-add">
               <legend>Platform</legend>
-              {["windows", "mac", "linux"].map((platform) => (
+              {PLATFORM_VALUES.map((platform) => (
                 <label key={platform}>
                   <input
                     type="checkbox"
