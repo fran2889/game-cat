@@ -74,6 +74,17 @@
   display: none;
 }
 
+/* The active row is a surface tint with a 3px accent edge and a soft shadow,
+ * not Mantine's filled primary block. The edge plus the tint keeps the row
+ * distinguishable without relying on colour alone. */
+.side-item[data-active] {
+  background-color: var(--mantine-color-dark-6);
+  color: var(--mantine-color-text);
+  box-shadow:
+    inset 3px 0 0 var(--mantine-primary-color-filled),
+    0 1px 3px rgb(0 0 0 / 28%);
+}
+
 .workspace {
   min-width: 0;
   display: flex;
