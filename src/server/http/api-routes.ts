@@ -7,6 +7,7 @@ import type {
   SteamAccount,
   SteamAccountsResponse,
 } from "../../shared/types.ts";
+import type { ConfigPatch } from "../../shared/config.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { parseAppId } from "../app-id.ts";
 import { notFound, validationError } from "../request.ts";
@@ -43,7 +44,6 @@ import {
   steamCollectionsResponseSchema,
   tagsListQuerySchema,
   tagsResponseSchema,
-  type ConfigPatchBody,
   type GamesListQuery,
   type PageQuery,
   type RefreshBody,
@@ -171,7 +171,7 @@ export interface ConfigRoutes {
 export function registerConfigRoutes(app: FastifyInstance, config: ConfigRoutes): void {
   app.get("/api/config", async () => ({ data: config.get() }));
 
-  app.patch<{ Body: ConfigPatchBody }>(
+  app.patch<{ Body: ConfigPatch }>(
     "/api/config",
     { schema: { body: configPatchBodySchema }, preValidation: rejectCoercedConfigFields },
     async (request) => config.patch(request.body),

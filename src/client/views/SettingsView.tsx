@@ -21,7 +21,7 @@ import {
 } from "@mantine/core";
 import { ApiError, patchConfig, steamAccountsQueryOptions, type ConfigPatch } from "../api.ts";
 import { useToast } from "../components/ToastProvider.tsx";
-import { LOG_LEVELS } from "../../shared/types.ts";
+import { LOG_LEVELS, type LogLevel } from "../../shared/types.ts";
 import type { ShellContext } from "../shell-context.ts";
 
 const API_KEY_URL = "https://steamcommunity.com/dev/apikey";
@@ -50,7 +50,7 @@ export function SettingsView() {
   const [apiKey, setApiKey] = useState("");
   const [port, setPort] = useState("");
   const [openBrowser, setOpenBrowser] = useState(true);
-  const [logLevel, setLogLevel] = useState("info");
+  const [logLevel, setLogLevel] = useState<LogLevel>("info");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [restartRequired, setRestartRequired] = useState<boolean | null>(null);
@@ -297,7 +297,12 @@ export function SettingsView() {
                   label="Log level"
                   value={logLevel}
                   data={LOG_LEVELS.map((level) => ({ value: level, label: level }))}
-                  onChange={(event) => setLogLevel(event.currentTarget.value)}
+                  onChange={(event) => {
+                    const next = LOG_LEVELS.find((level) => level === event.currentTarget.value);
+                    if (next !== undefined) {
+                      setLogLevel(next);
+                    }
+                  }}
                   description="Applies immediately."
                 />
               </Box>

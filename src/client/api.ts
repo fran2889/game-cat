@@ -20,6 +20,8 @@ import type {
   TagsResponse,
 } from "../shared/types.ts";
 import type { Rule } from "../shared/rules.ts";
+import type { ConfigPatch } from "../shared/config.ts";
+export type { ConfigPatch } from "../shared/config.ts";
 import type {
   SmartCollection,
   SmartCollectionGamesResponse,
@@ -133,15 +135,6 @@ export async function fetchStatus(signal?: AbortSignal): Promise<Status> {
 export async function fetchConfig(signal?: AbortSignal): Promise<Config> {
   const body = await requestJson<{ data: Config }>("/api/config", { signal });
   return body.data;
-}
-
-export interface ConfigPatch {
-  steamApiKey?: string;
-  steamRoot?: string;
-  steamId64?: string;
-  port?: number;
-  openBrowser?: boolean;
-  logLevel?: string;
 }
 
 export async function patchConfig(patch: ConfigPatch): Promise<ConfigPatchResponse> {
