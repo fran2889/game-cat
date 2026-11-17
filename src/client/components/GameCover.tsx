@@ -1,11 +1,13 @@
 import { useState, type CSSProperties } from "react";
 import { Box, Image } from "@mantine/core";
-import { coverUrl, hashHue, initialsFor } from "../format.ts";
+import { coverUrl, hashHue, initialsFor, type CoverArt } from "../format.ts";
 
 export interface GameCoverProps {
   appId: number;
   name: string;
   className?: string;
+  /** Grid cards use the portrait capsule; detail and table keep the header. */
+  art?: CoverArt;
 }
 
 /**
@@ -15,7 +17,12 @@ export interface GameCoverProps {
  * The hue is per-Game, so the fallback tint stays inline; everything else is
  * Mantine's `Image` and `Box`.
  */
-export function GameCover({ appId, name, className = "game-cover" }: GameCoverProps) {
+export function GameCover({
+  appId,
+  name,
+  className = "game-cover",
+  art = "header",
+}: GameCoverProps) {
   const [failed, setFailed] = useState(false);
   const hue = hashHue(name);
   const tint = { "--cover-h": String(hue) } as CSSProperties;
@@ -36,7 +43,7 @@ export function GameCover({ appId, name, className = "game-cover" }: GameCoverPr
   return (
     <Image
       className={className}
-      src={coverUrl(appId)}
+      src={coverUrl(appId, art)}
       alt=""
       loading="lazy"
       fit="cover"
