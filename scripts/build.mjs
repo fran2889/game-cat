@@ -26,6 +26,7 @@ function run(label, args) {
 
 rmSync(join(root, "dist"), { recursive: true, force: true });
 
+run("theme css", [join(root, "scripts", "generate-theme-css.mjs")]);
 run("vite build", [viteCli, "build"]);
 run("tsc build", [tscCli, "-p", "tsconfig.server.json"]);
 

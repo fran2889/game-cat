@@ -1,33 +1,19 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { MantineProvider, createTheme } from "@mantine/core";
+import { MantineProvider } from "@mantine/core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { App } from "./App.tsx";
 import { createQueryClient } from "./query-client.ts";
+import { theme } from "./theme.ts";
 import "@mantine/core/styles.css";
+import "./theme.generated.css";
 import "./styles.css";
 
 // The v1 contract keeps the dark appearance. Mantine supplies the component
-// styling; the remaining stylesheet keeps only shell layout. Theme variables
-// are normally injected through a runtime <style> tag, which the strict CSP
-// blocks, so styles.css restates these font tokens in its CSP bridge.
-const FONT_FAMILY =
-  'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-const FONT_FAMILY_MONOSPACE =
-  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
-
-const theme = createTheme({
-  primaryColor: "yellow",
-  primaryShade: { light: 5, dark: 5 },
-  defaultRadius: "md",
-  fontFamily: FONT_FAMILY,
-  fontFamilyMonospace: FONT_FAMILY_MONOSPACE,
-  headings: { fontFamily: FONT_FAMILY },
-  // Yellow is a light primary; dark labels keep AA contrast on filled controls.
-  autoContrast: true,
-});
-
+// styling; the remaining stylesheet keeps only shell layout. The theme
+// variables are generated at build time, so the provider injects no <style>
+// element that the strict CSP would block.
 const container = document.getElementById("root");
 if (container === null) {
   throw new Error("Root element missing");
@@ -40,7 +26,13 @@ const queryClient = createQueryClient();
 
 createRoot(container).render(
   <StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="dark" forceColorScheme="dark">
+    <MantineProvider
+      theme={theme}
+      defaultColorScheme="dark"
+      forceColorScheme="dark"
+      withCssVariables={false}
+      withGlobalClasses={false}
+    >
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>
