@@ -34,4 +34,17 @@ describe("New from selection handoff", () => {
       }),
     ).toBeNull();
   });
+
+  it("rejects a game Rule that the shared validator would reject", () => {
+    for (const value of [[1, 1], [0], [-1], [1.5]]) {
+      const state = {
+        smartCollectionDraft: {
+          name: "x",
+          sourceAppIds: value,
+          rules: [{ prefix: "AND", field: "game", operator: "in", value }],
+        },
+      };
+      expect(readDraftHandoff(state), JSON.stringify(value)).toBeNull();
+    }
+  });
 });
