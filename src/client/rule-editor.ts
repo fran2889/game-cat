@@ -3,13 +3,11 @@ import {
   RULE_PREFIXES,
   collectionNameProblem,
   ruleFieldDefinition,
-  validateRules,
   type Rule,
   type RuleField,
   type RuleOperator,
   type RulePrefix,
   type RuleValue,
-  type RuleValidationResult,
 } from "../shared/rules.ts";
 
 /**
@@ -19,14 +17,6 @@ import {
  * editor's typed defaults, and validate the collection name. The shared
  * validator remains the only owner of Rule validity.
  */
-
-/**
- * The editor's Rule gate. This is not a second validator: the editor accepts a
- * draft exactly when the shared grammar does.
- */
-export function validateDraftRules(input: unknown): RuleValidationResult {
-  return validateRules(input);
-}
 
 export function defaultValueForField(field: RuleField): RuleValue {
   const definition = ruleFieldDefinition(field);
