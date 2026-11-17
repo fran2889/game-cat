@@ -45,6 +45,19 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
   const row = page.locator('[data-rule-index="0"]');
   await expect(row).toHaveCSS("padding", "10px");
   await expect(row).toHaveCSS("border-left-width", "3px");
+
+  // The callout, rule list, Add rule, and quick add are all in the same
+  // vertical rhythm; none of them may sit flush against its neighbour.
+  const calloutBox = await page.locator(".prefix-callout").boundingBox();
+  const ruleBox = await row.boundingBox();
+  expect(
+    (ruleBox?.y ?? 0) - ((calloutBox?.y ?? 0) + (calloutBox?.height ?? 0)),
+  ).toBeGreaterThanOrEqual(10);
+  const actionsRowBox = await page.locator(".editor-actions").boundingBox();
+  const quickAddBox = await page.locator(".quick-add").boundingBox();
+  expect(
+    (quickAddBox?.y ?? 0) - ((actionsRowBox?.y ?? 0) + (actionsRowBox?.height ?? 0)),
+  ).toBeGreaterThanOrEqual(10);
   await expect(row).toHaveCSS("border-left-color", "rgb(34, 139, 230)");
 
   const or = page.getByRole("button", { name: "OR prefix for Rule 1" });
