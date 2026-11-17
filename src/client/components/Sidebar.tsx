@@ -334,7 +334,7 @@ function SidebarLink({ to, label, icon, count, active, title, onNavigate }: Side
         </Text>
       }
       rightSection={
-        <Text component="span" size="xs" ff="mono" c={active ? undefined : "dimmed"}>
+        <Text component="span" size="xs" ff="mono" c={active ? "dark.2" : "dimmed"}>
           {count}
         </Text>
       }
