@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Box, Button, Checkbox, Group, Pill, Stack, Text, TextInput } from "@mantine/core";
+import { Box, Button, Checkbox, Group, Paper, Pill, Stack, Text, TextInput } from "@mantine/core";
 import type { GameSummary } from "../../shared/types.ts";
 import { gamesQueryOptions } from "../api.ts";
 import { sortedGameIds } from "../rule-editor.ts";
@@ -106,53 +106,55 @@ export function GamePicker({ value, onChange, selectedIds, inputId }: GamePicker
       )}
 
       {open && (
-        <Stack className="game-picker-list" id={`${inputId}-list`} gap={6} p="xs">
-          <TextInput
-            id={`${inputId}-search`}
-            type="search"
-            value={query}
-            placeholder="Search game names"
-            aria-label="Search Games for this Rule"
-            autoComplete="off"
-            onChange={(event) => setQuery(event.currentTarget.value)}
-          />
-          {loading ? (
-            <Text className="picker-note" size="xs" c="gray.5" role="status">
-              Searching…
-            </Text>
-          ) : results.length === 0 ? (
-            <Text className="picker-note" size="xs" c="gray.5">
-              No Games match that search.
-            </Text>
-          ) : (
-            <Box
-              component="ul"
-              className="picker-results"
-              style={{ listStyle: "none", padding: 0, margin: 0 }}
-            >
-              {results.map((game) => (
-                <Box component="li" key={game.appId}>
-                  <Checkbox
-                    size="md"
-                    styles={{ input: { width: 24, height: 24 } }}
-                    checked={selected.has(game.appId)}
-                    onChange={() => toggle(game.appId)}
-                    label={
-                      <Group gap="xs" wrap="nowrap">
-                        <Text component="span" size="sm" className="picker-name">
-                          {game.name}
-                        </Text>
-                        <Text component="span" className="picker-id" size="xs" c="gray.5">
-                          #{game.appId}
-                        </Text>
-                      </Group>
-                    }
-                  />
-                </Box>
-              ))}
-            </Box>
-          )}
-        </Stack>
+        <Paper className="game-picker-list" id={`${inputId}-list`} withBorder p="xs" radius="sm">
+          <Stack gap={6}>
+            <TextInput
+              id={`${inputId}-search`}
+              type="search"
+              value={query}
+              placeholder="Search game names"
+              aria-label="Search Games for this Rule"
+              autoComplete="off"
+              onChange={(event) => setQuery(event.currentTarget.value)}
+            />
+            {loading ? (
+              <Text className="picker-note" size="xs" c="gray.5" role="status">
+                Searching…
+              </Text>
+            ) : results.length === 0 ? (
+              <Text className="picker-note" size="xs" c="gray.5">
+                No Games match that search.
+              </Text>
+            ) : (
+              <Box
+                component="ul"
+                className="picker-results"
+                style={{ listStyle: "none", padding: 0, margin: 0 }}
+              >
+                {results.map((game) => (
+                  <Box component="li" key={game.appId}>
+                    <Checkbox
+                      size="md"
+                      styles={{ input: { width: 24, height: 24 } }}
+                      checked={selected.has(game.appId)}
+                      onChange={() => toggle(game.appId)}
+                      label={
+                        <Group gap="xs" wrap="nowrap">
+                          <Text component="span" size="sm" truncate>
+                            {game.name}
+                          </Text>
+                          <Text component="span" size="xs" c="gray.5" ml="auto">
+                            #{game.appId}
+                          </Text>
+                        </Group>
+                      }
+                    />
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </Stack>
+        </Paper>
       )}
     </Stack>
   );

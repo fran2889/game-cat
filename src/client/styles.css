@@ -1,685 +1,25 @@
 /*
- * game-cat shell styles. The dark neutral palette follows the v1 prototype;
- * exact tokens are intentionally local and not contract.
+ * game-cat shell layout.
+ *
+ * Mantine owns component appearance: surfaces, colour, spacing, typography,
+ * radius, and focus rings all come from its theme variables. This file keeps
+ * only rules Mantine cannot express here:
+ *
+ * 1. The responsive shell grid, sticky sidebar/top bar, and mobile drawer.
+ *    Mantine's AppShell and its responsive props emit a runtime <style> tag,
+ *    which the strict `style-src 'self'` CSP blocks.
+ * 2. The fluid cover grid, which Mantine SimpleGrid can only express as fixed
+ *    column counts.
+ * 3. The custom Refresh progress bar, cover fallback, and detail banner
+ *    gradient.
+ *
+ * Keep the CSP bridge below in sync with `createTheme` in `main.tsx`.
  */
 
-:root {
-  --bg: #0f1115;
-  --surface-1: #15181e;
-  --surface-2: #1b1f27;
-  --surface-3: #222733;
-  --surface-4: #2a303d;
-  --border: #2a303c;
-  --border-strong: #3b4352;
-  --text: #e8eaf0;
-  --text-muted: #9aa3b5;
-  --text-faint: #8b94a6;
-  --accent: #f2b544;
-  --accent-strong: #ffc85c;
-  --accent-soft: #3a2c10;
-  --accent-ink: #1a1408;
-  --green: #5bc98c;
-  --green-soft: #10291c;
-  --red: #f07b82;
-  --red-soft: #331418;
-  --radius: 8px;
-  --radius-sm: 5px;
-  --radius-lg: 12px;
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
-  --font:
-    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  min-height: 100%;
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 14px;
-  line-height: 1.45;
-  -webkit-font-smoothing: antialiased;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-a {
-  color: var(--accent);
-}
-
-h1,
-h2,
-h3,
-h4,
-p {
-  margin: 0;
-}
-
-code,
-kbd {
-  font-family: var(--mono);
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.skip-link {
-  position: fixed;
-  top: 8px;
-  left: 8px;
-  z-index: 100;
-  padding: 8px 12px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-radius: var(--radius-sm);
-  transform: translateY(-160%);
-  transition: transform 120ms ease;
-}
-
-.skip-link:focus {
-  transform: translateY(0);
-}
-
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* App shell */
-
-.app {
-  display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
-  min-height: 100vh;
-}
-
-.sidebar {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-  background: var(--surface-1);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  scrollbar-width: thin;
-  scrollbar-color: var(--surface-4) transparent;
-}
-
-.sidebar-scrim {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 44;
-  background: rgba(4, 6, 9, 0.58);
-}
-
-.sidebar-scrim.is-open {
-  display: block;
-}
-
-.sidebar .sidebar-close {
-  display: none;
-  margin-left: auto;
-}
-
-.workspace {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Sidebar */
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 18px 14px;
-}
-
-.brand-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  display: grid;
-  place-items: center;
-  border: 1px solid #5a451a;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-}
-
-.brand-name {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.brand-version {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--text-faint);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 1px 6px;
-}
-
-.side-section {
-  padding: 6px 12px 12px;
-}
-
-.side-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 8px 6px;
-  color: var(--text-faint);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.side-heading h2 {
-  font-size: inherit;
-  font-weight: inherit;
-}
-
-.side-heading .icon-button {
-  width: 24px;
-  height: 24px;
-  font-size: 16px;
-  text-decoration: none;
-}
-
-.side-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.side-item {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 7px 8px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
-  text-align: left;
-  text-decoration: none;
-}
-
-.side-item:hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.side-item.is-active {
-  background: var(--surface-3);
-  color: var(--text);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-
-.side-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  font-size: 13px;
-}
-
-.side-item .label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.side-item .count {
-  color: var(--text-faint);
-  font-family: var(--mono);
-  font-size: 11px;
-}
-
-.side-item.is-active .count {
-  color: var(--text-muted);
-}
-
-.side-empty {
-  padding: 4px 8px 8px;
-  color: var(--text-faint);
-  font-size: 12px;
-}
-
-.side-note {
-  padding: 0 8px 6px;
-  color: var(--text-faint);
-  font-size: 11px;
-}
-
-.side-lock {
-  display: inline-grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  font-size: 10px;
-  opacity: 0.75;
-}
-
-.sidebar-foot {
-  margin-top: auto;
-  padding: 12px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.status-card {
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  border-radius: var(--radius);
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.status-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 0 2px var(--green-soft);
-  flex: none;
-}
-
-.status-dot.status-warn {
-  background: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-
-.status-meta {
-  color: var(--text-faint);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.status-button {
-  width: 100%;
-}
-
-.status-link {
-  color: var(--text-muted);
-  font-size: 11px;
-  text-align: center;
-  text-decoration: none;
-}
-
-.status-link:hover {
-  color: var(--text);
-  text-decoration: underline;
-}
-
-.account {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 2px;
-}
-
-.avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--surface-3);
-  border: 1px solid var(--border-strong);
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 12px;
-  flex: none;
-}
-
-.account-copy {
-  min-width: 0;
-}
-
-.account-name {
-  font-size: 12px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.account-meta {
-  color: var(--text-faint);
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Top bar */
-
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-height: 64px;
-  padding: 10px 20px;
-  background: rgba(15, 17, 21, 0.94);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
-}
-
-.crumb {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.crumb-kicker {
-  color: var(--text-faint);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.crumb h1 {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.crumb-sub {
-  color: var(--text-muted);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-
-.topbar-tools {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-}
-
-.search-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 250px;
-  max-width: 100%;
-}
-
-.search-icon {
-  position: absolute;
-  left: 10px;
-  color: var(--text-faint);
-  font-size: 16px;
-  pointer-events: none;
-}
-
-.search-wrap input {
-  width: 100%;
-  height: 34px;
-  padding: 0 54px 0 31px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: var(--text);
-  outline: none;
-}
-
-.search-wrap input::placeholder {
-  color: var(--text-faint);
-}
-
-.search-wrap input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(242, 181, 68, 0.18);
-}
-
-.search-wrap kbd {
-  position: absolute;
-  right: 9px;
-  color: var(--text-faint);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0 5px;
-  font-size: 10px;
-  line-height: 16px;
-  background: var(--surface-1);
-  pointer-events: none;
-}
-
-.search-clear {
-  position: absolute;
-  right: 4px;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.search-clear:hover {
-  background: var(--surface-3);
-  color: var(--text);
-}
-
-.search-wrap:has(.search-clear) kbd {
-  display: none;
-}
-
-.select-wrap select {
-  height: 34px;
-  padding: 0 28px 0 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background-color: var(--surface-2);
-  color: var(--text);
-  appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
-    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 14px) 14px,
-    calc(100% - 9px) 14px;
-  background-size:
-    5px 5px,
-    5px 5px;
-  background-repeat: no-repeat;
-}
-
-.select-wrap select:hover {
-  border-color: var(--border-strong);
-}
-
-.primary,
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  font-weight: 600;
-  font-size: 12.5px;
-  white-space: nowrap;
-  text-decoration: none;
-}
-
-.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-}
-
-.primary:hover {
-  background: var(--accent-strong);
-}
-
-.button {
-  background: var(--surface-3);
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.button:hover {
-  background: var(--surface-4);
-}
-
-.primary:disabled,
-.button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.icon-button {
-  width: 34px;
-  height: 34px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  text-decoration: none;
-}
-
-.icon-button:hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.toggle-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-
-.toggle-button[aria-pressed="true"] {
-  color: var(--text);
-  border-color: var(--border-strong);
-  background: var(--surface-3);
-}
-
-.segmented {
-  display: inline-flex;
-  padding: 2px;
-  gap: 2px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  height: 34px;
-}
-
-.seg-button {
-  width: 30px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-faint);
-  display: grid;
-  place-items: center;
-}
-
-.seg-button[aria-pressed="true"] {
-  background: var(--surface-4);
-  color: var(--text);
-}
-
-.mobile-menu {
-  display: none;
-}
-
-/* Content */
-
-main {
-  flex: 1;
-  min-width: 0;
-  padding: 16px 20px 24px;
-  outline: none;
-}
-
-/* Mantine applies its theme through runtime style tags, which the documented
- * strict `style-src 'self'` CSP blocks. Bridge the #66 theme's yellow primary
- * into the static stylesheet so filled controls keep the v1 accent. */
+/* Mantine applies theme overrides through runtime style tags, which the
+ * documented strict `style-src 'self'` CSP blocks. Restate the theme's
+ * primary colour, font, anchor, and dimmed-text tokens so controls and
+ * secondary copy keep the v1 appearance and AA contrast. */
 :root,
 :root[data-mantine-color-scheme="dark"] {
   --mantine-primary-color-0: var(--mantine-color-yellow-0);
@@ -698,59 +38,146 @@ main {
   --mantine-primary-color-light: var(--mantine-color-yellow-light);
   --mantine-primary-color-light-hover: var(--mantine-color-yellow-light-hover);
   --mantine-primary-color-light-color: var(--mantine-color-yellow-light-color);
+  --mantine-font-family:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --mantine-font-family-monospace:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --mantine-font-family-headings:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  /* Mantine 9's default dimmed token (#828282) is 4.03:1 on dark-7 and 4.28:1
+   * on dark-8, below AA for the shell's secondary copy; gray-5 is 7.48:1. */
+  --mantine-color-dimmed: var(--mantine-color-gray-5);
+  /* Mantine defaults anchors to blue; v1 uses the primary accent. */
+  --mantine-color-anchor: var(--mantine-primary-color-filled);
 }
 
-/* Converted views: only genuinely bespoke layout and cover-art rules live here.
- * Everything else is supplied by Mantine. */
+/* The jump target and the skip link are bespoke because Mantine has no
+ * skip-link component. The link must stay off-canvas until focused. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 12px;
+  background: var(--mantine-primary-color-filled);
+  color: var(--mantine-primary-color-contrast);
+  border-radius: var(--mantine-radius-sm);
+  transform: translateY(-160%);
+  transition: transform 120ms ease;
+}
 
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Shell layout */
+
+.app {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--mantine-color-dark-8);
+  border-right: 1px solid var(--mantine-color-dark-4);
+  display: flex;
+  flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: var(--mantine-color-dark-5) transparent;
+}
+
+.sidebar-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: color-mix(in srgb, var(--mantine-color-black) 58%, transparent);
+}
+
+.sidebar-scrim.is-open {
+  display: block;
+}
+
+/* The drawer close control only exists while the sidebar is a drawer. */
+.sidebar .sidebar-close {
+  display: none;
+}
+
+.workspace {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-md);
+  min-height: 64px;
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-lg);
+  background: color-mix(in srgb, var(--mantine-color-dark-9) 94%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--mantine-color-dark-4);
+}
+
+/* The tool group is the flex counterpart of the breadcrumb: pushed right on
+ * desktop, full-width below 760 px. */
+.topbar-tools {
+  margin-left: auto;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* Search is the only flexible tool; 250 px is its desktop width. */
+.search-wrap {
+  width: 250px;
+  max-width: 100%;
+}
+
+/* The menu trigger is mobile-only; the sidebar is always visible above
+ * 960 px. */
+.mobile-menu {
+  display: none;
+}
+
+main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--mantine-spacing-md) var(--mantine-spacing-lg) var(--mantine-spacing-xl);
+  outline: none;
+}
+
+/* Fluid cover grid: the track count follows the available width, which a
+ * fixed-column SimpleGrid cannot do without JS breakpoints. */
 .game-grid,
 .skeleton-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 14px;
+  gap: var(--mantine-spacing-md);
 }
 
 .skeleton-grid {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
 
-.empty-library,
-.placeholder {
-  max-width: 640px;
-  margin: 48px auto;
-}
-
-.game-card {
-  position: relative;
-}
-
-.game-card.is-selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
-.game-table tbody tr.is-selected {
-  background: rgba(242, 181, 68, 0.06);
-}
-
-.button-small {
-  height: 28px;
-  padding: 0 9px;
-  font-size: 11.5px;
-}
-
-.card-open {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-}
-
+/* Steam header art has one fixed aspect ratio; the wrapper clips the CDN
+ * image and the initials fallback. */
 .game-cover-wrap {
   position: relative;
   aspect-ratio: 460 / 215;
-  background: var(--surface-2);
+  background: var(--mantine-color-dark-6);
   overflow: hidden;
-  border-radius: var(--radius-sm);
+  border-radius: var(--mantine-radius-sm);
 }
 
 .game-cover,
@@ -761,6 +188,7 @@ main {
   object-fit: cover;
 }
 
+/* The tint is derived per Game from its name, so it cannot live in the theme. */
 .game-cover-fallback {
   display: grid;
   place-items: center;
@@ -770,31 +198,11 @@ main {
   color: hsl(var(--cover-h, 215) 50% 76%);
   background:
     radial-gradient(circle at 28% 24%, hsl(var(--cover-h, 215) 32% 26%) 0%, transparent 62%),
-    linear-gradient(135deg, hsl(var(--cover-h, 215) 22% 20%), var(--surface-2));
+    linear-gradient(135deg, hsl(var(--cover-h, 215) 22% 20%), var(--mantine-color-dark-6));
 }
 
-.card-pills {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  right: 8px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
-  pointer-events: none;
-}
-
-.card-pills .pill-installed {
-  position: static;
-}
-
-.pill-installed .status-dot {
-  width: 5px;
-  height: 5px;
-  box-shadow: none;
-}
-
+/* The selection checkbox floats over the cover; Mantine has no overlay slot
+ * for Card. */
 .select-check {
   position: absolute;
   z-index: 3;
@@ -804,9 +212,9 @@ main {
   height: 26px;
   display: grid;
   place-items: center;
-  border-radius: 5px;
-  background: rgba(10, 12, 16, 0.82);
-  border: 1px solid var(--border-strong);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-dark-9);
+  border: 1px solid var(--mantine-color-dark-4);
   opacity: 0.72;
 }
 
@@ -815,149 +223,79 @@ main {
   opacity: 1;
 }
 
+/* The detail dialog's stat grid is plain CSS: Mantine SimpleGrid's column
+ * count is a runtime <style> tag, which the CSP blocks. */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--mantine-spacing-xs);
 }
 
-.game-name,
-.game-tags,
-.game-review {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.table-game {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: inherit;
-  text-decoration: none;
-  min-width: 190px;
-}
-
+/* Table cover thumbnails are a second, narrow aspect ratio for the same
+ * GameCover component. */
 .table-thumb {
   width: 32px;
   height: 45px;
-  border-radius: 3px;
+  border-radius: var(--mantine-radius-xs);
   object-fit: cover;
-  background: var(--surface-3);
+  background: var(--mantine-color-dark-5);
   flex: none;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.03em;
-  color: var(--accent);
+  color: var(--mantine-primary-color-filled);
 }
 
-.table-game-name {
-  display: block;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.table-game-sub {
-  display: block;
-  color: var(--text-faint);
-  font-size: 10.5px;
-}
-
+/* Playtime and release years line up only with tabular figures. */
 .mono {
-  font-family: var(--mono);
+  font-family: var(--mantine-font-family-monospace);
   font-variant-numeric: tabular-nums;
 }
 
+/* The detail banner fades its art into the page background; Mantine's
+ * overlay components do not provide a gradient. */
 .detail-banner::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent 38%, rgba(15, 17, 21, 0.94));
+  background: linear-gradient(
+    180deg,
+    transparent 38%,
+    color-mix(in srgb, var(--mantine-color-body) 94%, transparent)
+  );
   pointer-events: none;
 }
 
-.detail-banner-text {
-  z-index: 2;
-}
-
-.game-picker-list {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-1);
-}
-
+/* The Game picker caps its result list so the editor does not grow with the
+ * search results. */
 .picker-results {
   max-height: 190px;
   overflow-y: auto;
 }
 
-.picker-results label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.picker-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.picker-id {
-  margin-left: auto;
-  white-space: nowrap;
-}
-
-/* Rule rows keep the prefix-first shape: prefix and remove, then field,
- * operator, and value on one line (stacked on narrow screens). */
-.rule-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.rule-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
-  gap: 8px;
-  align-items: end;
-}
-
-@media (max-width: 760px) {
-  .rule-fields {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* The Smart Collection editor keeps its two-pane layout; Mantine supplies the
- * controls and surfaces. */
+/* The editor keeps the prototype's two-pane layout: a fixed-basis rule pane
+ * and a flexible preview. A fixed ratio cannot express the pane widths. */
 .editor-layout {
   display: grid;
   grid-template-columns: minmax(340px, 440px) minmax(0, 1fr);
-  gap: 16px;
+  gap: var(--mantine-spacing-md);
   align-items: start;
 }
 
-.editor-pane,
-.preview-pane {
-  min-width: 0;
-}
-
-/* Mantine's dark `dimmed` token is #828282, which is below AA on these
- * surfaces; secondary copy uses the lighter token explicitly via props. The
- * Input description is the one place props cannot reach without repetition. */
-.settings .mantine-InputWrapper-description {
-  color: var(--mantine-color-gray-5);
+/* Rule fields keep the prefix-first shape: field, operator, and value on one
+ * line (stacked on narrow screens). */
+.rule-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: var(--mantine-spacing-xs);
+  align-items: end;
 }
 
 /* Refresh progress is a custom visualisation, not a Mantine control. */
 .progress {
   height: 6px;
   border-radius: 999px;
-  background: var(--surface-4);
+  background: var(--mantine-color-dark-5);
   overflow: hidden;
 }
 
@@ -965,7 +303,7 @@ main {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--accent);
+  background: var(--mantine-primary-color-filled);
   transition: width 240ms ease;
 }
 
@@ -983,44 +321,9 @@ main {
   }
 }
 
-@media (max-width: 1100px) {
-  .editor-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 760px) {
-  .empty-library,
-  .placeholder {
-    margin: 20px auto;
-  }
-}
-
-@media (max-width: 460px) {
-  .game-grid,
-  .skeleton-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
-
-  /* The indeterminate sweep would otherwise freeze off-canvas. */
-  .progress-indeterminate > span {
-    transform: none !important;
-    width: 35%;
-  }
-}
-
-/* Responsive shell: the sidebar becomes a drawer below 960 px. */
-
+/* Responsive shell: the sidebar becomes a drawer below 960 px. Written here
+ * rather than with AppShell because its responsive CSS is a runtime <style>
+ * tag that the CSP blocks. */
 @media (max-width: 960px) {
   .app {
     grid-template-columns: minmax(0, 1fr);
@@ -1034,7 +337,6 @@ main {
     transform: translateX(-102%);
     visibility: hidden;
     transition: transform 160ms ease;
-    box-shadow: var(--shadow);
   }
 
   .sidebar.is-open {
@@ -1051,8 +353,14 @@ main {
   }
 
   .topbar {
-    gap: 10px;
-    padding: 10px 14px;
+    gap: var(--mantine-spacing-sm);
+    padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
+  }
+}
+
+@media (max-width: 1100px) {
+  .editor-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1077,11 +385,17 @@ main {
   }
 
   main {
-    padding: 12px 14px 24px;
+    padding: var(--mantine-spacing-sm) var(--mantine-spacing-md) var(--mantine-spacing-lg);
   }
 }
 
 @media (max-width: 460px) {
+  .game-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+
+  /* Narrow screens keep search and the two primary actions, and drop the
+   * optional filters, layout switch, and secondary Fetch. */
   .select-wrap,
   .toggle-button,
   .segmented,
@@ -1092,5 +406,25 @@ main {
 
   .search-wrap {
     flex: 1 1 100%;
+  }
+
+  .rule-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* The indeterminate sweep would otherwise freeze off-canvas. */
+  .progress-indeterminate > span {
+    transform: none !important;
+    width: 35%;
   }
 }

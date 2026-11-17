@@ -86,7 +86,7 @@ export function RuleRow({
       radius="sm"
       withBorder
     >
-      <Box className="rule-grid">
+      <Stack gap={8}>
         <Group className="rule-head" justify="space-between" align="center" gap="xs" wrap="nowrap">
           <Box className="rule-prefix" role="group" aria-label={`Rule ${index + 1} prefix`}>
             <Button.Group>
@@ -96,7 +96,6 @@ export function RuleRow({
                   <Button
                     key={prefix}
                     type="button"
-                    className={`seg-button prefix-${prefix.toLowerCase()}`}
                     size="compact-sm"
                     variant={active ? "filled" : "default"}
                     color={active ? PREFIX_COLORS[prefix] : "gray"}
@@ -163,7 +162,7 @@ export function RuleRow({
             />
           </Input.Wrapper>
         </Box>
-      </Box>
+      </Stack>
 
       {invalid && (
         <Stack
