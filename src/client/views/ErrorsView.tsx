@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useNavigate, useOutletContext } from "react-router-dom";
+import { Badge, Box, Button, DataList, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { SOURCE_ORDER, type SourceHealth } from "../../shared/types.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { formatCount, formatTimestamp } from "../format.ts";
@@ -22,6 +23,12 @@ type AffectedState = Record<MetadataSource, AffectedAndPendingGames | null>;
 function emptyAffected(): AffectedState {
   return { steamspy: null, storefront: null, steam_reviews: null };
 }
+
+const TONE_COLOR: Record<string, string> = {
+  ok: "green",
+  warning: "yellow",
+  error: "red",
+};
 
 /**
  * `/errors` — one row per source in the documented order (§1.7, §7.7).
@@ -73,10 +80,14 @@ export function ErrorsView() {
 
   if (status === null) {
     return (
-      <section className="errors-view" aria-labelledby="errors-heading">
-        <h2 id="errors-heading">Refresh errors</h2>
-        <p>Cannot reach game-cat. Is the server still running?</p>
-      </section>
+      <Box component="section" className="errors-view">
+        <Stack gap="md">
+          <Title order={2} id="errors-heading">
+            Refresh errors
+          </Title>
+          <Text>Cannot reach game-cat. Is the server still running?</Text>
+        </Stack>
+      </Box>
     );
   }
 
@@ -86,27 +97,35 @@ export function ErrorsView() {
   );
 
   return (
-    <section className="errors-view" aria-labelledby="errors-heading">
-      <header className="errors-head">
-        <div>
-          <h2 id="errors-heading">Refresh errors</h2>
-          <p>
+    <Stack component="section" className="errors-view" aria-labelledby="errors-heading" gap="md">
+      <Group
+        className="errors-head"
+        justify="space-between"
+        align="flex-start"
+        gap="md"
+        wrap="wrap"
+      >
+        <Stack gap={4}>
+          <Title order={2} id="errors-heading">
+            Refresh errors
+          </Title>
+          <Text c="gray.5" size="sm">
             Per-source health for the five Refresh sources. Affected Games have a failed last
             attempt; pending Games have not been attempted yet. The Library stays usable with cached
             data while a source recovers.
-          </p>
-        </div>
-        <button
-          type="button"
-          className="primary"
-          onClick={() => void startFetch()}
-          disabled={isRunning}
-        >
+          </Text>
+        </Stack>
+        <Button onClick={() => void startFetch()} disabled={isRunning}>
           Fetch
-        </button>
-      </header>
+        </Button>
+      </Group>
 
-      <ul className="errors-list">
+      <Stack
+        component="ul"
+        className="errors-list"
+        gap="sm"
+        style={{ listStyle: "none", padding: 0, margin: 0 }}
+      >
         {sources.map((source) => {
           const tone = sourceStatusTone(source.status);
           const metadataName = isMetadataSource(source.name) ? source.name : null;
@@ -121,73 +140,101 @@ export function ErrorsView() {
             !loadingAffected &&
             !affectedError;
           return (
-            <li key={source.name} className={`error-row tone-${tone}`} data-source={source.name}>
-              <div className="error-source">
-                <strong>{sourceLabel(source)}</strong>
-                <span className={`status-pill tone-${tone}`}>{source.status}</span>
-              </div>
+            <Paper
+              component="li"
+              key={source.name}
+              className={`error-row tone-${tone}`}
+              data-source={source.name}
+              p="sm"
+              radius="md"
+              withBorder
+            >
+              <Group align="flex-start" gap="md" wrap="wrap">
+                <Stack className="error-source" gap={6} style={{ flex: "1 1 150px", minWidth: 0 }}>
+                  <Text fw={700}>{sourceLabel(source)}</Text>
+                  <Badge
+                    className={`status-pill tone-${tone}`}
+                    color={TONE_COLOR[tone] ?? "gray"}
+                    variant="light"
+                    size="sm"
+                    radius="xl"
+                    tt="uppercase"
+                  >
+                    {source.status}
+                  </Badge>
+                </Stack>
 
-              <dl className="error-times">
-                <div>
-                  <dt>Last success</dt>
-                  <dd>{formatTimestamp(source.lastSuccessAt)}</dd>
-                </div>
-                <div>
-                  <dt>Last attempt</dt>
-                  <dd>{formatTimestamp(source.lastAttemptAt)}</dd>
-                </div>
-                {source.retryAfterAt !== null && (
-                  <div>
-                    <dt>Retry after</dt>
-                    <dd>{formatTimestamp(source.retryAfterAt)}</dd>
-                  </div>
-                )}
-              </dl>
+                <DataList
+                  className="error-times"
+                  orientation="vertical"
+                  gap={4}
+                  style={{ flex: "1 1 190px" }}
+                >
+                  <DataList.Item>
+                    <DataList.ItemLabel c="gray.5">Last success</DataList.ItemLabel>
+                    <DataList.ItemValue>{formatTimestamp(source.lastSuccessAt)}</DataList.ItemValue>
+                  </DataList.Item>
+                  <DataList.Item>
+                    <DataList.ItemLabel c="gray.5">Last attempt</DataList.ItemLabel>
+                    <DataList.ItemValue>{formatTimestamp(source.lastAttemptAt)}</DataList.ItemValue>
+                  </DataList.Item>
+                  {source.retryAfterAt !== null && (
+                    <DataList.Item>
+                      <DataList.ItemLabel c="gray.5">Retry after</DataList.ItemLabel>
+                      <DataList.ItemValue>
+                        {formatTimestamp(source.retryAfterAt)}
+                      </DataList.ItemValue>
+                    </DataList.Item>
+                  )}
+                </DataList>
 
-              <div className="error-detail">
-                <p className="error-message">{source.lastError ?? "No recent error."}</p>
+                <Stack className="error-detail" gap={4} style={{ flex: "1 1 180px", minWidth: 0 }}>
+                  <Text className="error-message" size="sm" c="gray.5">
+                    {source.lastError ?? "No recent error."}
+                  </Text>
+                  {metadata && (
+                    <Text className="affected-count" size="xs" c="gray.5">
+                      {loadingAffected
+                        ? "Counting affected Games…"
+                        : affectedError
+                          ? "Affected Games could not be counted."
+                          : `${formatCount(count ?? 0)} affected ${
+                              count === 1 ? "Game" : "Games"
+                            } · ${formatCount(pendingCount)} pending`}
+                    </Text>
+                  )}
+                </Stack>
+
                 {metadata && (
-                  <p className="affected-count">
-                    {loadingAffected
-                      ? "Counting affected Games…"
-                      : affectedError
-                        ? "Affected Games could not be counted."
-                        : `${formatCount(count ?? 0)} affected ${
-                            count === 1 ? "Game" : "Games"
-                          } · ${formatCount(pendingCount)} pending`}
-                  </p>
+                  <Group className="error-actions" gap="xs" wrap="wrap">
+                    <Button
+                      variant="default"
+                      size="compact-sm"
+                      onClick={() => void startFetch()}
+                      disabled={isRunning}
+                    >
+                      Fetch now
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="compact-sm"
+                      onClick={() => metadataName !== null && void selectAffected(metadataName)}
+                      disabled={!canSelect || selecting !== null}
+                      title={
+                        !canSelect && !loadingAffected && !affectedError
+                          ? "No affected Games for this source."
+                          : undefined
+                      }
+                    >
+                      Select affected
+                    </Button>
+                  </Group>
                 )}
-              </div>
-
-              {metadata && (
-                <div className="error-actions">
-                  <button
-                    type="button"
-                    className="button button-small"
-                    onClick={() => void startFetch()}
-                    disabled={isRunning}
-                  >
-                    Fetch now
-                  </button>
-                  <button
-                    type="button"
-                    className="button button-small"
-                    onClick={() => metadataName !== null && void selectAffected(metadataName)}
-                    disabled={!canSelect || selecting !== null}
-                    title={
-                      !canSelect && !loadingAffected && !affectedError
-                        ? "No affected Games for this source."
-                        : undefined
-                    }
-                  >
-                    Select affected
-                  </button>
-                </div>
-              )}
-            </li>
+              </Group>
+            </Paper>
           );
         })}
-      </ul>
-    </section>
+      </Stack>
+    </Stack>
   );
 }
