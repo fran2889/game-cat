@@ -1,3 +1,4 @@
+import { Button, Group, Text } from "@mantine/core";
 import { formatCount } from "../format.ts";
 
 export interface ResultsHeaderProps {
@@ -26,27 +27,27 @@ export function ResultsHeader({
     : `${formatCount(totalItems)} ${totalItems === 1 ? "game" : "games"}`;
 
   return (
-    <div className="results-head">
-      <span className="results-count" aria-live="polite">
+    <Group className="results-head" gap="sm" wrap="wrap">
+      <Text component="span" className="results-count" aria-live="polite" size="sm" c="gray.5">
         {label}
-      </span>
-      <div className="results-actions">
+      </Text>
+      <Group className="results-actions" gap="xs" ml="auto">
         {hasGames && (
-          <button
-            type="button"
-            className="button button-small"
+          <Button
+            size="compact-sm"
+            variant="default"
             onClick={onSelectShown}
             disabled={allShownSelected}
           >
             {allShownSelected ? "All shown selected" : "Select shown"}
-          </button>
+          </Button>
         )}
         {selectionCount > 0 && (
-          <button type="button" className="button button-small" onClick={onClearSelection}>
+          <Button size="compact-sm" variant="default" onClick={onClearSelection}>
             Clear selection
-          </button>
+          </Button>
         )}
-      </div>
-    </div>
+      </Group>
+    </Group>
   );
 }

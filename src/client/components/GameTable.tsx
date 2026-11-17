@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { Checkbox, Table, Text, UnstyledButton } from "@mantine/core";
 import { Link, useLocation } from "react-router-dom";
 import type { GameSummary } from "../../shared/types.ts";
 import type { TableSortField } from "../browse.ts";
@@ -7,6 +7,7 @@ import {
   formatDate,
   formatPlaytime,
   ownershipLabel,
+  reviewColor,
   reviewSummaryLabel,
   reviewTone,
 } from "../format.ts";
@@ -24,26 +25,26 @@ function selectAllState(games: GameSummary[], isSelected: (appId: number) => boo
   };
 }
 
+function tagStatusColor(status: string): string {
+  if (status === "ok") {
+    return "green";
+  }
+  return status === "stale" || status === "error" ? "red" : "gray";
+}
+
+/** The table shared by the Library and Steam Collection views. */
 export function GameTable({ games }: GameTableProps) {
   const location = useLocation();
   const { sort, order, applyTableSort, isSelected, toggleSelected, selectShown, clearShown } =
     useBrowse();
-  const selectAllRef = useRef<HTMLInputElement>(null);
   const state = selectAllState(games, isSelected);
-
-  useEffect(() => {
-    if (selectAllRef.current !== null) {
-      selectAllRef.current.indeterminate = state.some;
-    }
-  }, [state.some]);
 
   const sortableHeader = (label: string, field: TableSortField) => {
     const active = sort === field;
     const ariaSort = active ? (order === "asc" ? "ascending" : "descending") : "none";
     return (
-      <th scope="col" aria-sort={ariaSort} key={field}>
-        <button
-          type="button"
+      <Table.Th scope="col" aria-sort={ariaSort} key={field}>
+        <UnstyledButton
           className="th-sort"
           onClick={() => applyTableSort(field)}
           aria-label={`Sort by ${label}${active ? (order === "asc" ? " descending" : " ascending") : ""}`}
@@ -54,8 +55,8 @@ export function GameTable({ games }: GameTableProps) {
               ↑
             </span>
           )}
-        </button>
-      </th>
+        </UnstyledButton>
+      </Table.Th>
     );
   };
 
@@ -69,44 +70,46 @@ export function GameTable({ games }: GameTableProps) {
   };
 
   return (
-    <div className="table-wrap">
-      <table className="game-table">
-        <thead>
-          <tr>
-            <th scope="col" className="col-check">
-              <input
-                ref={selectAllRef}
-                type="checkbox"
+    <Table.ScrollContainer className="table-wrap" minWidth={780} type="native">
+      <Table className="game-table" verticalSpacing={7} horizontalSpacing={10} stickyHeader>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th scope="col" className="col-check">
+              <Checkbox
+                size="md"
+                styles={{ input: { width: 24, height: 24 } }}
                 checked={state.all}
+                indeterminate={state.some}
                 onChange={toggleAll}
                 aria-label="Select all shown games"
               />
-            </th>
+            </Table.Th>
             {sortableHeader("Game", "name")}
-            <th scope="col">Installed</th>
+            <Table.Th scope="col">Installed</Table.Th>
             {sortableHeader("Playtime", "playtime")}
             {sortableHeader("Last played", "lastPlayed")}
-            <th scope="col">Review</th>
+            <Table.Th scope="col">Review</Table.Th>
             {sortableHeader("Released", "releaseYear")}
-            <th scope="col">Tags</th>
-          </tr>
-        </thead>
-        <tbody>
+            <Table.Th scope="col">Tags</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
           {games.map((game) => {
             const selected = isSelected(game.appId);
             const review = reviewSummaryLabel(game.reviewScore, game.reviewTier, game.reviewCount);
             const tags = game.tags.slice(0, 3).map((tag) => tag.name);
             return (
-              <tr key={game.appId} className={selected ? "is-selected" : undefined}>
-                <td>
-                  <input
-                    type="checkbox"
+              <Table.Tr key={game.appId} className={selected ? "is-selected" : undefined}>
+                <Table.Td>
+                  <Checkbox
+                    size="md"
+                    styles={{ input: { width: 24, height: 24 } }}
                     checked={selected}
                     onChange={() => toggleSelected(game.appId)}
                     aria-label={`Select ${game.name}`}
                   />
-                </td>
-                <td>
+                </Table.Td>
+                <Table.Td>
                   <Link
                     className="table-game"
                     to={{ pathname: `/games/${game.appId}`, search: location.search }}
@@ -122,27 +125,32 @@ export function GameTable({ games }: GameTableProps) {
                       )}
                     </span>
                   </Link>
-                </td>
-                <td>{game.installed === true ? "Yes" : game.installed === false ? "No" : "—"}</td>
-                <td className="mono">{formatPlaytime(game.playtimeMinutes)}</td>
-                <td>{formatDate(game.lastPlayedAt)}</td>
-                <td className={`review-text ${reviewTone(game.reviewScore)}`}>{review}</td>
-                <td className="mono">{game.releaseYear ?? "—"}</td>
-                <td>
+                </Table.Td>
+                <Table.Td>
+                  {game.installed === true ? "Yes" : game.installed === false ? "No" : "—"}
+                </Table.Td>
+                <Table.Td className="mono">{formatPlaytime(game.playtimeMinutes)}</Table.Td>
+                <Table.Td>{formatDate(game.lastPlayedAt)}</Table.Td>
+                <Table.Td c={reviewColor(reviewTone(game.reviewScore))}>{review}</Table.Td>
+                <Table.Td className="mono">{game.releaseYear ?? "—"}</Table.Td>
+                <Table.Td>
                   {tags.length > 0 ? tags.join(", ") : "—"}
-                  <span
+                  <Text
+                    component="span"
                     className={`tag-status is-${game.metadata.tagsStatus}`}
                     title={`Tags: ${game.metadata.tagsStatus}`}
+                    size="xs"
+                    c={tagStatusColor(game.metadata.tagsStatus)}
                   >
                     {" "}
                     {game.metadata.tagsStatus}
-                  </span>
-                </td>
-              </tr>
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
             );
           })}
-        </tbody>
-      </table>
-    </div>
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
   );
 }

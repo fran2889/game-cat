@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Paper, Stack, Text, Title } from "@mantine/core";
 
 export interface PlaceholderViewProps {
   kicker: string;
@@ -9,11 +10,24 @@ export interface PlaceholderViewProps {
 
 export function PlaceholderView({ kicker, title, description, children }: PlaceholderViewProps) {
   return (
-    <section className="placeholder" aria-labelledby="placeholder-heading">
-      <p className="placeholder-kicker">{kicker}</p>
-      <h2 id="placeholder-heading">{title}</h2>
-      <p>{description}</p>
-      {children}
-    </section>
+    <Paper
+      component="section"
+      className="placeholder"
+      aria-labelledby="placeholder-heading"
+      p="lg"
+      radius="lg"
+      withBorder
+    >
+      <Stack gap="sm">
+        <Text className="placeholder-kicker" size="xs" c="gray.5" tt="uppercase" fw={700}>
+          {kicker}
+        </Text>
+        <Title order={2} id="placeholder-heading">
+          {title}
+        </Title>
+        <Text c="gray.5">{description}</Text>
+        {children}
+      </Stack>
+    </Paper>
   );
 }
