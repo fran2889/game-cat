@@ -51,11 +51,11 @@ test("create, reopen, rename, and delete a Smart Collection with a live sidebar 
   });
 
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
   await page.getByRole("textbox", { name: "Name" }).fill("Co-op picks");
   await page.getByRole("button", { name: "+ Add rule" }).click();
   await page.locator('[data-rule-index="0"] .rule-value input').fill("Co-op");
-  await expect(page.getByTestId("match-count")).toHaveText("1 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("1 game matches · updates as you edit");
 
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page).toHaveURL(/\/smart\/[0-9a-f-]{36}$/);
@@ -73,7 +73,7 @@ test("create, reopen, rename, and delete a Smart Collection with a live sidebar 
   await expect(page).toHaveURL(savedUrl);
   await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue("Co-op picks");
   await expect(page.getByTestId("prefix-counts")).toHaveText("1 AND · 0 OR · 0 NOT");
-  await expect(page.getByTestId("match-count")).toHaveText("1 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("1 game matches · updates as you edit");
 
   // Rename explicitly and see the sidebar follow the new name.
   await page.getByRole("textbox", { name: "Name" }).fill("Co-op favourites");

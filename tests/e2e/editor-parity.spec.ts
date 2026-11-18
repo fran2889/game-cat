@@ -19,8 +19,13 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
   page,
 }) => {
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
   await expect(page.locator(".game-grid .game-card").first()).toBeVisible();
+
+  // The rail opens with the mockup's eyebrow label; a new draft has no
+  // autosave state until the first explicit Save.
+  await expect(page.locator(".editor-head")).toContainText("Smart Collection");
+  await expect(page.locator(".editor-head").getByTestId("save-state")).toHaveCount(0);
 
   const previewBox = await page.locator(".preview-pane").boundingBox();
   const editorBox = await page.locator(".editor-pane").boundingBox();
@@ -30,6 +35,8 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
   expect(editorBox?.width).toBeCloseTo(370, 0);
 
   const add = page.getByRole("button", { name: "+ Add rule" });
+  await expect(add).toHaveAccessibleName("+ Add rule");
+  await expect(add.locator("svg")).toHaveCount(1);
   const actionsBox = await page.locator(".editor-actions").boundingBox();
   const addBox = await add.boundingBox();
   expect(addBox?.width).toBeCloseTo(actionsBox?.width ?? 0, 0);
@@ -39,12 +46,17 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
   await expect(add).toHaveCSS("height", "26px");
   await expect(page.locator(".prefix-callout")).toHaveCSS("padding", "10px");
   await expect(page.locator(".prefix-callout p").first()).toHaveCSS("font-size", "12px");
+  // The prefix summary is Mantine's light info Alert with an icon, not a
+  // neutral bordered Paper.
+  await expect(page.locator(".prefix-callout")).toHaveClass(/mantine-Alert-root/);
+  await expect(page.locator(".prefix-callout svg")).toHaveCount(1);
   await expect(page.locator(".quick-add")).toHaveCSS("padding", "10px");
 
   await add.click();
   const row = page.locator('[data-rule-index="0"]');
   await expect(row).toHaveCSS("padding", "10px");
   await expect(row).toHaveCSS("border-left-width", "3px");
+  await expect(page.getByRole("button", { name: "Remove rule 1" }).locator("svg")).toHaveCount(1);
 
   // The callout, rule list, Add rule, and quick add are all in the same
   // vertical rhythm; none of them may sit flush against its neighbour.
@@ -96,8 +108,91 @@ test("the editor preview stays in grid when the Library is in table view", async
 
   await page.getByRole("link", { name: "+ New collection" }).click();
   await expect(page).toHaveURL(/\/smart\/new$/);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
   await expect(page.locator(".game-grid .game-card").first()).toBeVisible();
   await expect(page.locator(".game-table")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Table view" })).toHaveCount(0);
+});
+
+test("the rail header pairs the Smart Collection eyebrow with the autosave state", async ({
+  page,
+}) => {
+  await page.goto(`${app.url}smart/new`);
+  const head = page.locator(".editor-head");
+  await expect(head).toContainText("Smart Collection");
+  await page.getByRole("textbox", { name: "Name" }).fill("Header chrome");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page).toHaveURL(/\/smart\/[0-9a-f-]{36}$/);
+
+  await expect(head.getByTestId("save-state")).toHaveText("Saved");
+  await expect(head.locator(".editor-save-dot")).toHaveCount(1);
+  await expect(head.getByTestId("save-state")).toHaveCSS("font-size", "12px");
+  // The label and the state share one compact header row.
+  const headBox = await head.boundingBox();
+  const stateBox = await head.getByTestId("save-state").boundingBox();
+  expect(Math.abs((stateBox?.y ?? 0) - (headBox?.y ?? 0))).toBeLessThan(20);
+
+  await page.getByRole("textbox", { name: "Name" }).fill("Header chrome edited");
+  await expect(head.getByTestId("save-state")).toHaveText("Unsaved changes");
+});
+
+test("rule rows describe their field, operator, and value", async ({ page }) => {
+  await page.goto(`${app.url}smart/new`);
+  await page.getByRole("button", { name: "+ Add rule" }).click();
+  const row = page.locator('[data-rule-index="0"]');
+  const description = row.locator(".rule-description");
+
+  // An empty draft row still names its Field and Operator.
+  await expect(description).toHaveText("Tag has…");
+  await row.locator(".rule-value input").fill("Co-op");
+  await expect(description).toHaveText('Tagged "Co-op"');
+
+  await row.locator(".rule-field select").selectOption("playtime");
+  await row.locator(".rule-operator select").selectOption("lte");
+  await row.locator(".rule-value input").fill("20");
+  await expect(description).toHaveText("Playtime ≤ 20 h");
+
+  await row.locator(".rule-field select").selectOption("installed");
+  await expect(description).toHaveText("Installed");
+});
+
+test("Select shown selects the preview page and Clear shown clears it", async ({ page }) => {
+  await page.goto(`${app.url}smart/new`);
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
+
+  const select = page.getByRole("button", { name: "Select shown" });
+  await expect(select).toBeVisible();
+  await select.click();
+  await expect(page.locator(".selection-count")).toHaveText("60 selected");
+  await expect(page.locator(".preview-pane .game-card.is-selected")).toHaveCount(60);
+
+  await page.getByRole("button", { name: "Clear shown" }).click();
+  await expect(page.locator(".selection-bar")).toHaveCount(0);
+  await expect(page.locator(".preview-pane .game-card.is-selected")).toHaveCount(0);
+
+  // The same selection feeds the existing Add to current rules handoff.
+  await page.getByRole("textbox", { name: "Name" }).fill("Shown selection");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page).toHaveURL(/\/smart\/[0-9a-f-]{36}$/);
+  await page.getByRole("button", { name: "Select shown" }).click();
+  await page.getByRole("button", { name: "Add to current rules" }).click();
+  await expect(page.getByTestId("prefix-counts")).toHaveText("1 AND · 0 OR · 0 NOT");
+  await expect(page.getByTestId("match-count")).toHaveText("60 games match · updates as you edit");
+});
+
+test("Delete is an icon control that keeps its name and confirmation", async ({ page }) => {
+  await page.goto(`${app.url}smart/new`);
+  await page.getByRole("textbox", { name: "Name" }).fill("Delete chrome");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page).toHaveURL(/\/smart\/[0-9a-f-]{36}$/);
+
+  const remove = page.locator(".editor-delete");
+  await expect(remove).toHaveAccessibleName("Delete");
+  await expect(remove.locator("svg")).toHaveCount(1);
+  await remove.click();
+
+  const dialog = page.getByRole("alertdialog", { name: "Delete Smart Collection" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
 });
