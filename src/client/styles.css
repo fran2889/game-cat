@@ -74,6 +74,24 @@
   display: none;
 }
 
+/* Sidebar rows follow the mockup's compact metrics: an 18px icon column, a
+ * flexible label, an auto-sized count, a 9px gap, 7/8px padding, and a 6px
+ * radius. */
+.side-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: 6px;
+}
+
+/* Mantine's NavLink sections carry flex-row margins; the grid gap owns the
+ * spacing here. */
+.side-item > [data-position] {
+  margin: 0;
+}
+
 /* The active row is a surface tint with a 3px accent edge and a soft shadow,
  * not Mantine's filled primary block. The edge plus the tint keeps the row
  * distinguishable without relying on colour alone. */

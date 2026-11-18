@@ -57,9 +57,9 @@ test("the built app applies Mantine spacing under the real CSP", async ({ page }
 
   const brand = page.locator("#sidebar .brand");
   await expect(brand).toBeVisible();
-  // Group writes `--group-gap: 10px` as a style attribute and its stylesheet
+  // Group writes `--group-gap: 12px` as a style attribute and its stylesheet
   // reads it back. React applies it through CSSOM, which CSP does not govern.
-  await expect(brand).toHaveCSS("gap", "10px");
+  await expect(brand).toHaveCSS("gap", "12px");
 
   // Style attributes that arrive as markup, as they would with SSR or a
   // framework that uses setAttribute, are governed by style-src-attr. The

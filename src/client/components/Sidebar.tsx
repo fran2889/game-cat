@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -16,6 +16,17 @@ import {
   Text,
   ThemeIcon,
 } from "@mantine/core";
+import {
+  IconCat,
+  IconCheck,
+  IconDeviceGamepad2,
+  IconLayoutGrid,
+  IconLock,
+  IconPlus,
+  IconRefresh,
+  IconSparkles,
+  IconX,
+} from "@tabler/icons-react";
 import type { Status } from "../../shared/types.ts";
 import { steamCollectionsQueryOptions } from "../api.ts";
 import { formatCount, formatRelativeTime } from "../format.ts";
@@ -64,17 +75,15 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
       className={`sidebar${open ? " is-open" : ""}`}
       aria-label="Library navigation"
     >
-      <Group className="brand" gap={10} px="sm" py="sm" wrap="nowrap">
-        <ThemeIcon size={30} radius="md" variant="light" color="yellow" aria-hidden="true">
-          <Text size="xs" fw={800} lts="0.03em">
-            GC
-          </Text>
+      <Group className="brand" gap="sm" px="md" py="sm" wrap="nowrap">
+        <ThemeIcon size={34} radius="md" variant="light" color="yellow" aria-hidden="true">
+          <IconCat size={20} aria-hidden="true" />
         </ThemeIcon>
-        <Text fw={700} size="sm">
+        <Text fw={700} size="lg">
           game-cat
         </Text>
         {status !== null && (
-          <Badge variant="default" size="xs" radius="xl" tt="none" ff="mono" ml="auto">
+          <Badge variant="default" size="xs" radius="xl" tt="none" ml="auto">
             v{status.app.version}
           </Badge>
         )}
@@ -84,15 +93,15 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
           variant="subtle"
           onClick={onClose}
         >
-          ×
+          <IconX size={18} aria-hidden="true" />
         </ActionIcon>
       </Group>
 
-      <Stack component="nav" aria-label="Views" gap={1} px="sm" py="xs">
+      <Stack component="nav" aria-label="Views" gap={1} px={8} py={4}>
         <SidebarLink
           to="/"
           label="All games"
-          icon="▤"
+          icon={<IconLayoutGrid size={17} aria-hidden="true" />}
           count={formatCount(gameCount)}
           active={location.pathname === "/"}
           onNavigate={onClose}
@@ -100,17 +109,17 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
         <SidebarLink
           to="/installed"
           label="Installed"
-          icon="✓"
+          icon={<IconCheck size={17} aria-hidden="true" />}
           count={formatCount(installedCount)}
           active={location.pathname === "/installed"}
           onNavigate={onClose}
         />
       </Stack>
 
-      <Stack component="section" aria-labelledby="smart-heading" gap={1} px="sm" py="xs">
-        <Group justify="space-between" gap="xs" px="xs" pt="xs" pb={6} wrap="nowrap">
-          <Text component="h2" id="smart-heading" size="xs" fw={700} tt="uppercase" c="dimmed">
-            Smart collections
+      <Stack component="section" aria-labelledby="smart-heading" gap={1} px={8} py={4}>
+        <Group justify="space-between" gap="xs" px={8} mt="md" mb={4} wrap="nowrap">
+          <Text component="h2" id="smart-heading" size="xs" fw={600} tt="uppercase" c="dimmed">
+            Smart Collections
           </Text>
           <ActionIcon
             component={Link}
@@ -120,11 +129,11 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
             size="sm"
             onClick={onClose}
           >
-            +
+            <IconPlus size={14} aria-hidden="true" />
           </ActionIcon>
         </Group>
         {smartError !== null ? (
-          <Text size="xs" c="dimmed" px="xs" py={4}>
+          <Text size="xs" c="dimmed" px={8} py={4}>
             Smart Collections could not be loaded.{" "}
             <Button
               size="compact-xs"
@@ -135,11 +144,11 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
             </Button>
           </Text>
         ) : smartLoading && smartCollections.length === 0 ? (
-          <Text size="xs" c="dimmed" px="xs" py={4}>
+          <Text size="xs" c="dimmed" px={8} py={4}>
             Loading Smart Collections…
           </Text>
         ) : smartCollections.length === 0 ? (
-          <Text size="xs" c="dimmed" px="xs" py={4}>
+          <Text size="xs" c="dimmed" px={8} py={4}>
             No Smart Collections yet.{" "}
             <Anchor component={Link} to="/smart/new" size="xs" underline="always" onClick={onClose}>
               Create one
@@ -153,7 +162,7 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
                 key={collection.id}
                 to={`/smart/${encodeURIComponent(collection.id)}`}
                 label={collection.name}
-                icon="✦"
+                icon={<IconSparkles size={16} aria-hidden="true" />}
                 count={formatCount(collection.matchCount)}
                 active={location.pathname === `/smart/${encodeURIComponent(collection.id)}`}
                 title={collection.name}
@@ -164,17 +173,18 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
         )}
       </Stack>
 
-      <Stack component="section" aria-labelledby="steam-heading" gap={1} px="sm" py="xs">
-        <Group gap="xs" px="xs" pt="xs" pb={6}>
-          <Text component="h2" id="steam-heading" size="xs" fw={700} tt="uppercase" c="dimmed">
-            Steam collections
+      <Stack component="section" aria-labelledby="steam-heading" gap={1} px={8} py={4}>
+        <Group justify="space-between" gap="xs" px={8} mt="md" mb={4} wrap="nowrap">
+          <Text component="h2" id="steam-heading" size="xs" fw={600} tt="uppercase" c="dimmed">
+            Steam Collections
           </Text>
+          <IconLock size={12} aria-hidden="true" />
         </Group>
-        <Text size="xs" c="dimmed" px="xs">
+        <Text size="xs" c="dimmed" px={8}>
           Read-only mirror · never written back
         </Text>
         {steamCollections.length === 0 ? (
-          <Text size="xs" c="dimmed" px="xs" py={4}>
+          <Text size="xs" c="dimmed" px={8} py={4}>
             No Steam Collections mirrored yet. They appear after a scan.
           </Text>
         ) : (
@@ -184,7 +194,7 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
                 key={collection.id}
                 to={`/steam/${encodeURIComponent(collection.id)}`}
                 label={collection.name}
-                icon="🔒"
+                icon={<IconDeviceGamepad2 size={16} aria-hidden="true" />}
                 count={collection.isDynamic ? "dyn" : String(collection.gameCount ?? 0)}
                 active={location.pathname === `/steam/${encodeURIComponent(collection.id)}`}
                 title={collection.isDynamic ? `${collection.name} (dynamic)` : collection.name}
@@ -237,9 +247,14 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
                 </Text>
               </>
             )}
+            {/* The mockup's "Refresh all" copy is deliberately not used: this
+             * action starts a Fetch across all Games, which skips sources
+             * that are already current. "Refresh all" would imply a Full
+             * Refresh and misdescribe the API call. */}
             <Button
               variant="default"
               fullWidth
+              leftSection={<IconRefresh size={14} aria-hidden="true" />}
               onClick={() => void startFetch()}
               disabled={isRunning || status === null}
             >
@@ -308,14 +323,14 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
 interface SidebarLinkProps {
   to: string;
   label: string;
-  icon: string;
+  icon: ReactNode;
   count: string;
   active: boolean;
   title?: string;
   onNavigate(): void;
 }
 
-/** One sidebar row. Mantine owns the shape, hover, and active treatment. */
+/** One sidebar row. Mantine owns the hover and active treatment. */
 function SidebarLink({ to, label, icon, count, active, title, onNavigate }: SidebarLinkProps) {
   return (
     <NavLink
@@ -328,13 +343,9 @@ function SidebarLink({ to, label, icon, count, active, title, onNavigate }: Side
       aria-current={active ? "page" : undefined}
       onClick={onNavigate}
       noWrap
-      leftSection={
-        <Text component="span" size="xs" aria-hidden="true">
-          {icon}
-        </Text>
-      }
+      leftSection={icon}
       rightSection={
-        <Text component="span" size="xs" ff="mono" c={active ? "dark.2" : "dimmed"}>
+        <Text component="span" size="xs" c="dimmed">
           {count}
         </Text>
       }
