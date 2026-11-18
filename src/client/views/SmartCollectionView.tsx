@@ -1,25 +1,10 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Box, Button, Paper, Skeleton, Stack, Text, Title } from "@mantine/core";
+import { Alert, Box, Button, Paper, Stack, Text, Title } from "@mantine/core";
 import { ApiError, smartCollectionQueryOptions } from "../api.ts";
+import { GameGridSkeleton } from "../components/GameGridSkeleton.tsx";
 import { SmartEditor } from "../components/SmartEditor.tsx";
 import { useSmartCollections } from "../smart-collections-context.tsx";
-
-function LoadingCollection() {
-  return (
-    <Box component="section" aria-busy="true" aria-label="Loading the Smart Collection">
-      <Box className="skeleton-grid">
-        {Array.from({ length: 4 }, (_, index) => (
-          <Paper key={index} p="sm" radius="md" withBorder>
-            <Skeleton height={100} radius="sm" mb="sm" />
-            <Skeleton height={10} radius="xl" />
-            <Skeleton height={10} radius="xl" width="55%" mt={7} />
-          </Paper>
-        ))}
-      </Box>
-    </Box>
-  );
-}
 
 /**
  * `/smart/{id}`: the saved editor. Name and Rule edits autosave after the
@@ -83,7 +68,7 @@ export function SmartCollectionView() {
   }
 
   if (collection === null) {
-    return <LoadingCollection />;
+    return <GameGridSkeleton label="Loading the Smart Collection" count={4} />;
   }
 
   return (
