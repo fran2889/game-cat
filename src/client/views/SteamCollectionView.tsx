@@ -1,21 +1,11 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import {
-  Alert,
-  Badge,
-  Box,
-  Button,
-  Group,
-  Paper,
-  Skeleton,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Alert, Badge, Box, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import type { SteamCollectionSummary } from "../../shared/types.ts";
 import { ApiError, steamCollectionGamesQueryOptions, steamCollectionQueryOptions } from "../api.ts";
 import { useBrowse } from "../browse-context.tsx";
+import { GameGridSkeleton } from "../components/GameGridSkeleton.tsx";
 import { GameResults } from "../components/GameResults.tsx";
 import { Pagination } from "../components/Pagination.tsx";
 import { ResultsHeader } from "../components/ResultsHeader.tsx";
@@ -23,22 +13,6 @@ import { SelectionBar } from "../components/SelectionBar.tsx";
 import { formatTimestamp } from "../format.ts";
 
 const PAGE_SIZE = 60;
-
-function LoadingCollection() {
-  return (
-    <Box component="section" aria-busy="true" aria-label="Loading the Steam Collection">
-      <Box className="skeleton-grid">
-        {Array.from({ length: 4 }, (_, index) => (
-          <Paper key={index} p="sm" radius="md" withBorder>
-            <Skeleton height={100} radius="sm" mb="sm" />
-            <Skeleton height={10} radius="xl" />
-            <Skeleton height={10} radius="xl" width="55%" mt={7} />
-          </Paper>
-        ))}
-      </Box>
-    </Box>
-  );
-}
 
 function kindLabel(kind: SteamCollectionSummary["kind"]): string {
   switch (kind) {
@@ -137,7 +111,7 @@ export function SteamCollectionView() {
   }
 
   if (summary === null) {
-    return <LoadingCollection />;
+    return <GameGridSkeleton label="Loading the Steam Collection" count={4} />;
   }
 
   const header = (
@@ -205,7 +179,7 @@ export function SteamCollectionView() {
     return (
       <Stack component="section" aria-labelledby="collection-heading" gap="md">
         {header}
-        <LoadingCollection />
+        <GameGridSkeleton label="Loading the Steam Collection" count={4} />
       </Stack>
     );
   }

@@ -134,16 +134,16 @@ main {
 }
 
 /* Fluid cover grid: the track count follows the available width, which a
- * fixed-column SimpleGrid cannot do without JS breakpoints. */
+ * fixed-column SimpleGrid cannot do without JS breakpoints.
+ *
+ * Density follows the mockup: a 148px minimum track and a 14px gap, which is
+ * six ~154px cards at 1280px. The loading grid shares the exact tracks so the
+ * first paint and the loaded cards line up. */
 .game-grid,
 .skeleton-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: var(--mantine-spacing-md);
-}
-
-.skeleton-grid {
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 14px;
 }
 
 /* Grid cards use the portrait library capsule, flush to the card edge. The
@@ -157,14 +157,37 @@ main {
 
 .game-card {
   overflow: hidden;
+  transition:
+    border-color 120ms ease,
+    transform 120ms ease;
 }
 
+/* The mockup lifts the card 1px and strengthens the border on hover. */
 .game-card:hover {
   border-color: var(--mantine-color-dark-9);
+  transform: translateY(-1px);
 }
 
 .game-card.is-selected:hover {
   border-color: var(--mantine-primary-color-filled);
+}
+
+/* The card body follows the mockup's denser type scale: 8/9px padding, a
+ * 12.5px title, 11px meta, and 10.5px tags. The 32px right inset replaces the
+ * mockup's 9px so the select checkbox never covers text. The min-height is
+ * the loaded card's body height; GameCardSkeleton reserves the same slot, so
+ * arriving cards cause no layout shift. */
+.card-body {
+  padding: 8px 32px 9px 9px;
+  min-height: 74px;
+}
+
+/* Ownership is inline text, not an outline badge, and keeps the prototype's
+ * orange warning tone. orange-4 is 9.4:1 on the card surface. */
+.ownership-flag {
+  color: var(--mantine-color-orange-4);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .game-cover,
@@ -396,7 +419,8 @@ main {
 }
 
 @media (max-width: 460px) {
-  .game-grid {
+  .game-grid,
+  .skeleton-grid {
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   }
 

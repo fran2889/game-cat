@@ -1,21 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useOutletContext } from "react-router-dom";
-import {
-  Alert,
-  Box,
-  Button,
-  Code,
-  Group,
-  Paper,
-  Skeleton,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import { useReducedMotion } from "@mantine/hooks";
+import { Alert, Box, Button, Code, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { ApiError, gamesQueryOptions, startLibraryScan } from "../api.ts";
 import { useBrowse } from "../browse-context.tsx";
+import { GameGridSkeleton } from "../components/GameGridSkeleton.tsx";
 import { GameResults } from "../components/GameResults.tsx";
 import { OwnershipBanner } from "../components/OwnershipBanner.tsx";
 import { Pagination } from "../components/Pagination.tsx";
@@ -30,37 +19,6 @@ export interface LibraryViewProps {
 }
 
 const PAGE_SIZE = 60;
-
-function LoadingGrid() {
-  const reduceMotion = useReducedMotion();
-
-  return (
-    <Box component="section" aria-busy="true" aria-label="Loading the Library">
-      <Box className="skeleton-grid">
-        {Array.from({ length: 8 }, (_, index) => (
-          <Paper className="skeleton-card" key={index} p="sm" radius="md" withBorder>
-            <Skeleton
-              className="skeleton-cover"
-              height={100}
-              radius="sm"
-              animate={!reduceMotion}
-              mb="sm"
-            />
-            <Skeleton className="skeleton-line" height={10} radius="xl" animate={!reduceMotion} />
-            <Skeleton
-              className="skeleton-line short"
-              height={10}
-              radius="xl"
-              width="55%"
-              mt={7}
-              animate={!reduceMotion}
-            />
-          </Paper>
-        ))}
-      </Box>
-    </Box>
-  );
-}
 
 export function LibraryView({ mode }: LibraryViewProps) {
   const { status, error: statusError, reloadStatus } = useOutletContext<ShellContext>();
@@ -138,11 +96,11 @@ export function LibraryView({ mode }: LibraryViewProps) {
 
   if (status === null) {
     // AppShell already shows the disconnected banner when the status fetch fails.
-    return statusError === null ? <LoadingGrid /> : null;
+    return statusError === null ? <GameGridSkeleton label="Loading the Library" /> : null;
   }
 
   if (games === null && error === null) {
-    return <LoadingGrid />;
+    return <GameGridSkeleton label="Loading the Library" />;
   }
 
   const steamRoot = status.steam.root;
