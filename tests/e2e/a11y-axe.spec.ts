@@ -37,7 +37,7 @@ test("the Smart Collection editor and Game picker have no serious axe violations
   page,
 }) => {
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
   await expectNoSeriousA11yViolations(page, "Smart Collection editor");
 
   await page.getByRole("button", { name: "Game list" }).click();
@@ -53,7 +53,7 @@ test("a saved Smart Collection editor has no serious axe violations", async ({ p
   const body = (await created.json()) as { data: { id: string } };
 
   await page.goto(`${app.url}smart/${body.data.id}`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
   await expectNoSeriousA11yViolations(page, "Saved Smart Collection editor");
 });
 
@@ -116,7 +116,9 @@ test.describe("390 px layouts", () => {
     page,
   }) => {
     await page.goto(`${app.url}smart/new`);
-    await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+    await expect(page.getByTestId("match-count")).toHaveText(
+      "130 games match · updates as you edit",
+    );
     await expectNoHorizontalScroll(page);
     await expectNoSeriousA11yViolations(page, "editor at 390 px");
 

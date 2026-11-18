@@ -68,6 +68,128 @@ export function changeRulePrefix(rule: Rule, prefix: RulePrefix): Rule {
   return RULE_PREFIXES.includes(prefix) ? { ...rule, prefix } : rule;
 }
 
+/** Dropdown labels and sentence fallbacks share one Operator vocabulary. */
+export const RULE_OPERATOR_LABELS: Record<RuleOperator, string> = {
+  is: "is",
+  contains: "contains",
+  has: "has",
+  in: "is one of",
+  lt: "is less than",
+  lte: "is at most",
+  gt: "is greater than",
+  gte: "is at least",
+};
+
+const COMPARISON_SYMBOLS: Partial<Record<RuleOperator, string>> = {
+  lt: "<",
+  lte: "≤",
+  gt: ">",
+  gte: "≥",
+};
+
+function humanizeRuleValue(value: string): string {
+  const words = value.split(/[_\s]+/).filter((word) => word !== "");
+  if (words.length === 0) {
+    return value;
+  }
+  const sentence = words.join(" ").toLowerCase();
+  return sentence[0]!.toUpperCase() + sentence.slice(1);
+}
+
+export interface RuleDescriptionOptions {
+  /** Resolve a Steam Collection id to its mirrored name for the row copy. */
+  collectionName?(id: string): string | undefined;
+}
+
+/**
+ * A short, human-readable summary of one Rule, built from the Field registry
+ * in `shared/rules.ts`. Fields without a specific phrasing fall back to
+ * `<Label> <operator>…`, so a draft row is never blank.
+ */
+export function describeRule(rule: Rule, options: RuleDescriptionOptions = {}): string {
+  const definition = ruleFieldDefinition(rule.field);
+  if (definition === undefined) {
+    return "Rule";
+  }
+  const fallback = `${definition.label} ${RULE_OPERATOR_LABELS[rule.operator]}…`;
+  const value = rule.value;
+  const hasText = typeof value === "string" && value.trim() !== "";
+  const hasNumber = typeof value === "number" && Number.isFinite(value) && value >= 0;
+  const comparison = COMPARISON_SYMBOLS[rule.operator];
+
+  switch (definition.valueKind) {
+    case "boolean":
+      if (typeof value !== "boolean") {
+        return fallback;
+      }
+      if (rule.field === "installed") {
+        return value ? "Installed" : "Not installed";
+      }
+      return `${definition.label}: ${value ? "true" : "false"}`;
+
+    case "appIds":
+      if (!Array.isArray(value) || value.length === 0) {
+        return fallback;
+      }
+      return `${definition.label}: ${value.length} ${value.length === 1 ? "game" : "games"}`;
+
+    case "steamCollection": {
+      if (!hasText) {
+        return fallback;
+      }
+      const id = value as string;
+      return `${definition.label}: ${options.collectionName?.(id) ?? id}`;
+    }
+
+    case "date":
+      if (!hasText || comparison === undefined) {
+        return fallback;
+      }
+      return `${definition.label} ${comparison} ${value as string}`;
+
+    case "integer":
+      if (!hasNumber || comparison === undefined) {
+        return fallback;
+      }
+      if (rule.field === "playtime") {
+        return `${definition.label} ${comparison} ${formatMinutesAsHours(value as number)} h`;
+      }
+      return `${definition.label} ${comparison} ${value as number}`;
+
+    case "enum":
+      if (!hasText) {
+        return fallback;
+      }
+      return `${definition.label}: ${humanizeRuleValue(value as string)}`;
+
+    case "text":
+      if (!hasText) {
+        return fallback;
+      }
+      if (rule.field === "name") {
+        return rule.operator === "is"
+          ? `Named "${value as string}"`
+          : `Name contains "${value as string}"`;
+      }
+      return `${definition.label} ${RULE_OPERATOR_LABELS[rule.operator]} "${value as string}"`;
+
+    case "multiText":
+      if (!hasText) {
+        return fallback;
+      }
+      if (rule.field === "tag") {
+        return `Tagged "${value as string}"`;
+      }
+      return `${definition.label}: ${value as string}`;
+
+    case "openEnum":
+      if (!hasText) {
+        return fallback;
+      }
+      return `${definition.label} ${RULE_OPERATOR_LABELS[rule.operator]} "${value as string}"`;
+  }
+}
+
 export interface PrefixCounts {
   AND: number;
   OR: number;
