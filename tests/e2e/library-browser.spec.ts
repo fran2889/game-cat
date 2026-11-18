@@ -75,6 +75,60 @@ test("grid cards show the documented badges, ownership, tags, and cover fallback
   await expect(card.locator(".tag-status")).toHaveCount(0);
 });
 
+test("the grid matches the mockup's 148px track, 14px gap, and card type scale", async ({
+  page,
+}) => {
+  await page.goto(app.url);
+  await expect(page.locator(".game-grid .game-card")).toHaveCount(60);
+
+  // 1280 - 248 sidebar - 2 x 20 page padding = 992 px. Six tracks with a 14px
+  // gap and a 148px minimum is the documented mockup density.
+  const grid = page.locator(".game-grid").first();
+  const style = await grid.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { columns: computed.gridTemplateColumns, gap: computed.gap };
+  });
+  const tracks = style.columns.split(" ").map((track) => Number.parseFloat(track));
+  expect(tracks).toHaveLength(6);
+  expect(tracks[0]).toBeCloseTo((992 - 5 * 14) / 6, 1);
+  expect(style.gap).toBe("14px");
+
+  const card = page.locator(".game-card").first();
+  await expect(card.locator("h3")).toHaveCSS("font-size", "12.5px");
+  await expect(card.locator(".game-meta span").first()).toHaveCSS("font-size", "11px");
+  await expect(card.locator(".game-tags")).toHaveCSS("font-size", "10.5px");
+  await expect(card.locator(".card-body")).toHaveCSS("padding", "8px 32px 9px 9px");
+});
+
+test("Installed is a filled badge without a dot and ownership is inline text", async ({ page }) => {
+  await page.goto(app.url);
+  await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
+  const card = page.locator(".game-card");
+  await expect(card).toHaveCount(1);
+
+  const installed = card.locator(".pill-installed");
+  await expect(installed).toHaveText(/Installed/);
+  await expect(installed.locator('[aria-hidden="true"]')).toHaveCount(0);
+  // The filled green token pairs with black text at 6.1:1 in the dark scheme.
+  await expect(installed).toHaveCSS("background-color", "rgb(47, 158, 68)");
+  await expect(installed).toHaveCSS("color", "rgb(0, 0, 0)");
+
+  const ownership = card.locator(".ownership-flag");
+  await expect(ownership).toHaveText("Local only");
+  await expect(ownership).toHaveCSS("border-top-width", "0px");
+  await expect(ownership).toHaveCSS("font-size", "10px");
+});
+
+test("card hover lifts by 1px and uses the stronger border", async ({ page }) => {
+  await page.goto(app.url);
+  const card = page.locator(".game-card").first();
+  await expect(card).toHaveCSS("border-color", "rgb(42, 48, 60)");
+
+  await card.hover();
+  await expect(card).toHaveCSS("border-color", "rgb(42, 48, 61)");
+  await expect(card).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
+});
+
 test("the review badge keeps the tier and count in its tooltip", async ({ page }) => {
   await page.goto(app.url);
   await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
