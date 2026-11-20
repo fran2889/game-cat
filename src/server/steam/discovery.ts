@@ -67,12 +67,18 @@ export function steamRootCandidates(
 
 function isDirectory(candidate: string): boolean {
   // Normalize first (removing `..` segments) so the path that is checked is the
-  // path that is stat'ed. Reject only the filesystem root, whose parent is
-  // itself and which is never a Steam installation. A configured root can
-  // legitimately be a top-level directory such as `/steam` or `C:\Steam`, so
-  // the parent-prefix test must not reject those.
+  // path that is stat'ed. Reject the filesystem root, whose parent is itself
+  // and which is never a Steam installation.
   const resolved = resolve(candidate);
-  if (resolved === dirname(resolved)) {
+  const parent = dirname(resolved);
+  if (resolved === parent) {
+    return false;
+  }
+  // Keep the containment guard analyzable, but do not double the separator
+  // when the parent is the root: `/steam` and `C:\Steam` are valid configured
+  // roots, while `/` and `C:\` are not.
+  const parentPrefix = parent.endsWith(sep) ? parent : `${parent}${sep}`;
+  if (!resolved.startsWith(parentPrefix)) {
     return false;
   }
   try {
