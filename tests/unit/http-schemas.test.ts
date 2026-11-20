@@ -6,7 +6,17 @@ import {
   gameContractDefinitions,
   gameDetailResponseSchema,
   gamesResponseSchema,
+  libraryContractDefinitions,
   rejectNonCanonicalIntegers,
+  ruleValuesResponseSchema,
+  smartCollectionContractDefinitions,
+  smartCollectionGamesResponseSchema,
+  smartCollectionResponseSchema,
+  smartCollectionsResponseSchema,
+  steamCollectionGamesResponseSchema,
+  steamCollectionResponseSchema,
+  steamCollectionsResponseSchema,
+  tagsResponseSchema,
 } from "../../src/server/http/schemas.ts";
 import { CONFIG_PATCH_FIELDS } from "../../src/shared/config.ts";
 
@@ -30,9 +40,35 @@ const GAME_DEFINITIONS = [
   "gameDetail",
 ] as const;
 
+const LIBRARY_DEFINITIONS = ["tagSummary", "ruleValue", "steamCollectionSummary"] as const;
+
+const SMART_DEFINITIONS = ["rule", "smartCollection", "smartCollectionListItem"] as const;
+
 function root(schema: Record<string, unknown>): Record<string, unknown> {
   const { definitions: _definitions, ...rest } = schema;
   return rest;
+}
+
+/**
+ * The contract writes the Rule value as a multi-type `type` array. The runtime
+ * schema uses `anyOf` because fast-json-stringify would otherwise serialize an
+ * integer array as a comma-separated string. Normalize the contract form so the
+ * two can still be compared field for field.
+ */
+function normalizeRuleDefinition(definition: unknown): unknown {
+  const copy = structuredClone(definition) as {
+    properties: { value: Record<string, unknown> };
+  };
+  const value = copy.properties.value;
+  const types = value.type;
+  if (Array.isArray(types)) {
+    copy.properties.value = {
+      anyOf: types.map((type) =>
+        type === "array" ? { type: "array", items: value.items } : { type },
+      ),
+    };
+  }
+  return copy;
 }
 
 describe("Games response schemas", () => {
@@ -46,6 +82,46 @@ describe("Games response schemas", () => {
   it("match the contract list and detail envelopes", () => {
     expect(root(gamesResponseSchema)).toEqual(contract.gamesResponse);
     expect(root(gameDetailResponseSchema)).toEqual(contract.gameDetailResponse);
+  });
+});
+
+describe("Library and Smart Collection response schemas", () => {
+  it("match every implemented contract definition", () => {
+    const definitions = {
+      ...libraryContractDefinitions,
+      ...smartCollectionContractDefinitions,
+    };
+    const names = [...GAME_DEFINITIONS, ...LIBRARY_DEFINITIONS, ...SMART_DEFINITIONS];
+    expect(Object.keys(definitions).sort()).toEqual([...names].sort());
+
+    for (const name of names) {
+      if (name === "rule") {
+        continue;
+      }
+      expect(definitions[name], name).toEqual(contract.definitions[name]);
+    }
+  });
+
+  it("match the Rule definition up to the serializer's anyOf form", () => {
+    expect(normalizeRuleDefinition(smartCollectionContractDefinitions.rule)).toEqual(
+      normalizeRuleDefinition(contract.definitions.rule),
+    );
+  });
+
+  it("match every implemented response envelope", () => {
+    const envelopes = {
+      tagsResponse: tagsResponseSchema,
+      ruleValuesResponse: ruleValuesResponseSchema,
+      steamCollectionsResponse: steamCollectionsResponseSchema,
+      steamCollectionResponse: steamCollectionResponseSchema,
+      steamCollectionGamesResponse: steamCollectionGamesResponseSchema,
+      smartCollectionsResponse: smartCollectionsResponseSchema,
+      smartCollectionResponse: smartCollectionResponseSchema,
+      smartCollectionGamesResponse: smartCollectionGamesResponseSchema,
+    };
+    for (const [name, schema] of Object.entries(envelopes)) {
+      expect(root(schema), name).toEqual(contract[name]);
+    }
   });
 });
 
