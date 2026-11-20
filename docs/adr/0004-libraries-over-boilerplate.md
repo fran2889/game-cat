@@ -97,9 +97,9 @@ Per area:
 - Five pure-JS runtime dependencies are added over the effort (`kysely`, `@tanstack/react-query`,
   `@mantine/core`, `@mantine/hooks`, `commander`), and a sixth (`@mantine/form`) if the UI strand
   lands, plus ESLint as a development dependency. No native additions.
-- When [#63](https://github.com/fran2889/game-cat/issues/63) lands, `npm run check` gains ESLint and
-  the two custom audit scripts become lint configuration; `audit:tests` and `audit:secrets` keep
-  their current rules. Until then `README.md`, `AGENTS.md`, and §9.9 describe today's pipeline.
+- With [#63](https://github.com/fran2889/game-cat/issues/63), `npm run check` includes ESLint and
+  the two custom audit scripts are lint configuration; `audit:tests` and `audit:secrets` keep their
+  current rules. `README.md` and `AGENTS.md` describe that pipeline.
 - The UI strand changes appearance, unlike the server strands.
   [§7.10](../specs/game-cat-v1.md#710-visual-reference) keeps the prototype's layout, flows, and
   states as the reference, not its component styling. The Playwright suite, the axe accessibility
