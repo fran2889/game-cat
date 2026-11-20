@@ -1,5 +1,10 @@
 config:
   MD013: false
 ignores:
-  - node_modules/**
+  - "**/node_modules/**"
+  - "**/dist/**"
+  - "**/coverage/**"
+  - "**/test-results/**"
+  - "**/playwright-report/**"
+  - "**/.data/**"
   - .idea/**
