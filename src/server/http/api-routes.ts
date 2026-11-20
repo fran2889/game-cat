@@ -28,6 +28,7 @@ import {
   gamesListQuerySchema,
   gamesResponseSchema,
   refreshBodySchema,
+  rejectNonCanonicalIntegers,
   rejectRepeatedQueryValues,
   ruleValuesListQuerySchema,
   ruleValuesResponseSchema,
@@ -231,7 +232,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     "/api/games",
     {
       schema: { querystring: gamesListQuerySchema, response: { 200: gamesResponseSchema } },
-      preValidation: rejectRepeatedQueryValues,
+      preValidation: [rejectRepeatedQueryValues, rejectNonCanonicalIntegers(200)],
     },
     async (request) => options.games.list(gamesQuery(request.query)),
   );
@@ -267,7 +268,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
         querystring: ruleValuesListQuerySchema,
         response: { 200: ruleValuesResponseSchema },
       },
-      preValidation: rejectRepeatedQueryValues,
+      preValidation: [rejectRepeatedQueryValues, rejectNonCanonicalIntegers(100)],
     },
     async (request) =>
       options.ruleValues.list({
@@ -285,7 +286,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     "/api/tags",
     {
       schema: { querystring: tagsListQuerySchema, response: { 200: tagsResponseSchema } },
-      preValidation: rejectRepeatedQueryValues,
+      preValidation: [rejectRepeatedQueryValues, rejectNonCanonicalIntegers(100)],
     },
     async (request) =>
       options.tags.list({
@@ -305,7 +306,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
         querystring: steamCollectionsQuerySchema,
         response: { 200: steamCollectionsResponseSchema },
       },
-      preValidation: rejectRepeatedQueryValues,
+      preValidation: [rejectRepeatedQueryValues, rejectNonCanonicalIntegers(200)],
     },
     async (request) =>
       options.collections.list({
@@ -334,7 +335,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
         querystring: collectionGamesQuerySchema,
         response: { 200: steamCollectionGamesResponseSchema },
       },
-      preValidation: rejectRepeatedQueryValues,
+      preValidation: [rejectRepeatedQueryValues, rejectNonCanonicalIntegers(200)],
     },
     async (request) => {
       const { id } = request.params;
@@ -372,7 +373,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
         querystring: smartCollectionsListQuerySchema,
         response: { 200: smartCollectionsResponseSchema },
       },
-      preValidation: rejectRepeatedQueryValues,
+      preValidation: [rejectRepeatedQueryValues, rejectNonCanonicalIntegers(200)],
     },
     async (request) =>
       options.smartCollections.list({
@@ -458,7 +459,7 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
         querystring: collectionGamesQuerySchema,
         response: { 200: smartCollectionGamesResponseSchema },
       },
-      preValidation: rejectRepeatedQueryValues,
+      preValidation: [rejectRepeatedQueryValues, rejectNonCanonicalIntegers(200)],
     },
     async (request) => {
       const { id } = request.params;

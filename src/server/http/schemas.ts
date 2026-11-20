@@ -310,6 +310,37 @@ export async function rejectRepeatedQueryValues(request: FastifyRequest): Promis
   }
 }
 
+/**
+ * Reject numeric query values Fastify's AJV would coerce. The documented
+ * contract is a decimal integer, and the hand-written parsers this schema
+ * replaced rejected forms such as `1e3`, `+1`, and `0x10`. This runs before
+ * validation, while the raw query strings are still available.
+ */
+export function rejectNonCanonicalIntegers(
+  pageSizeMax: number,
+): (request: FastifyRequest) => Promise<void> {
+  return async (request) => {
+    if (typeof request.query !== "object" || request.query === null) {
+      return;
+    }
+    const query = request.query as Record<string, unknown>;
+    const fieldErrors: Record<string, string> = {};
+    const limits = {
+      page: { min: 1, max: Number.MAX_SAFE_INTEGER },
+      pageSize: { min: 1, max: pageSizeMax },
+    } as const;
+    for (const [key, { min, max }] of Object.entries(limits)) {
+      const value = query[key];
+      if (typeof value === "string" && value !== "" && !/^\d+$/.test(value)) {
+        fieldErrors[key] = `must be an integer between ${min} and ${max}`;
+      }
+    }
+    if (Object.keys(fieldErrors).length > 0) {
+      throw validationError(fieldErrors);
+    }
+  };
+}
+
 const tagSummary = {
   type: "object",
   required: ["name", "gameCount"],
