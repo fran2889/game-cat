@@ -434,5 +434,3 @@ export function smartCollectionQueryOptions(id: string) {
     queryFn: ({ signal }) => fetchSmartCollection(id, signal),
   });
 }
-
-

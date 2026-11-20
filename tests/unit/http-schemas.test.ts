@@ -156,13 +156,7 @@ describe("Integer query values", () => {
 
   it("leaves canonical, empty, absent, and repeated values to the schema", async () => {
     const guard = rejectNonCanonicalIntegers(200);
-    for (const query of [
-      { page: "1" },
-      { page: "" },
-      { pageSize: "200" },
-      {},
-      { page: ["1"] },
-    ]) {
+    for (const query of [{ page: "1" }, { page: "" }, { pageSize: "200" }, {}, { page: ["1"] }]) {
       await expect(guard(requestWith(query)), JSON.stringify(query)).resolves.toBeUndefined();
     }
   });
