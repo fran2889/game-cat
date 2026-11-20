@@ -15,10 +15,10 @@ install, the Git-install `prepare` path, and the packaging chain, and it retires
 [§11 "Native SQLite prebuilds" risk](../specs/game-cat-v1.md#11-open-risks) instead of gating every
 release on it.
 
-The project uses a small part of the driver API. Across `src/` there are 100 `db.prepare()` call
-sites, 11 `db.transaction()` call sites, 5 `db.pragma()` calls, and `db.exec()`; there is no
-`.pluck()`, `.raw()`, `.iterate()`, `.columns()`, `safeIntegers`, named parameter, `BLOB` column, or
-inspection of SQLite error codes. The schema relies on `foreign_keys = ON` and `ON DELETE CASCADE`,
+The project uses a small part of the driver API. Across `src/` there are 54 `.prepare()` call
+sites, 11 `.transaction()` call sites, 5 `.pragma()` calls, and the migration runner's `exec()`
+calls; there is no `.pluck()`, `.raw()`, `.iterate()`, `.columns()`, `safeIntegers`, named
+parameter, `BLOB` column, or inspection of SQLite error codes. The schema relies on `foreign_keys = ON` and `ON DELETE CASCADE`,
 the connection settings are [§3.1](../specs/game-cat-v1.md#31-connection-settings), and the
 [§3.2 migration runner](../specs/game-cat-v1.md#32-migration-table-and-runner) depends on
 `BEGIN IMMEDIATE`, `PRAGMA user_version`, and a pre-migration `VACUUM INTO` copy that includes
