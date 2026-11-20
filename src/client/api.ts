@@ -24,7 +24,6 @@ import type { ConfigPatch } from "../shared/config.ts";
 export type { ConfigPatch } from "../shared/config.ts";
 import type {
   SmartCollection,
-  SmartCollectionGamesResponse,
   SmartCollectionPatchBody,
   SmartCollectionsResponse,
 } from "../shared/smart-collections.ts";
@@ -249,14 +248,6 @@ export async function fetchGameDetail(
   return body.data;
 }
 
-export async function startMetadataRefresh(appIds: number[]): Promise<RefreshRun> {
-  const body = await requestJson<{ data: RefreshRun }>("/api/refresh", {
-    method: "POST",
-    body: { scope: "metadata", mode: "full", appIds },
-  });
-  return body.data;
-}
-
 export async function startLibraryScan(): Promise<RefreshRun> {
   const body = await requestJson<{ data: RefreshRun }>("/api/refresh", {
     method: "POST",
@@ -360,31 +351,6 @@ export async function deleteSmartCollection(id: string): Promise<void> {
   await requestNone(`/api/smart-collections/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export interface FetchSmartCollectionGamesParams {
-  page?: number;
-  pageSize?: number;
-  sort?: GameSort;
-  order?: GameOrder;
-}
-
-export async function fetchSmartCollectionGames(
-  id: string,
-  params: FetchSmartCollectionGamesParams = {},
-  signal?: AbortSignal,
-): Promise<SmartCollectionGamesResponse> {
-  return requestJson<SmartCollectionGamesResponse>(
-    `/api/smart-collections/${encodeURIComponent(id)}/games?${queryString(params)}`,
-    { signal },
-  );
-}
-
-export async function fetchRefresh(id: string, signal?: AbortSignal): Promise<RefreshRun> {
-  const body = await requestJson<{ data: RefreshRun }>(`/api/refresh/${encodeURIComponent(id)}`, {
-    signal,
-  });
-  return body.data;
-}
-
 export const STATUS_POLL_INTERVAL_MS = 800;
 
 /** Status polling is gated on an active run: queued or running, at 800 ms. */
@@ -462,13 +428,6 @@ export function steamCollectionGamesQueryOptions(
   });
 }
 
-export function smartCollectionsQueryOptions(params: FetchSmartCollectionsParams = {}) {
-  return queryOptions({
-    queryKey: ["smart-collections", params] as const,
-    queryFn: ({ signal }) => fetchSmartCollections(params, signal),
-  });
-}
-
 export function smartCollectionQueryOptions(id: string) {
   return queryOptions({
     queryKey: ["smart-collection", id] as const,
@@ -476,19 +435,4 @@ export function smartCollectionQueryOptions(id: string) {
   });
 }
 
-export function smartCollectionGamesQueryOptions(
-  id: string,
-  params: FetchSmartCollectionGamesParams = {},
-) {
-  return queryOptions({
-    queryKey: ["smart-collection-games", id, params] as const,
-    queryFn: ({ signal }) => fetchSmartCollectionGames(id, params, signal),
-  });
-}
 
-export function refreshQueryOptions(id: string) {
-  return queryOptions({
-    queryKey: ["refresh", id] as const,
-    queryFn: ({ signal }) => fetchRefresh(id, signal),
-  });
-}
