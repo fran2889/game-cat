@@ -177,6 +177,9 @@ export function registerConfigRoutes(app: FastifyInstance, config: ConfigRoutes)
     async (request) => config.patch(request.body),
   );
 
+  // The server is loopback-only with no authentication or LAN mode (spec §1.5,
+  // §8.10), so this route is not reachable by remote clients and does not need
+  // rate limiting.
   app.get("/api/steam/accounts", async () => {
     const accounts = config.accounts();
     const pagination = {
