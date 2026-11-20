@@ -1263,14 +1263,19 @@ describe("shared integer query parsing", () => {
     }
   });
 
-  it("rejects non-numeric, negative, fractional, zero, and above-maximum values", async () => {
+  it("rejects non-numeric, non-canonical, negative, fractional, zero, and above-maximum values", async () => {
     const test = harness();
     for (const { url } of PAGINATED_ROUTES) {
       for (const [query, field] of [
         ["page=abc", "page"],
+        ["page=1e3", "page"],
+        ["page=+1", "page"],
+        ["page=0x10", "page"],
+        ["page=%201", "page"],
         ["page=-1", "page"],
         ["page=1.5", "page"],
         ["page=0", "page"],
+        ["pageSize=1e3", "pageSize"],
         ["pageSize=0", "pageSize"],
         ["pageSize=100000", "pageSize"],
       ] as const) {
@@ -1282,6 +1287,26 @@ describe("shared integer query parsing", () => {
         expect(body.error.code, `${url}?${query}`).toBe("VALIDATION_ERROR");
         expect(body.error.details.fieldErrors, `${url}?${query}`).toHaveProperty(field);
       }
+    }
+  });
+
+  it("rejects non-canonical integers on both collection-game routes", async () => {
+    const test = harness();
+    for (const url of [
+      "/api/steam-collections/missing/games?page=1e3",
+      "/api/smart-collections/missing/games?page=1e3",
+      "/api/steam-collections/missing/games?pageSize=%201",
+      "/api/smart-collections/missing/games?pageSize=0x10",
+    ]) {
+      const response = await get(test.app, url);
+      expect(response.statusCode, url).toBe(422);
+      const body = response.json() as {
+        error: { code: string; details: { fieldErrors: Record<string, string> } };
+      };
+      expect(body.error.code, url).toBe("VALIDATION_ERROR");
+      expect(body.error.details.fieldErrors, url).toHaveProperty(
+        url.includes("pageSize") ? "pageSize" : "page",
+      );
     }
   });
 
