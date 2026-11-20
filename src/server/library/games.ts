@@ -14,6 +14,7 @@ import { sql, type SelectQueryBuilder, type SqlBool } from "kysely";
 import { allSync, firstSync, queryFor } from "../db/query.ts";
 import type { DatabaseSchema } from "../db/schema.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
+import { pagination } from "./pagination.ts";
 
 export { GAME_SORTS };
 export type { GameOrder, GameSort };
@@ -222,7 +223,6 @@ export interface GameListResult {
   meta: { dataAsOf: string | null };
 }
 
-/** Shared sorting SQL for every endpoint that pages Games. */
 /** The typed column a sort key reads, shared with the other read paths. */
 export function sortColumn(sort: GameSort): keyof GamesRow & string {
   return SORT_COLUMNS[sort] as keyof GamesRow & string;
@@ -321,12 +321,7 @@ export class GamesRepository {
 
     return {
       data: rows.map((row) => toGameSummary(row, tags.get(row.app_id) ?? [])),
-      pagination: {
-        page: query.page,
-        pageSize: query.pageSize,
-        totalItems: total,
-        totalPages: total === 0 ? 0 : Math.ceil(total / query.pageSize),
-      },
+      pagination: pagination(query.page, query.pageSize, total),
       meta: { dataAsOf: this.dataAsOf() },
     };
   }
