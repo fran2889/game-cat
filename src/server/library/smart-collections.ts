@@ -84,10 +84,6 @@ export function validateSmartCollectionName(
   return normalizeCollectionName(value);
 }
 
-/** Validate `POST /api/smart-collections`; `rules` defaults to `[]`. */
-
-/** Validate `PATCH /api/smart-collections/{id}`; at least one field is required. */
-
 function parseRuleValue(raw: string): Rule["value"] {
   try {
     return JSON.parse(raw) as Rule["value"];

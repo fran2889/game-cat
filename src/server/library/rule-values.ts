@@ -3,12 +3,8 @@ import { sql } from "kysely";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { RULE_VALUE_FIELDS } from "../../shared/rules.ts";
 import { allSync, queryFor } from "../db/query.ts";
-import type {
-  Pagination,
-  RuleValue,
-  RuleValueField,
-  RuleValuesResponse,
-} from "../../shared/types.ts";
+import type { RuleValue, RuleValueField, RuleValuesResponse } from "../../shared/types.ts";
+import { pagination } from "./pagination.ts";
 
 /**
  * The read-time picker for Rule values (spec §4.3, §3.5).
@@ -115,13 +111,6 @@ export class RuleValuesRepository {
       .slice(offset, offset + query.pageSize)
       .map((entry) => ({ value: entry.value, gameCount: entry.gameCount }));
 
-    const pagination: Pagination = {
-      page: query.page,
-      pageSize: query.pageSize,
-      totalItems,
-      totalPages: totalItems === 0 ? 0 : Math.ceil(totalItems / query.pageSize),
-    };
-
-    return { data: pageValues, pagination };
+    return { data: pageValues, pagination: pagination(query.page, query.pageSize, totalItems) };
   }
 }
