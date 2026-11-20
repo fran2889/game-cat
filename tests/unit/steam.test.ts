@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, parse } from "node:path";
 import { describe, expect, it } from "vitest";
 import { discoverSteam } from "../../src/server/steam/discovery.ts";
 import { parseVdf, VdfParseError } from "../../src/server/steam/vdf.ts";
@@ -200,6 +200,18 @@ describe("Steam discovery", () => {
       homedir: home,
     });
     expect(result.root).toBe(join(home, "missing-Steam"));
+    expect(result.state).toBe("not_found");
+    expect(result.account).toBeNull();
+  });
+
+  it("refuses the filesystem root as a Steam root", () => {
+    const result = discoverSteam({
+      steamRoot: parse(tmpdir()).root,
+      steamId64: null,
+      platform: process.platform,
+      env: {},
+      homedir: mkdtempSync(join(tmpdir(), "game-cat-home-")),
+    });
     expect(result.state).toBe("not_found");
     expect(result.account).toBeNull();
   });
