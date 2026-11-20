@@ -1,6 +1,6 @@
 import { readFileSync, statSync } from "node:fs";
 import { homedir as osHomedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import type { SteamAccount, SteamState } from "../../shared/types.ts";
 import { parseVdf, type VdfObject } from "./vdf.ts";
 
@@ -65,9 +65,18 @@ export function steamRootCandidates(
   ];
 }
 
-function isDirectory(path: string): boolean {
+function isDirectory(candidate: string): boolean {
+  // Normalize first (removing `..` segments), then only stat a path that is
+  // still located inside its own parent. This rejects the filesystem root,
+  // which is never a Steam installation, and gives path-injection analysis a
+  // containment guard for the configured and discovered candidates.
+  const resolved = resolve(candidate);
+  const parentPrefix = `${dirname(resolved)}${sep}`;
+  if (!resolved.startsWith(parentPrefix)) {
+    return false;
+  }
   try {
-    return statSync(path).isDirectory();
+    return statSync(resolved).isDirectory();
   } catch {
     return false;
   }
@@ -193,9 +202,26 @@ export const discoverSteam: SteamDiscoveryFn = (options) => {
     }
   }
 
+  // Resolve the root before reading so the account file is provably inside it.
+  // A normalized absolute root always passes; the check exists so a path that
+  // escapes its root can never be opened.
+  const rootPath = resolve(root);
+  const rootPrefix = `${rootPath}${sep}`;
+  const loginUsersPath = resolve(rootPath, "config", "loginusers.vdf");
+  if (!loginUsersPath.startsWith(rootPrefix)) {
+    return {
+      root,
+      state: "error",
+      accounts: [],
+      account: null,
+      ambiguous: false,
+      error: "The Steam account file resolves outside the Steam root.",
+    };
+  }
+
   let text: string;
   try {
-    text = readFileSync(join(root, "config", "loginusers.vdf"), "utf8");
+    text = readFileSync(loginUsersPath, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return {
