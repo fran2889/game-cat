@@ -215,4 +215,20 @@ describe("Steam discovery", () => {
     expect(result.state).toBe("not_found");
     expect(result.account).toBeNull();
   });
+
+  it("accepts a real directory directly below the filesystem root", () => {
+    // On Linux `tmpdir()` is `/tmp`, which is one level below the root and was
+    // the case the former parent-prefix guard rejected. On platforms whose
+    // tmpdir is nested this still passes without exercising that path.
+    const root = tmpdir();
+    const result = discoverSteam({
+      steamRoot: root,
+      steamId64: null,
+      platform: process.platform,
+      env: {},
+      homedir: mkdtempSync(join(tmpdir(), "game-cat-home-")),
+    });
+    expect(result.state).not.toBe("not_found");
+    expect(result.root).toBe(root);
+  });
 });
