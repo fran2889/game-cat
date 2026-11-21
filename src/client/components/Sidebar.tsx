@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -315,7 +315,18 @@ interface SidebarLinkProps {
   onNavigate(): void;
 }
 
-/** One sidebar row. Mantine owns the shape, hover, and active treatment. */
+/**
+ * The active row's surface, text, and hover stay inside Mantine's NavLink
+ * variables. `styles.css` adds only the accent edge and shadow Mantine cannot
+ * express.
+ */
+const ROW_STYLE = {
+  "--nl-bg": "var(--mantine-color-dark-6)",
+  "--nl-hover": "var(--mantine-color-dark-5)",
+  "--nl-color": "var(--mantine-color-text)",
+} as CSSProperties;
+
+/** One sidebar row. Mantine owns the shape, surface, hover, and focus ring. */
 function SidebarLink({ to, label, icon, count, active, title, onNavigate }: SidebarLinkProps) {
   return (
     <NavLink
@@ -327,6 +338,7 @@ function SidebarLink({ to, label, icon, count, active, title, onNavigate }: Side
       active={active}
       aria-current={active ? "page" : undefined}
       onClick={onNavigate}
+      style={ROW_STYLE}
       noWrap
       leftSection={
         <Text component="span" size="xs" aria-hidden="true">

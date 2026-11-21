@@ -31,6 +31,7 @@ test("the active sidebar row uses a surface tint, accent edge, and normal text",
     .locator("#sidebar")
     .getByRole("link", { name: /Installed/ })
     .click();
+  await page.mouse.move(0, 0);
   await expect(page).toHaveURL(/\/installed$/);
   const installed = page.locator('.side-item[aria-current="page"]');
   await expect(installed).toHaveText(/Installed/);
@@ -42,6 +43,7 @@ test("the active sidebar row uses a surface tint, accent edge, and normal text",
     .locator("#sidebar")
     .getByRole("link", { name: /Favorites/ })
     .click();
+  await page.mouse.move(0, 0);
   await expect(page).toHaveURL(/\/steam\//);
   const steam = page.locator('.side-item[aria-current="page"]');
   await expect(steam).toHaveText(/Favorites/);

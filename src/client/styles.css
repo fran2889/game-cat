@@ -75,12 +75,10 @@
   display: none;
 }
 
-/* The active row is a surface tint with a 3px accent edge and a soft shadow,
- * not Mantine's filled primary block. The edge plus the tint keeps the row
- * distinguishable without relying on colour alone. */
-.side-item[data-active] {
-  background-color: var(--mantine-color-dark-6);
-  color: var(--mantine-color-text);
+/* The active row's surface, text, and hover come from the `--nl-*` variables
+ * set on the NavLink in Sidebar.tsx. Mantine cannot express an inset accent
+ * edge or a drop shadow on that row, so only those live here. */
+.side-item[aria-current="page"] {
   box-shadow:
     inset 3px 0 0 var(--mantine-primary-color-filled),
     0 1px 3px rgb(0 0 0 / 28%);
