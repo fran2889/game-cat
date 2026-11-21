@@ -49,6 +49,13 @@ test("grid is the default and the layout persists per view kind", async ({ page 
 test("grid cards show the documented badges, ownership, tags, and cover fallback", async ({
   page,
 }) => {
+  const coverRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.resourceType() === "image") {
+      coverRequests.push(request.url());
+    }
+  });
+
   await page.goto(app.url);
   await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
   const card = page.locator(".game-card");
@@ -58,6 +65,11 @@ test("grid cards show the documented badges, ownership, tags, and cover fallback
   await expect(card.locator(".game-tags")).toHaveText("Puzzle · Co-op");
   await expect(card.locator(".ownership-flag")).toHaveText("Local only");
   await expect(card.locator(".game-cover-fallback")).toHaveText("P2");
+
+  // The grid asks for the portrait capsule, not the landscape header.
+  await expect
+    .poll(() => coverRequests.some((url) => url.includes("/620/library_600x900.jpg")))
+    .toBe(true);
 
   // The portrait capsule runs flush to the card edge, so the card itself has
   // no padding and the cover keeps the 2/3 library-capsule ratio.
@@ -154,6 +166,25 @@ test("the table has the documented columns, sortable headers, and null cells", a
 
   await page.getByRole("combobox", { name: "Sort by" }).selectOption("metacritic");
   await expect(gameHeader).toHaveAttribute("aria-sort", "none");
+});
+
+test("table thumbnails keep the header art", async ({ page }) => {
+  const coverRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.resourceType() === "image") {
+      coverRequests.push(request.url());
+    }
+  });
+
+  await page.goto(app.url);
+  await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
+  await expect(page.locator(".game-card")).toHaveCount(1);
+
+  // Ignore the grid's capsule request; only the table's choice matters here.
+  coverRequests.length = 0;
+  await page.getByRole("button", { name: "Table view" }).click();
+  await expect(page.locator(".game-table")).toBeVisible();
+  await expect.poll(() => coverRequests.some((url) => url.includes("/620/header.jpg"))).toBe(true);
 });
 
 test("search is debounced into ?q= and survives reload, clear, and history", async ({ page }) => {
