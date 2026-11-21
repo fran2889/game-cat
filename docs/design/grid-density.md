@@ -9,11 +9,11 @@ these exact pixels.
 
 ## Grid
 
-| Property          | Value                               |
-| ----------------- | ----------------------------------- |
+| Property          | Value                                   |
+| ----------------- | --------------------------------------- |
 | Track             | `repeat(auto-fill, minmax(148px, 1fr))` |
-| Gap               | `14px`                              |
-| Columns at 1280px | 6 (a 992px content box)             |
+| Gap               | `14px`                                  |
+| Columns at 1280px | 6 (a 992px content box)                 |
 | Track at ≤460px   | `repeat(auto-fill, minmax(130px, 1fr))` |
 
 The loading grid uses the same tracks and the same card shell, so the first paint and the settled
