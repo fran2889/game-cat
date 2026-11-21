@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { blockExternalRequests, startTestApp, type TestApp } from "./fixture.ts";
 
 let app: TestApp;
@@ -15,16 +15,24 @@ test.beforeEach(async ({ context }) => {
   await blockExternalRequests(context);
 });
 
+/** The dark-6 default surface and the amber inset edge from the theme. */
+const ACTIVE_BACKGROUND = "rgb(21, 24, 30)";
+const ACTIVE_SHADOW = /rgb\(242, 181, 68\) 3px 0px 0px 0px inset/;
+
+/** The stylesheet keys the active treatment on `aria-current`, so the test does too. */
+async function expectActiveRow(row: Locator, name: RegExp): Promise<void> {
+  await expect(row).toHaveText(name);
+  await expect(row).toHaveCSS("background-color", ACTIVE_BACKGROUND);
+  await expect(row).toHaveCSS("box-shadow", ACTIVE_SHADOW);
+}
+
 test("the active sidebar row uses a surface tint, accent edge, and normal text", async ({
   page,
 }) => {
   await page.goto(app.url);
   const active = page.locator('.side-item[aria-current="page"]');
-  await expect(active).toHaveText(/All games/);
-
-  await expect(active).toHaveCSS("background-color", "rgb(21, 24, 30)");
+  await expectActiveRow(active, /All games/);
   await expect(active).toHaveCSS("color", "rgb(232, 234, 240)");
-  await expect(active).toHaveCSS("box-shadow", /rgb\(242, 181, 68\) 3px 0px 0px 0px inset/);
 
   // Selection moves with navigation and keeps aria-current.
   await page
@@ -33,10 +41,7 @@ test("the active sidebar row uses a surface tint, accent edge, and normal text",
     .click();
   await page.mouse.move(0, 0);
   await expect(page).toHaveURL(/\/installed$/);
-  const installed = page.locator('.side-item[aria-current="page"]');
-  await expect(installed).toHaveText(/Installed/);
-  await expect(installed).toHaveCSS("background-color", "rgb(21, 24, 30)");
-  await expect(installed).toHaveCSS("box-shadow", /rgb\(242, 181, 68\) 3px 0px 0px 0px inset/);
+  await expectActiveRow(page.locator('.side-item[aria-current="page"]'), /Installed/);
 
   // Steam Collection rows use the same treatment.
   await page
@@ -45,9 +50,7 @@ test("the active sidebar row uses a surface tint, accent edge, and normal text",
     .click();
   await page.mouse.move(0, 0);
   await expect(page).toHaveURL(/\/steam\//);
-  const steam = page.locator('.side-item[aria-current="page"]');
-  await expect(steam).toHaveText(/Favorites/);
-  await expect(steam).toHaveCSS("background-color", "rgb(21, 24, 30)");
+  await expectActiveRow(page.locator('.side-item[aria-current="page"]'), /Favorites/);
 });
 
 test("the active row keeps its treatment in the mobile drawer", async ({ page }) => {
@@ -57,6 +60,5 @@ test("the active row keeps its treatment in the mobile drawer", async ({ page })
 
   const active = page.locator('.side-item[aria-current="page"]');
   await expect(active).toBeVisible();
-  await expect(active).toHaveCSS("background-color", "rgb(21, 24, 30)");
-  await expect(active).toHaveCSS("box-shadow", /rgb\(242, 181, 68\) 3px 0px 0px 0px inset/);
+  await expectActiveRow(active, /All games/);
 });
