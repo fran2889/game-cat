@@ -1,6 +1,6 @@
 // Writes the Mantine theme variables to a stylesheet so the client never
 // injects them at runtime (the CSP blocks <style> elements). Run before Vite
-// in build and dev; the unit test also fails when the file is stale.
+// in build and dev. The output is generated, not committed.
 import { writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

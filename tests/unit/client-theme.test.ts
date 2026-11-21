@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderThemeCss, theme, themeTokens } from "../../src/client/theme.ts";
 
@@ -22,14 +20,6 @@ describe("client theme", () => {
       "#2a303d",
     ]);
     expect(themeTokens.primary.name).toBe("amber");
-  });
-
-  it("keeps the generated stylesheet in sync with the theme", () => {
-    const generated = readFileSync(
-      resolve(import.meta.dirname, "../../src/client/theme.generated.css"),
-      "utf8",
-    );
-    expect(generated).toBe(renderThemeCss());
   });
 
   it("renders the documented variables", () => {
