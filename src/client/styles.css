@@ -179,9 +179,11 @@ main {
     transform 120ms ease;
 }
 
-/* The mockup lifts the card 1px and strengthens the border on hover. */
+/* The mockup lifts the card 1px and strengthens the border on hover. Use the
+ * theme token once #83 lands; the literal keeps this stacked branch correct
+ * until then. */
 .game-card:hover {
-  border-color: var(--mantine-color-dark-9);
+  border-color: var(--game-cat-border-strong, #3b4352);
   transform: translateY(-1px);
 }
 
