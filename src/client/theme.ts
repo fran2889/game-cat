@@ -114,7 +114,8 @@ function changedVariables(
  * The CSS Mantine would inject at runtime, derived from the same theme object
  * and reduced to the variables that differ from Mantine's defaults. The build
  * writes this to `theme.generated.css`; the provider then runs with
- * `withCssVariables={false}` and `withGlobalClasses={false}`.
+ * `withCssVariables={false}` and `withGlobalClasses={false}`. The stylesheet is
+ * generated, not committed; restart `npm run dev` after editing this module.
  */
 export function renderThemeCss(): string {
   const merged = mergeMantineTheme(DEFAULT_THEME, theme);
