@@ -1,4 +1,15 @@
-import { Anchor, Badge, Box, Card, Checkbox, Group, Stack, Text, Title } from "@mantine/core";
+import {
+  Anchor,
+  Badge,
+  Box,
+  Card,
+  Checkbox,
+  Group,
+  Stack,
+  Text,
+  Title,
+  VisuallyHidden,
+} from "@mantine/core";
 import { Link, useLocation } from "react-router-dom";
 import type { GameSummary } from "../../shared/types.ts";
 import {
@@ -94,6 +105,7 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
                 title={reviewLabel}
               >
                 {review}
+                <VisuallyHidden> · {reviewLabel}</VisuallyHidden>
               </Badge>
             )}
           </Group>

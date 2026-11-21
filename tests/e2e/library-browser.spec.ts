@@ -61,7 +61,7 @@ test("grid cards show the documented badges, ownership, tags, and cover fallback
   const card = page.locator(".game-card");
   await expect(card).toHaveCount(1);
   await expect(card.locator(".pill-installed")).toHaveText(/Installed/);
-  await expect(card.locator(".review-pill")).toHaveText("98%");
+  await expect(card.locator(".review-pill")).toHaveText(/^98%/);
   await expect(card.locator(".game-tags")).toHaveText("Puzzle · Co-op");
   await expect(card.locator(".ownership-flag")).toHaveText("Local only");
   await expect(card.locator(".game-cover-fallback")).toHaveText("P2");
@@ -93,8 +93,12 @@ test("the review badge keeps the tier and count in its tooltip", async ({ page }
   const card = page.locator(".game-card");
   await expect(card).toHaveCount(1);
   const badge = card.locator(".review-pill");
-  await expect(badge).toHaveText("98%");
+  await expect(badge).toHaveText(/^98%/);
   await expect(badge).toHaveAttribute("title", "Overwhelmingly Positive · 1,000 reviews");
+  // The title is hover-only; the tier and count must still reach the link name.
+  await expect(card.locator(".card-open")).toHaveAccessibleName(
+    /Overwhelmingly Positive · 1,000 reviews/,
+  );
   await expect(card.locator(".game-review")).toHaveCount(0);
 });
 
