@@ -1,4 +1,15 @@
-import { Anchor, Badge, Box, Card, Checkbox, Group, Stack, Text, Title } from "@mantine/core";
+import {
+  Anchor,
+  Badge,
+  Box,
+  Card,
+  Checkbox,
+  Group,
+  Stack,
+  Text,
+  Title,
+  VisuallyHidden,
+} from "@mantine/core";
 import { Link, useLocation } from "react-router-dom";
 import type { GameSummary } from "../../shared/types.ts";
 import {
@@ -24,19 +35,13 @@ function ownershipFlag(game: GameSummary): string | null {
   return ownershipLabel(game.ownershipStatus);
 }
 
-function tagStatusColor(status: string): string {
-  if (status === "ok") {
-    return "green";
-  }
-  return status === "stale" || status === "error" ? "red" : "gray";
-}
-
-/** The grid card shared by the Library and Steam Collection views. */
+/** The grid card shared by the Library, Steam Collection, and editor preview. */
 export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
   const location = useLocation();
   const flag = ownershipFlag(game);
   const review = reviewPillLabel(game.reviewScore);
-  const reviewLabel = reviewCardLabel(game.reviewTier, game.reviewCount);
+  const reviewLabel =
+    game.reviewCount === null ? "" : reviewCardLabel(game.reviewTier, game.reviewCount);
   const tone = reviewTone(game.reviewScore);
   const tags = game.tags.slice(0, 2).map((tag) => tag.name);
 
@@ -45,7 +50,7 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
       component="article"
       className={`game-card${selected ? " is-selected" : ""}`}
       data-selected={selected ? "true" : "false"}
-      padding="sm"
+      padding={0}
       radius="md"
       withBorder
       style={
@@ -67,7 +72,7 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
         underline="never"
       >
         <Box className="game-cover-wrap">
-          <GameCover appId={game.appId} name={game.name} />
+          <GameCover appId={game.appId} name={game.name} art="library" />
           <Group
             className="card-pills"
             pos="absolute"
@@ -98,14 +103,15 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
                 color={reviewColor(tone)}
                 variant="light"
                 tt="none"
-                title={game.reviewTier ?? undefined}
+                title={reviewLabel === "" ? undefined : reviewLabel}
               >
                 {review}
+                {reviewLabel !== "" && <VisuallyHidden> · {reviewLabel}</VisuallyHidden>}
               </Badge>
             )}
           </Group>
         </Box>
-        <Stack gap={4}>
+        <Stack gap={4} p="sm" pr={36}>
           <Title order={3} title={game.name} fz="sm" lineClamp={1}>
             {game.name}
           </Title>
@@ -119,26 +125,8 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
               </Badge>
             )}
           </Group>
-          <Text
-            component="p"
-            className={`game-review ${tone}`}
-            size="xs"
-            c={reviewColor(tone)}
-            truncate
-          >
-            {reviewLabel}
-          </Text>
           <Text component="p" className="game-tags" size="xs" truncate>
             {tags.length > 0 ? tags.join(" · ") : "No tags yet"}
-          </Text>
-          <Text
-            component="span"
-            className={`tag-status is-${game.metadata.tagsStatus}`}
-            title={`Tags: ${game.metadata.tagsStatus}`}
-            size="xs"
-            c={tagStatusColor(game.metadata.tagsStatus)}
-          >
-            Tags: {game.metadata.tagsStatus}
           </Text>
         </Stack>
       </Anchor>

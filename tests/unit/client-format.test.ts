@@ -24,6 +24,7 @@ describe("playtime formatting", () => {
 describe("cover presentation", () => {
   it("derives the cover from the App ID and tinted initials from the name", () => {
     expect(coverUrl(620)).toContain("/620/header.jpg");
+    expect(coverUrl(620, "library")).toContain("/620/library_600x900.jpg");
     expect(initialsFor("Portal 2")).toBe("P2");
     expect(initialsFor("Counter-Strike 2")).toBe("CS");
     expect(initialsFor("")).toBe("?");
@@ -71,7 +72,6 @@ describe("domain labels", () => {
     expect(reviewCardLabel("Overwhelmingly Positive", 1000)).toBe(
       "Overwhelmingly Positive · 1,000 reviews",
     );
-    expect(reviewCardLabel(null, 0)).toBe("No user reviews");
-    expect(reviewCardLabel(null, null)).toBe("Reviews unavailable");
+    expect(reviewCardLabel(null, 1000)).toBe("— · 1,000 reviews");
   });
 });

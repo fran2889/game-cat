@@ -2,8 +2,12 @@ import type { OwnershipStatus, ReviewTone } from "../shared/types.ts";
 
 const COVER_BASE = "https://cdn.akamai.steamstatic.com/steam/apps";
 
-export function coverUrl(appId: number): string {
-  return `${COVER_BASE}/${appId}/header.jpg`;
+/** `header` is the landscape 460×215 art; `library` is the portrait capsule. */
+export type CoverArt = "header" | "library";
+
+export function coverUrl(appId: number, art: CoverArt = "header"): string {
+  const file = art === "library" ? "library_600x900.jpg" : "header.jpg";
+  return `${COVER_BASE}/${appId}/${file}`;
 }
 
 export function initialsFor(name: string): string {
@@ -174,14 +178,8 @@ export function reviewPillLabel(score: number | null): string | null {
   return score === null ? null : `${score}%`;
 }
 
-/** Card line: tier and count, or the documented empty-state copy. */
-export function reviewCardLabel(tier: string | null, count: number | null): string {
-  if (count === 0) {
-    return "No user reviews";
-  }
-  if (count === null) {
-    return "Reviews unavailable";
-  }
+/** Card badge tooltip: the tier and count for a Game with a review score. */
+export function reviewCardLabel(tier: string | null, count: number): string {
   return `${tier ?? "—"} · ${formatCount(count)} reviews`;
 }
 
