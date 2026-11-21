@@ -54,6 +54,9 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
   // The prefix summary is Mantine's light info Alert with an icon, not a
   // neutral bordered Paper.
   await expect(page.locator(".prefix-callout")).toHaveClass(/mantine-Alert-root/);
+  // Static guidance, not an alert: Mantine's default Alert role would make the
+  // counts and explanation an assertive live region on every edit.
+  await expect(page.locator(".prefix-callout")).toHaveAttribute("role", "note");
   await expect(page.locator(".prefix-callout svg")).toHaveCount(1);
   await expect(page.locator(".quick-add")).toHaveCSS("padding", "10px");
 

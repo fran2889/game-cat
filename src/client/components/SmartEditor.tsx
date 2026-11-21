@@ -766,6 +766,7 @@ export function SmartEditor({
 
             <Alert
               className="prefix-callout"
+              role="note"
               aria-label="Global prefix summary"
               color="blue"
               variant="light"
