@@ -63,8 +63,8 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
   const or = page.getByRole("button", { name: "OR prefix for Rule 1" });
   await or.click();
   await expect(row).toHaveCSS("border-left-color", "rgb(253, 126, 20)");
-  // The filled variant uses orange shade 8; the edge uses shade 6.
-  await expect(or).toHaveCSS("background-color", "rgb(217, 72, 15)");
+  // Mantine's filled variant and the row edge both use orange shade 6.
+  await expect(or).toHaveCSS("background-color", "rgb(253, 126, 20)");
 });
 
 test("Discard is available on a new collection and leaves without saving", async ({ page }) => {
