@@ -131,8 +131,13 @@ main {
   gap: var(--mantine-spacing-md);
 }
 
-.skeleton-grid {
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+.skeleton-card {
+  overflow: hidden;
+}
+
+.skeleton-cover {
+  width: 100%;
+  aspect-ratio: 2 / 3;
 }
 
 /* Grid cards use the portrait library capsule, flush to the card edge. The
