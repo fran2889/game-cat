@@ -10,9 +10,9 @@ import type {
 import { allSync, firstSync, queryFor } from "../db/query.ts";
 import { pagination } from "./pagination.ts";
 import {
+  gameOrderTerms,
   readDataAsOf,
   readTagsForGames,
-  sortColumn,
   toGameSummary,
   type GameOrder,
   type GamesRow,
@@ -112,22 +112,17 @@ export class SteamCollectionsRepository {
         .compile(),
     );
     const total = Number(count?.count ?? 0);
-    const column = sortColumn(query.sort);
-    const direction = query.order === "desc" ? "desc" : "asc";
-    const gamesQuery = queryFor(this.db)
+    let gamesQuery = queryFor(this.db)
       .selectFrom("v_games as vg")
       .innerJoin("steam_collection_games as scg", "scg.app_id", "vg.app_id")
       .selectAll("vg")
       .where("scg.steam_collection_id", "=", id);
+    for (const term of gameOrderTerms(query.sort, query.order, "vg.app_id")) {
+      gamesQuery = gamesQuery.orderBy(term.expression, term.direction);
+    }
     const rows = allSync<GamesRow>(
       this.db,
-      (query.sort === "appId"
-        ? gamesQuery.orderBy("vg.app_id", direction)
-        : gamesQuery
-            .orderBy(sql`(${sql.ref(column)} IS NULL)`, "asc")
-            .orderBy(sql.ref(column), direction)
-            .orderBy("vg.app_id", "asc")
-      )
+      gamesQuery
         .limit(query.pageSize)
         .offset((query.page - 1) * query.pageSize)
         .compile(),

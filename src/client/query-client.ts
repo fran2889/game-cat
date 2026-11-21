@@ -1,4 +1,15 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, queryOptions, type QueryKey } from "@tanstack/react-query";
+
+/**
+ * The one query-option shape: a key and a signal-aware fetcher. Views add
+ * per-call options such as `enabled` by spreading the result.
+ */
+export function defineQuery<TData, TKey extends QueryKey>(
+  queryKey: TKey,
+  queryFn: (signal: AbortSignal) => Promise<TData>,
+) {
+  return queryOptions({ queryKey, queryFn: ({ signal }) => queryFn(signal) });
+}
 
 /**
  * The client's one query cache.

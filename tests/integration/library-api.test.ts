@@ -828,6 +828,39 @@ describe("Steam Collection API", () => {
     expect(body.meta.dataAsOf).toMatch(/Z$/);
   });
 
+  it("sorts static members by a Metadata field with nulls last in both directions", async () => {
+    const test = await collectionHarness();
+    const addMember = test.db.raw.prepare(
+      "INSERT INTO steam_collection_games (steam_collection_id, app_id) VALUES ('favorite', ?)",
+    );
+    addMember.run(10);
+    addMember.run(20);
+    const setReleaseYear = test.db.raw.prepare(
+      "INSERT INTO storefront_appdetails (app_id, release_year, updated_at) VALUES (?, ?, 1)",
+    );
+    setReleaseYear.run(10, 2020);
+    setReleaseYear.run(20, null);
+    setReleaseYear.run(620, 2011);
+
+    const ascending = await get(
+      test.app,
+      "/api/steam-collections/favorite/games?sort=releaseYear&order=asc&pageSize=200",
+    );
+    expect(ascending.statusCode).toBe(200);
+    expect(
+      (ascending.json() as { data: Array<{ appId: number }> }).data.map((game) => game.appId),
+    ).toEqual([620, 10, 20]);
+
+    const descending = await get(
+      test.app,
+      "/api/steam-collections/favorite/games?sort=releaseYear&order=desc&pageSize=200",
+    );
+    expect(descending.statusCode).toBe(200);
+    expect(
+      (descending.json() as { data: Array<{ appId: number }> }).data.map((game) => game.appId),
+    ).toEqual([10, 620, 20]);
+  });
+
   it("returns 200 [] for an empty static Collection and a dynamic Collection", async () => {
     const test = await collectionHarness();
 

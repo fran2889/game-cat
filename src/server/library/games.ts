@@ -10,9 +10,10 @@ import {
   type GameTag,
   type Pagination,
 } from "../../shared/types.ts";
-import { sql, type SelectQueryBuilder, type SqlBool } from "kysely";
+import { sql, type RawBuilder, type SelectQueryBuilder, type SqlBool } from "kysely";
 import { allSync, firstSync, queryFor } from "../db/query.ts";
 import type { DatabaseSchema } from "../db/schema.ts";
+import { METADATA_SOURCE_NAMES } from "../refresh/sources.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 import { pagination } from "./pagination.ts";
 
@@ -228,6 +229,97 @@ export function sortColumn(sort: GameSort): keyof GamesRow & string {
   return SORT_COLUMNS[sort] as keyof GamesRow & string;
 }
 
+export interface GameOrderTerm {
+  expression: RawBuilder<unknown>;
+  direction: "asc" | "desc";
+}
+
+type GameSortValue = string | number | null;
+
+interface GameOrderKey {
+  column: keyof GamesRow & string;
+  direction: "asc" | "desc";
+  nullsLast: boolean;
+}
+
+/**
+ * The one nulls-last ordering rule. Both the SQL terms and the in-memory
+ * comparator consume this key list: missing values sort after real ones in
+ * both directions, ties follow the chosen direction, then `app_id ASC`.
+ */
+function gameOrderKeys(sort: GameSort, order: GameOrder): GameOrderKey[] {
+  const direction = order === "desc" ? "desc" : "asc";
+  if (sort === "appId") {
+    return [{ column: "app_id", direction, nullsLast: false }];
+  }
+  return [
+    { column: sortColumn(sort), direction, nullsLast: true },
+    { column: "app_id", direction: "asc", nullsLast: false },
+  ];
+}
+
+/**
+ * Render the ordering keys as SQL terms. `appIdColumn` carries the table
+ * qualifier for joined reads.
+ */
+export function gameOrderTerms(
+  sort: GameSort,
+  order: GameOrder,
+  appIdColumn = "app_id",
+): GameOrderTerm[] {
+  const terms: GameOrderTerm[] = [];
+  for (const key of gameOrderKeys(sort, order)) {
+    const column = key.column === "app_id" ? appIdColumn : key.column;
+    if (key.nullsLast) {
+      terms.push({ expression: sql`(${sql.ref(column)} IS NULL)`, direction: "asc" });
+    }
+    terms.push({ expression: sql.ref(column), direction: key.direction });
+  }
+  return terms;
+}
+
+/** Apply the same ordering keys in memory for the Rule read path. */
+export function compareGames(
+  left: GamesRow,
+  right: GamesRow,
+  sort: GameSort,
+  order: GameOrder,
+): number {
+  for (const key of gameOrderKeys(sort, order)) {
+    const leftValue = left[key.column];
+    const rightValue = right[key.column];
+    if (key.nullsLast) {
+      if (leftValue === null && rightValue === null) {
+        continue;
+      }
+      if (leftValue === null) {
+        return 1;
+      }
+      if (rightValue === null) {
+        return -1;
+      }
+    }
+    const difference = compareSortValues(leftValue, rightValue);
+    if (difference !== 0) {
+      return key.direction === "desc" ? -difference : difference;
+    }
+  }
+  return 0;
+}
+
+function compareSortValues(left: GameSortValue, right: GameSortValue): number {
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+  if (String(left) < String(right)) {
+    return -1;
+  }
+  return String(left) > String(right) ? 1 : 0;
+}
+
+/** The phases whose latest success defines `meta.dataAsOf`. */
+const DATA_AS_OF_SOURCES = ["steam_local", "steam_web_api", ...METADATA_SOURCE_NAMES];
+
 export function readDataAsOf(db: BetterSqlite3.Database): string | null {
   // Every phase of a direct scope or an `all` run records its success in
   // `source_state`. The later of the local scan, ownership refresh, and
@@ -237,13 +329,7 @@ export function readDataAsOf(db: BetterSqlite3.Database): string | null {
     queryFor(db)
       .selectFrom("source_state")
       .select(sql<number | null>`MAX(last_success_at)`.as("at"))
-      .where("name", "in", [
-        "steam_local",
-        "steam_web_api",
-        "steamspy",
-        "storefront",
-        "steam_reviews",
-      ])
+      .where("name", "in", DATA_AS_OF_SOURCES)
       .compile(),
   );
   return toIso(row?.at ?? null);
@@ -303,16 +389,9 @@ export class GamesRepository {
     );
     const total = Number(count?.count ?? 0);
 
-    const column = SORT_COLUMNS[query.sort] as keyof GamesRow & string;
-    const direction = query.order === "desc" ? "desc" : "asc";
     let rowsQuery = withGameFilters(queryFor(this.db).selectFrom("v_games").selectAll(), query);
-    if (query.sort === "appId") {
-      rowsQuery = rowsQuery.orderBy("app_id", direction);
-    } else {
-      rowsQuery = rowsQuery
-        .orderBy(sql`(${sql.ref(column)} IS NULL)`, "asc")
-        .orderBy(sql.ref(column), direction)
-        .orderBy("app_id", "asc");
+    for (const term of gameOrderTerms(query.sort, query.order)) {
+      rowsQuery = rowsQuery.orderBy(term.expression, term.direction);
     }
     const rows = allSync<GamesRow>(
       this.db,

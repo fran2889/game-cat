@@ -9,6 +9,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SmartCollectionListItem } from "../shared/smart-collections.ts";
 import { fetchSmartCollections } from "./api.ts";
+import { defineQuery } from "./query-client.ts";
 
 interface SmartCollectionsContextValue {
   collections: SmartCollectionListItem[];
@@ -44,10 +45,7 @@ async function loadAllCollections(signal?: AbortSignal): Promise<SmartCollection
  */
 export function SmartCollectionsProvider({ children }: { children: ReactNode }): ReactElement {
   const queryClient = useQueryClient();
-  const query = useQuery({
-    queryKey: ALL_COLLECTIONS_KEY,
-    queryFn: ({ signal }) => loadAllCollections(signal),
-  });
+  const query = useQuery(defineQuery(ALL_COLLECTIONS_KEY, loadAllCollections));
 
   const reload = useCallback(async (): Promise<void> => {
     await query.refetch();

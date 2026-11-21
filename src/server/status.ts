@@ -11,6 +11,7 @@ import {
   type SourceStatus,
 } from "../shared/types.ts";
 import { GamesRepository, type OwnershipCounts } from "./library/games.ts";
+import { METADATA_SOURCE_NAMES } from "./refresh/sources.ts";
 import { readActiveRefresh, readLastRefresh } from "./refresh/service.ts";
 import type { SteamDiscovery } from "./steam/discovery.ts";
 import { toIsoTimestamp as toIso } from "./timestamps.ts";
@@ -226,7 +227,7 @@ function metadataState(db: BetterSqlite3.Database): Status["metadata"] {
     queryFor(db)
       .selectFrom("source_state")
       .select(sql<number | null>`MAX(last_success_at)`.as("last_success_at"))
-      .where("name", "in", ["steamspy", "storefront", "steam_reviews"])
+      .where("name", "in", METADATA_SOURCE_NAMES)
       .compile(),
   );
   return { tags, store, reviews, lastSuccessAt: toIso(row?.last_success_at ?? null) };

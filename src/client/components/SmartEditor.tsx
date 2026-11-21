@@ -38,7 +38,7 @@ import {
   createSmartCollection,
   deleteSmartCollection,
   patchSmartCollection,
-  previewRules,
+  rulesPreviewQueryOptions,
   ruleValuesQueryOptions,
   steamCollectionsQueryOptions,
   tagsQueryOptions,
@@ -319,8 +319,7 @@ export function SmartEditor({
   }, [signature, page, sort, order, rulesInvalid]);
 
   const previewQuery = useQuery({
-    queryKey: ["rules-preview", previewInput],
-    queryFn: ({ signal }) => previewRules(previewInput as PreviewRulesBody, signal),
+    ...rulesPreviewQueryOptions(previewInput as PreviewRulesBody),
     enabled: previewInput !== null,
     placeholderData: keepPreviousData,
   });

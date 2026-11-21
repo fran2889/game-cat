@@ -14,6 +14,7 @@ import {
   type AffectedAndPendingGames,
   type MetadataSource,
 } from "../refresh.ts";
+import { defineQuery } from "../query-client.ts";
 import type { ShellContext } from "../shell-context.ts";
 
 const METADATA_SOURCES: readonly MetadataSource[] = ["steamspy", "storefront", "steam_reviews"];
@@ -48,9 +49,9 @@ export function ErrorsView() {
   const metadataKey = status === null ? "none" : JSON.stringify(status.metadata);
   const affectedQueries = useQueries({
     queries: METADATA_SOURCES.map((source) => ({
-      queryKey: ["affected-and-pending", source, metadataKey],
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
+      ...defineQuery(["affected-and-pending", source, metadataKey] as const, (signal) =>
         fetchAffectedAndPendingGames(source, signal),
+      ),
       enabled: status !== null,
     })),
   });

@@ -417,6 +417,32 @@ async function executeSourcePass(
         return;
       }
       const item = items[index]!;
+      const pausePass = (pause: {
+        at: number;
+        until: number;
+        reason: "rate_limited" | "blocked";
+        message: string;
+      }): void => {
+        const previous = hostPause.get(hostKey);
+        hostPause.set(hostKey, {
+          until: Math.max(previous?.until ?? 0, pause.until),
+          reason: pause.reason,
+        });
+        updateMetadataSourceState(
+          source.name,
+          {
+            status: pause.reason,
+            lastAttemptAt: pause.at,
+            lastSuccessAt: null,
+            retryAfterAt: pause.until,
+            lastError: pause.message,
+          },
+          options,
+        );
+        skipFrom(plan, source.name, items, index);
+        paused = true;
+        persistIfNeeded();
+      };
       let attempt = 0;
 
       while (true) {
@@ -483,50 +509,14 @@ async function executeSourcePass(
           }
           const at = options.now();
           const until = outcome.retryAfterAt ?? at + backoffSeconds(attempt, options);
-          const previous = hostPause.get(hostKey);
-          hostPause.set(hostKey, {
-            until: Math.max(previous?.until ?? 0, until),
-            reason: "rate_limited",
-          });
-          updateMetadataSourceState(
-            source.name,
-            {
-              status: "rate_limited",
-              lastAttemptAt: at,
-              lastSuccessAt: null,
-              retryAfterAt: until,
-              lastError: outcome.message,
-            },
-            options,
-          );
-          paused = true;
-          skipFrom(plan, source.name, items, index);
-          persistIfNeeded();
+          pausePass({ at, until, reason: "rate_limited", message: outcome.message });
           return;
         }
 
         if (outcome.kind === "blocked") {
           const at = options.now();
           const until = at + BLOCK_SECONDS;
-          const previous = hostPause.get(hostKey);
-          hostPause.set(hostKey, {
-            until: Math.max(previous?.until ?? 0, until),
-            reason: "blocked",
-          });
-          updateMetadataSourceState(
-            source.name,
-            {
-              status: "blocked",
-              lastAttemptAt: at,
-              lastSuccessAt: null,
-              retryAfterAt: until,
-              lastError: outcome.message,
-            },
-            options,
-          );
-          paused = true;
-          skipFrom(plan, source.name, items, index);
-          persistIfNeeded();
+          pausePass({ at, until, reason: "blocked", message: outcome.message });
           return;
         }
 

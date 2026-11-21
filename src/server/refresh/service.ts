@@ -488,17 +488,7 @@ export class RefreshService {
     let partial = library.partial;
     let error = library.error;
     const ownership = await performOwnershipPhase(this.ownershipPhaseOptions(row.id, config));
-    if (ownership.fatal) {
-      this.finishRun(row.id, {
-        status: "failed",
-        total: null,
-        done: 0,
-        stats: allStats(emptyInternalStats()),
-        error: ownership.error,
-      });
-      return;
-    }
-    if (ownership.status === "failed") {
+    if (ownership.fatal || ownership.status === "failed") {
       this.finishRun(row.id, {
         status: "failed",
         total: null,
@@ -543,11 +533,6 @@ export class RefreshService {
     if (library.partial) {
       partial = true;
       error ??= library.error;
-    }
-
-    // Ownership-not-configured is the documented code when it applies.
-    if (ownership.status === "skipped") {
-      error = ownership.error;
     }
 
     this.finishRun(row.id, {
