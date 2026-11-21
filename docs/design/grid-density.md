@@ -2,7 +2,7 @@
 
 Issue [#87](https://github.com/fran2889/game-cat/issues/87) matches the Library, Steam Collection,
 and Smart Collection grids to the prototype's density. The v1 specification leaves component
-appearance to Mantine: [§7.10](specs/game-cat-v1.md#710-visual-reference) says surfaces, colour
+appearance to Mantine: [§7.10](../specs/game-cat-v1.md#710-visual-reference) says surfaces, colour
 tokens, spacing, and branding are not contractual. This note records the values chosen here so a
 future change is deliberate rather than accidental. The end-to-end tests assert the structure, not
 these exact pixels.
