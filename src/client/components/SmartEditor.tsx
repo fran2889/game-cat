@@ -729,22 +729,28 @@ export function SmartEditor({
               <Text
                 component="p"
                 className="editor-match-count"
-                aria-live="polite"
                 data-testid="match-count"
                 m={0}
               >
-                {preview === null ? (
-                  rulesInvalid ? (
-                    "No preview yet"
+                <Text span aria-live="polite">
+                  {preview === null ? (
+                    rulesInvalid ? (
+                      "No preview yet"
+                    ) : (
+                      "Loading matches…"
+                    )
                   ) : (
-                    "Loading matches…"
-                  )
-                ) : (
+                    <>
+                      <Text span className="editor-match-total" fw={700} size="lg">
+                        {totalItems}
+                      </Text>{" "}
+                      {totalItems === 1 ? "game matches" : "games match"}
+                    </>
+                  )}
+                </Text>
+                {preview !== null && (
                   <>
-                    <Text span className="editor-match-total" fw={700} size="lg">
-                      {totalItems}
-                    </Text>{" "}
-                    {totalItems === 1 ? "game matches" : "games match"}{" "}
+                    {" "}
                     <Text span className="editor-match-hint" size="xs" c="gray.5">
                       · updates as you edit
                     </Text>

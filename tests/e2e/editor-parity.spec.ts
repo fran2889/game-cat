@@ -20,6 +20,11 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
 }) => {
   await page.goto(`${app.url}smart/new`);
   await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
+  // Only the count is announced when it changes; the static hint is not part
+  // of the live region.
+  await expect(page.getByTestId("match-count").locator('[aria-live="polite"]')).toHaveText(
+    "130 games match",
+  );
   await expect(page.locator(".game-grid .game-card").first()).toBeVisible();
 
   // The rail opens with the mockup's eyebrow label; a new draft has no
