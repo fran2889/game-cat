@@ -12,6 +12,17 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import {
+  IconArrowDown,
+  IconArrowUp,
+  IconCheck,
+  IconLayoutGrid,
+  IconList,
+  IconMenu2,
+  IconPlus,
+  IconSearch,
+  IconX,
+} from "@tabler/icons-react";
 import type { Status } from "../../shared/types.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { GAME_SORT_OPTIONS } from "../browse.ts";
@@ -128,7 +139,7 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
         aria-expanded={sidebarOpen}
         onClick={onOpenSidebar}
       >
-        ☰
+        <IconMenu2 size={18} aria-hidden="true" />
       </ActionIcon>
 
       <Stack className="crumb" gap={0} miw={0}>
@@ -156,11 +167,7 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
             placeholder="Search game names"
             aria-label="Search game names"
             autoComplete="off"
-            leftSection={
-              <Text component="span" aria-hidden="true" c="dimmed">
-                ⌕
-              </Text>
-            }
+            leftSection={<IconSearch size={15} aria-hidden="true" />}
             rightSection={
               draft === "" ? (
                 <Kbd aria-hidden="true">/</Kbd>
@@ -174,7 +181,7 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
                     clearSearch();
                   }}
                 >
-                  ×
+                  <IconX size={14} aria-hidden="true" />
                 </ActionIcon>
               )
             }
@@ -202,7 +209,11 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
           variant="subtle"
           onClick={toggleOrder}
         >
-          {order === "desc" ? "↓" : "↑"}
+          {order === "desc" ? (
+            <IconArrowDown size={17} aria-hidden="true" />
+          ) : (
+            <IconArrowUp size={17} aria-hidden="true" />
+          )}
         </ActionIcon>
 
         <Button
@@ -215,9 +226,10 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
               ? "This view already shows installed Games only."
               : "Show installed Games only"
           }
+          leftSection={<IconCheck size={15} aria-hidden="true" />}
           onClick={() => setInstalledOnly(!installedOnly)}
         >
-          ✓ Installed
+          Installed
         </Button>
 
         {!inEditor && (
@@ -230,7 +242,7 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
                 px={8}
                 onClick={() => setLayout("grid")}
               >
-                ▦
+                <IconLayoutGrid size={16} aria-hidden="true" />
               </Button>
               <Button
                 variant={layout === "table" ? "light" : "default"}
@@ -239,7 +251,7 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
                 px={8}
                 onClick={() => setLayout("table")}
               >
-                ☰
+                <IconList size={16} aria-hidden="true" />
               </Button>
             </Button.Group>
           </Box>
@@ -254,8 +266,13 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
           Fetch
         </Button>
 
-        <Button component={Link} to="/smart/new" variant="default">
-          + New collection
+        <Button
+          component={Link}
+          to="/smart/new"
+          variant="default"
+          leftSection={<IconPlus size={16} aria-hidden="true" />}
+        >
+          New collection
         </Button>
 
         {status === null && (

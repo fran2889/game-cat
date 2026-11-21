@@ -141,7 +141,7 @@ test("the editor preview stays in grid when the Library is in table view", async
   await page.getByRole("button", { name: "Table view" }).click();
   await expect(page.locator(".game-table")).toBeVisible();
 
-  await page.getByRole("link", { name: "+ New collection" }).click();
+  await page.getByRole("link", { name: "New collection" }).click();
   await expect(page).toHaveURL(/\/smart\/new$/);
   await expect(page.getByTestId("match-count")).toHaveText("130 matches");
   await expect(page.locator(".game-grid .game-card").first()).toBeVisible();

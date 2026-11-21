@@ -90,7 +90,7 @@ test("the TopBar Tab order follows its visual order", async ({ page }) => {
   await page.keyboard.press("Tab");
   await expect(page.locator(".topbar-tools > .primary")).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "+ New collection" })).toBeFocused();
+  await expect(page.getByRole("link", { name: "New collection" })).toBeFocused();
 });
 
 test("the Game detail dialog traps focus and closes on Escape", async ({ page }) => {

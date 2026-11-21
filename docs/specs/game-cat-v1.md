@@ -125,10 +125,11 @@ The following are explicitly out of scope for v1.
 - Generic plumbing is provided by established libraries rather than hand-written code: Fastify route
   schemas for request validation and response serialisation, Kysely for SQL construction over that
   same connection, TanStack Query for client fetching, Mantine for components (adopted last, behind
-  the accessibility and E2E gate), and `commander` for CLI flags. Domain logic — rule evaluation,
-  Refresh phases, migrations and their safety guards, config precedence, and the Autosave state
-  machine — stays hand-written. See [ADR 0004](../adr/0004-libraries-over-boilerplate.md) for the
-  policy, constraints, and rejected options.
+  the accessibility and E2E gate), `@tabler/icons-react` for the sidebar and top-bar icon set, and
+  `commander` for CLI flags. Domain logic — rule evaluation, Refresh phases, migrations and their
+  safety guards, config precedence, and the Autosave state machine — stays hand-written. See
+  [ADR 0004](../adr/0004-libraries-over-boilerplate.md) for the policy, constraints, and rejected
+  options, and [ADR 0006](../adr/0006-tabler-icons-for-shell-chrome.md) for the icon dependency.
 - One process serves the UI and `/api` on one loopback port. One in-process Refresh worker runs at a
   time. There is no queue, scheduler, second writer, or separate worker process.
 - The server starts before the browser and exposes `GET /api/status` as its readiness signal.
