@@ -69,13 +69,19 @@ process.on("SIGTERM", () => {
   void shutdown(0);
 });
 
+// The client imports the generated stylesheet, so write it once before Vite
+// starts. Restart dev after editing theme.ts.
 const theme = spawnSync(process.execPath, [join(root, "scripts", "generate-theme-css.mjs")], {
   cwd: root,
   env: process.env,
   stdio: "inherit",
 });
 if (theme.status !== 0) {
-  console.error("[dev] theme css generation failed.");
+  console.error(
+    theme.error === undefined
+      ? "[dev] theme css generation failed."
+      : `[dev] theme css generation failed: ${theme.error.message}`,
+  );
   process.exit(theme.status ?? 1);
 }
 

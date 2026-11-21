@@ -68,7 +68,7 @@ export function SmartCollectionView() {
   }
 
   if (collection === null) {
-    return <GameGridSkeleton label="Loading the Smart Collection" count={4} />;
+    return <GameGridSkeleton label="Loading the Smart Collection" />;
   }
 
   return (

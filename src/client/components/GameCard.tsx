@@ -1,4 +1,15 @@
-import { Anchor, Badge, Box, Card, Checkbox, Group, Stack, Text, Title } from "@mantine/core";
+import {
+  Anchor,
+  Badge,
+  Box,
+  Card,
+  Checkbox,
+  Group,
+  Stack,
+  Text,
+  Title,
+  VisuallyHidden,
+} from "@mantine/core";
 import { Link, useLocation } from "react-router-dom";
 import type { GameSummary } from "../../shared/types.ts";
 import {
@@ -29,7 +40,8 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
   const location = useLocation();
   const flag = ownershipFlag(game);
   const review = reviewPillLabel(game.reviewScore);
-  const reviewLabel = reviewCardLabel(game.reviewTier, game.reviewCount);
+  const reviewLabel =
+    game.reviewCount === null ? "" : reviewCardLabel(game.reviewTier, game.reviewCount);
   const tone = reviewTone(game.reviewScore);
   const tags = game.tags.slice(0, 2).map((tag) => tag.name);
 
@@ -74,13 +86,13 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
             style={{ pointerEvents: "none" }}
           >
             {game.installed === true ? (
-              // Filled, without the dot, matches the mockup. Black text keeps
-              // the dark scheme's green-8 at 6.1:1; white is 3.4:1 and fails AA.
+              // Filled, without the dot, follows the prototype. The theme owns
+              // the black text token because white on green-5 fails AA.
               <Badge
                 className="pill pill-installed"
                 color="green"
                 variant="filled"
-                c="black"
+                style={{ color: "var(--game-cat-installed-badge-text)" }}
                 tt="none"
               >
                 Installed
@@ -103,28 +115,29 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
                 color={reviewColor(tone)}
                 variant="light"
                 tt="none"
-                title={reviewLabel}
+                title={reviewLabel === "" ? undefined : reviewLabel}
               >
                 {review}
+                {reviewLabel !== "" && <VisuallyHidden> · {reviewLabel}</VisuallyHidden>}
               </Badge>
             )}
           </Group>
         </Box>
         <Stack className="card-body" gap={4}>
-          <Title order={3} title={game.name} fz={12.5} lh={1.25} fw={650} lineClamp={1}>
+          <Title order={3} title={game.name} lineClamp={1}>
             {game.name}
           </Title>
           <Group className="game-meta" gap={6} justify="space-between" wrap="nowrap">
-            <Text component="span" fz={11}>
+            <Text component="span" truncate>
               {formatPlaytime(game.playtimeMinutes)}
             </Text>
             {flag !== null && (
-              <Text component="span" className="ownership-flag" fz={10}>
+              <Text component="span" className="ownership-flag">
                 {flag}
               </Text>
             )}
           </Group>
-          <Text component="p" className="game-tags" fz={10.5} c="dark.3" truncate>
+          <Text component="p" className="game-tags" truncate>
             {tags.length > 0 ? tags.join(" · ") : "No tags yet"}
           </Text>
         </Stack>

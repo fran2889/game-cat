@@ -178,14 +178,8 @@ export function reviewPillLabel(score: number | null): string | null {
   return score === null ? null : `${score}%`;
 }
 
-/** Card line: tier and count, or the documented empty-state copy. */
-export function reviewCardLabel(tier: string | null, count: number | null): string {
-  if (count === 0) {
-    return "No user reviews";
-  }
-  if (count === null) {
-    return "Reviews unavailable";
-  }
+/** Card badge tooltip: the tier and count for a Game with a review score. */
+export function reviewCardLabel(tier: string | null, count: number): string {
   return `${tier ?? "—"} · ${formatCount(count)} reviews`;
 }
 

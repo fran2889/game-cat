@@ -14,7 +14,8 @@
  *    gradient.
  *
  * Theme variables live in `theme.generated.css`, derived from `theme.ts` at
- * build time. Nothing here restates the theme.
+ * build time. Nothing here restates the theme. The prototype's stronger
+ * border is available as `--game-cat-border-strong`.
  */
 
 /* The jump target and the skip link are bespoke because Mantine has no
@@ -49,7 +50,8 @@
   top: 0;
   height: 100vh;
   overflow-y: auto;
-  background: var(--mantine-color-dark-6);
+  /* The page surface; a selected row lifts to the dark-6 default surface. */
+  background: var(--mantine-color-dark-7);
   border-right: 1px solid var(--mantine-color-dark-4);
   display: flex;
   flex-direction: column;
@@ -92,15 +94,13 @@
   margin: 0;
 }
 
-/* The active row is a surface tint with a 3px accent edge and a soft shadow,
- * not Mantine's filled primary block. The edge plus the tint keeps the row
- * distinguishable without relying on colour alone. */
-.side-item[data-active] {
-  background-color: var(--mantine-color-dark-6);
-  color: var(--mantine-color-text);
+/* The active row's surface, text, and hover come from the `--nl-*` variables
+ * set on the NavLink in Sidebar.tsx. Mantine cannot express an inset accent
+ * edge or a drop shadow on that row, so only those live here. */
+.side-item[aria-current="page"] {
   box-shadow:
     inset 3px 0 0 var(--mantine-primary-color-filled),
-    0 1px 3px rgb(0 0 0 / 28%);
+    0 1px 3px color-mix(in srgb, var(--mantine-color-black) 28%, transparent);
 }
 
 .workspace {
@@ -153,7 +153,7 @@ main {
 /* Fluid cover grid: the track count follows the available width, which a
  * fixed-column SimpleGrid cannot do without JS breakpoints.
  *
- * Density follows the mockup: a 148px minimum track and a 14px gap, which is
+ * Density follows the prototype: a 148px minimum track and a 14px gap, which is
  * six ~154px cards at 1280px. The loading grid shares the exact tracks so the
  * first paint and the loaded cards line up. */
 .game-grid,
@@ -161,6 +161,15 @@ main {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
   gap: 14px;
+}
+
+.skeleton-card {
+  overflow: hidden;
+}
+
+.skeleton-cover {
+  width: 100%;
+  aspect-ratio: 2 / 3;
 }
 
 /* Grid cards use the portrait library capsule, flush to the card edge. The
@@ -179,32 +188,55 @@ main {
     transform 120ms ease;
 }
 
-/* The mockup lifts the card 1px and strengthens the border on hover. Use the
- * theme token once #83 lands; the literal keeps this stacked branch correct
- * until then. */
+/* The card clips the art flush to its edge, which also clips the anchor's own
+ * focus ring. Draw the ring on the card instead, inset so it stays visible. */
+.game-card:focus-within {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.game-card .card-open:focus-visible {
+  outline: none;
+}
+
+/* The prototype lifts the card 1px and strengthens the border on hover. */
 .game-card:hover {
-  border-color: var(--game-cat-border-strong, #3b4352);
+  border-color: var(--game-cat-border-strong);
   transform: translateY(-1px);
 }
 
-.game-card.is-selected:hover {
-  border-color: var(--mantine-primary-color-filled);
+/* The card body follows the prototype's denser type scale. Keep the sizes and
+ * weights here rather than in inline props, so one element's type is defined
+ * once. The 32px right inset replaces the prototype's 9px so the select
+ * checkbox never covers text. */
+.card-body {
+  --game-cat-card-body-min-height: 74px;
+
+  padding: 8px 32px 9px 9px;
+  /* The loaded card's body height; the skeleton reserves the same slot. */
+  min-height: var(--game-cat-card-body-min-height);
 }
 
-/* The card body follows the mockup's denser type scale: 8/9px padding, a
- * 12.5px title, 11px meta, and 10.5px tags. The 32px right inset replaces the
- * mockup's 9px so the select checkbox never covers text. The min-height is
- * the loaded card's body height; GameCardSkeleton reserves the same slot, so
- * arriving cards cause no layout shift. */
-.card-body {
-  padding: 8px 32px 9px 9px;
-  min-height: 74px;
+.card-body > h3 {
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.card-body .game-meta > span {
+  font-size: 11px;
+}
+
+.card-body .game-tags {
+  color: var(--mantine-color-dark-3);
+  font-size: 10.5px;
 }
 
 /* Ownership is inline text, not an outline badge, and keeps the prototype's
  * orange warning tone. orange-4 is 9.4:1 on the card surface. */
 .ownership-flag {
   color: var(--mantine-color-orange-4);
+  font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -303,8 +335,9 @@ main {
 }
 
 /* The editor keeps the prototype's two-pane layout: the results preview on
- * the left and a 370px rule rail on the right. Grid areas keep the DOM and
- * focus order (editor first) while matching the visual order. */
+ * the left and a 370px rule rail on the right. Grid areas move the rail
+ * visually; the DOM stays editor-first, so keyboard and reading order start
+ * with the form rather than the results it produces. */
 .editor-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 370px;
@@ -321,18 +354,21 @@ main {
   grid-area: preview;
 }
 
-/* Every rule row carries the prefix colour as a 3px edge, matching the
- * prefix buttons. The colour comes from RuleRow's `--rule-accent`. */
+/* Every rule row carries the prefix colour as a 3px inset edge, matching the
+ * selected sidebar row. The token is the same `-filled` variable the active
+ * prefix button uses, so the two cannot drift. RuleRow sets `--rule-accent`;
+ * the fallback is AND's blue. */
 .rule-row {
-  border-left: 3px solid var(--rule-accent, var(--mantine-color-blue-6));
+  box-shadow: inset 3px 0 0 var(--rule-accent, var(--mantine-color-blue-filled));
 }
 
 /* Rule fields keep the prefix-first shape: field, operator, and value on one
- * line (stacked on narrow screens). */
+ * line (stacked on narrow screens). The 6px gap matches the prototype's field
+ * grid. */
 .rule-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
-  gap: var(--mantine-spacing-xs);
+  gap: 6px;
   align-items: end;
 }
 

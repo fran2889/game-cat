@@ -14,6 +14,9 @@ import "./styles.css";
 // styling; the remaining stylesheet keeps only shell layout. The theme
 // variables are generated at build time, so the provider injects no <style>
 // element that the strict CSP would block.
+// `withGlobalClasses={false}` removes Mantine's runtime breakpoint classes,
+// so `hiddenFrom`/`visibleFrom` do nothing; use the media queries in
+// styles.css instead. `lightHidden`/`darkHidden` stay in the static stylesheet.
 const container = document.getElementById("root");
 if (container === null) {
   throw new Error("Root element missing");

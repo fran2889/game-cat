@@ -162,6 +162,17 @@ test("keyboard-only Library browsing: search, layout, selection, detail, and foc
   await expect(rowLink).toBeFocused();
 });
 
+test("the editor rail precedes the results preview in keyboard order", async ({ page }) => {
+  await page.goto(`${app.url}smart/new`);
+  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+
+  await focusMain(page);
+  // The rail sits on the right visually but comes first in the DOM, so Tab
+  // lands on the Name field rather than walking the 60 preview cards.
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("textbox", { name: "Name" })).toBeFocused();
+});
+
 test("keyboard-only Smart Collection create and autosave", async ({ page }) => {
   await page.goto(`${app.url}smart/new`);
   await expect(page.getByTestId("match-count")).toHaveText("130 matches");
@@ -217,4 +228,14 @@ test("keyboard-only /errors flow selects the affected Games", async ({ page }) =
   } finally {
     await errors.close();
   }
+});
+
+test("a focused grid card keeps a visible focus ring", async ({ page }) => {
+  await page.goto(app.url);
+  const card = page.locator(".game-card").first();
+  await expect(card).toBeVisible();
+
+  await card.locator(".card-open").focus();
+  await expect(card).toHaveCSS("outline-style", "solid");
+  await expect(card).toHaveCSS("outline-offset", "-2px");
 });

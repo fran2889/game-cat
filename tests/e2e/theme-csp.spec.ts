@@ -34,12 +34,14 @@ test("the built app serves the generated theme CSS with no runtime style tags or
   const variables = await page.evaluate(() => {
     const style = getComputedStyle(document.documentElement);
     return {
-      amber: style.getPropertyValue("--mantine-color-amber-8").trim(),
+      amber: style.getPropertyValue("--mantine-color-amber-5").trim(),
       amberHover: style.getPropertyValue("--mantine-color-amber-filled-hover").trim(),
       darkPage: style.getPropertyValue("--mantine-color-dark-7").trim(),
       darkSurface: style.getPropertyValue("--mantine-color-dark-6").trim(),
       border: style.getPropertyValue("--mantine-color-default-border").trim(),
       dimmed: style.getPropertyValue("--mantine-color-dimmed").trim(),
+      anchor: style.getPropertyValue("--mantine-color-anchor").trim(),
+      borderStrong: style.getPropertyValue("--game-cat-border-strong").trim(),
     };
   });
   expect(variables).toEqual({
@@ -49,10 +51,12 @@ test("the built app serves the generated theme CSS with no runtime style tags or
     darkSurface: "#15181e",
     border: "#2a303c",
     dimmed: "#9aa3b5",
+    anchor: "#f2b544",
+    borderStrong: "#3b4352",
   });
 
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(15, 17, 21)");
-  await expect(page.locator("#sidebar")).toHaveCSS("background-color", "rgb(21, 24, 30)");
+  await expect(page.locator("#sidebar")).toHaveCSS("background-color", "rgb(15, 17, 21)");
 
   const primary = page.locator(".topbar button.primary");
   await expect(primary).toHaveCSS("background-color", "rgb(242, 181, 68)");
