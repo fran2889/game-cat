@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { sql } from "kysely";
+import { sql, type SqlBool } from "kysely";
 import type BetterSqlite3 from "better-sqlite3";
 import {
   MAX_RULE_NAME_CODE_POINTS,
@@ -19,7 +19,7 @@ import type { GameOrder } from "../../shared/types.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { GAME_SORTS } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
-import { allSync, firstSync, queryFor } from "../db/query.ts";
+import { allSync, firstSync, queryFor, runSync } from "../db/query.ts";
 import { notFound } from "../request.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 import { readDataAsOf } from "./games.ts";
@@ -174,12 +174,19 @@ export class SmartCollectionsRepository {
     const now = this.now();
     this.db.transaction(() => {
       this.assertNameAvailable(input.name, null);
-      this.db
-        .prepare(
-          `INSERT INTO smart_collections (id, name, name_key, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?)`,
-        )
-        .run(id, input.name, normalizeNameKey(input.name), now, now);
+      runSync(
+        this.db,
+        queryFor(this.db)
+          .insertInto("smart_collections")
+          .values({
+            id,
+            name: input.name,
+            name_key: normalizeNameKey(input.name),
+            created_at: now,
+            updated_at: now,
+          })
+          .compile(),
+      );
       this.insertRules(id, input.rules);
     })();
 
@@ -188,34 +195,56 @@ export class SmartCollectionsRepository {
 
   update(id: string, input: { name?: string; rules?: Rule[] }): SmartCollection {
     this.db.transaction(() => {
-      const existing = this.db.prepare("SELECT id FROM smart_collections WHERE id = ?").get(id) as
-        { id: string } | undefined;
+      const existing = firstSync<{ id: string }>(
+        this.db,
+        queryFor(this.db)
+          .selectFrom("smart_collections")
+          .select("id")
+          .where("id", "=", id)
+          .compile(),
+      );
       if (existing === undefined) {
         throw notFound(id, "Smart Collection");
       }
 
       if (input.name !== undefined) {
         this.assertNameAvailable(input.name, id);
-        this.db
-          .prepare("UPDATE smart_collections SET name = ?, name_key = ? WHERE id = ?")
-          .run(input.name, normalizeNameKey(input.name), id);
+        runSync(
+          this.db,
+          queryFor(this.db)
+            .updateTable("smart_collections")
+            .set({ name: input.name, name_key: normalizeNameKey(input.name) })
+            .where("id", "=", id)
+            .compile(),
+        );
       }
 
       if (input.rules !== undefined) {
-        this.db.prepare("DELETE FROM rules WHERE smart_collection_id = ?").run(id);
+        runSync(
+          this.db,
+          queryFor(this.db).deleteFrom("rules").where("smart_collection_id", "=", id).compile(),
+        );
         this.insertRules(id, input.rules);
       }
 
-      this.db
-        .prepare("UPDATE smart_collections SET updated_at = ? WHERE id = ?")
-        .run(this.now(), id);
+      runSync(
+        this.db,
+        queryFor(this.db)
+          .updateTable("smart_collections")
+          .set({ updated_at: this.now() })
+          .where("id", "=", id)
+          .compile(),
+      );
     })();
 
     return this.get(id)!;
   }
 
   delete(id: string): void {
-    const result = this.db.prepare("DELETE FROM smart_collections WHERE id = ?").run(id);
+    const result = runSync(
+      this.db,
+      queryFor(this.db).deleteFrom("smart_collections").where("id", "=", id).compile(),
+    );
     if (result.changes === 0) {
       throw notFound(id, "Smart Collection");
     }
@@ -236,29 +265,42 @@ export class SmartCollectionsRepository {
   }
 
   private assertNameAvailable(name: string, exceptId: string | null): void {
-    const row = this.db
-      .prepare("SELECT id FROM smart_collections WHERE name_key = ? AND id IS NOT ?")
-      .get(normalizeNameKey(name), exceptId) as { id: string } | undefined;
+    const row = firstSync<{ id: string }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("smart_collections")
+        .select("id")
+        .where("name_key", "=", normalizeNameKey(name))
+        .where(sql<SqlBool>`${sql.ref("id")} IS NOT ${exceptId}`)
+        .compile(),
+    );
     if (row !== undefined) {
       throw nameConflict(row.id);
     }
   }
 
   private insertRules(collectionId: string, rules: readonly Rule[]): void {
-    const insert = this.db.prepare(
-      `INSERT INTO rules (smart_collection_id, position, prefix, field, operator, value_json)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+    // Kysely cannot compile an empty `values` list; an empty Rules array
+    // legitimately means no rows to insert.
+    if (rules.length === 0) {
+      return;
+    }
+    runSync(
+      this.db,
+      queryFor(this.db)
+        .insertInto("rules")
+        .values(
+          rules.map((rule, position) => ({
+            smart_collection_id: collectionId,
+            position,
+            prefix: rule.prefix,
+            field: rule.field,
+            operator: rule.operator,
+            value_json: serializedRuleValue(rule),
+          })),
+        )
+        .compile(),
     );
-    rules.forEach((rule, position) => {
-      insert.run(
-        collectionId,
-        position,
-        rule.prefix,
-        rule.field,
-        rule.operator,
-        serializedRuleValue(rule),
-      );
-    });
   }
 
   private readRules(collectionIds: readonly string[]): Map<string, Rule[]> {

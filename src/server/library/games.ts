@@ -232,13 +232,21 @@ export function readDataAsOf(db: BetterSqlite3.Database): string | null {
   // Every phase of a direct scope or an `all` run records its success in
   // `source_state`. The later of the local scan, ownership refresh, and
   // Metadata completion is the documented `meta.dataAsOf`.
-  const row = db
-    .prepare(
-      `SELECT MAX(last_success_at) AS at FROM source_state
-       WHERE name IN ('steam_local', 'steam_web_api', 'steamspy', 'storefront', 'steam_reviews')`,
-    )
-    .get() as { at: number | null };
-  return toIso(row.at);
+  const row = firstSync<{ at: number | null }>(
+    db,
+    queryFor(db)
+      .selectFrom("source_state")
+      .select(sql<number | null>`MAX(last_success_at)`.as("at"))
+      .where("name", "in", [
+        "steam_local",
+        "steam_web_api",
+        "steamspy",
+        "storefront",
+        "steam_reviews",
+      ])
+      .compile(),
+  );
+  return toIso(row?.at ?? null);
 }
 
 type GamesSelect = SelectQueryBuilder<DatabaseSchema, "v_games", object>;
@@ -358,34 +366,54 @@ export class GamesRepository {
   }
 
   counts(): LibraryCounts {
-    const row = this.db
-      .prepare(
-        `SELECT COUNT(*) AS gameCount,
-                COALESCE(SUM(CASE WHEN installed = 1 THEN 1 ELSE 0 END), 0) AS installedCount
-         FROM games`,
-      )
-      .get() as { gameCount: number; installedCount: number };
-    return { gameCount: row.gameCount, installedCount: row.installedCount };
+    const row = firstSync<{ gameCount: number; installedCount: number }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("games")
+        .select(sql<number>`COUNT(*)`.as("gameCount"))
+        .select(
+          sql<number>`COALESCE(SUM(CASE WHEN ${sql.ref("installed")} = 1 THEN 1 ELSE 0 END), 0)`.as(
+            "installedCount",
+          ),
+        )
+        .compile(),
+    );
+    return {
+      gameCount: row?.gameCount ?? 0,
+      installedCount: row?.installedCount ?? 0,
+    };
   }
 
   ownershipCounts(): OwnershipCounts {
-    const row = this.db
-      .prepare(
-        `SELECT COALESCE(SUM(CASE WHEN ownership_status = 'owned' THEN 1 ELSE 0 END), 0) AS owned,
-                COALESCE(SUM(CASE WHEN ownership_status = 'local_only' THEN 1 ELSE 0 END), 0) AS localOnly,
-                COALESCE(SUM(CASE WHEN ownership_status = 'unknown' THEN 1 ELSE 0 END), 0) AS unknown
-         FROM games`,
-      )
-      .get() as OwnershipCounts;
-    return { owned: row.owned, localOnly: row.localOnly, unknown: row.unknown };
+    const countFor = (status: "owned" | "local_only" | "unknown") =>
+      sql<number>`COALESCE(SUM(CASE WHEN ${sql.ref("ownership_status")} = ${status} THEN 1 ELSE 0 END), 0)`;
+    const row = firstSync<{ owned: number; localOnly: number; unknown: number }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("games")
+        .select(countFor("owned").as("owned"))
+        .select(countFor("local_only").as("localOnly"))
+        .select(countFor("unknown").as("unknown"))
+        .compile(),
+    );
+    return {
+      owned: row?.owned ?? 0,
+      localOnly: row?.localOnly ?? 0,
+      unknown: row?.unknown ?? 0,
+    };
   }
 
   scanState(): LibraryScanState {
     // A direct `library` run and the library phase of an `all` run both write
     // `source_state.steam_local`; the latest attempt is the latest scan.
-    const row = this.db
-      .prepare("SELECT status, last_attempt_at FROM source_state WHERE name = 'steam_local'")
-      .get() as { status: string; last_attempt_at: number | null } | undefined;
+    const row = firstSync<{ status: string; last_attempt_at: number | null }>(
+      this.db,
+      queryFor(this.db)
+        .selectFrom("source_state")
+        .select(["status", "last_attempt_at"])
+        .where("name", "=", "steam_local")
+        .compile(),
+    );
     if (row === undefined || row.status === "unknown" || row.last_attempt_at === null) {
       return { lastScanAt: null, lastScanStatus: "never" };
     }

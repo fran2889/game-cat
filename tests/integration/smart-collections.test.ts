@@ -470,7 +470,9 @@ describe("GET /api/smart-collections", () => {
     let libraryReads = 0;
     const originalPrepare = db.raw.prepare.bind(db.raw);
     (db.raw as unknown as { prepare(sql: string): unknown }).prepare = (sql: string) => {
-      if (sql.includes("FROM v_games")) {
+      // Kysely emits lowercase SQL; the guard is about the number of Library
+      // passes, not the statement's casing.
+      if (/from\s+"?v_games"?/i.test(sql)) {
         libraryReads += 1;
       }
       return originalPrepare(sql);
