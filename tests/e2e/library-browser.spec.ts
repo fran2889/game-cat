@@ -71,6 +71,9 @@ test("grid cards show the documented badges, ownership, tags, and cover fallback
     .poll(() => coverRequests.some((url) => url.includes("/620/library_600x900.jpg")))
     .toBe(true);
 
+  // Capsules are not universal, so a failed one retries the header first.
+  await expect.poll(() => coverRequests.some((url) => url.includes("/620/header.jpg"))).toBe(true);
+
   // The portrait capsule runs flush to the card edge, so the card itself has
   // no padding and the cover keeps the 2/3 library-capsule ratio.
   await expect(card).toHaveCSS("padding", "0px");
