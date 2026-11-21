@@ -13,11 +13,14 @@ const FONT_FAMILY_MONOSPACE =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
 
 /**
- * The v1 palette. Every colour the UI uses comes from here; the generated
- * stylesheet in `theme.generated.css` is derived from the same object.
+ * The v1 palette. Every colour this theme overrides is defined here; the rest
+ * come from Mantine's defaults. The generated stylesheet in
+ * `theme.generated.css` is derived from the same object.
  *
- * Primary shade 8 is the filled accent (#f2b544) and shade 9 is its brighter
- * hover (#ffc85c). Mantine reads the next shade for `-filled-hover`.
+ * Primary shade 5 is the filled accent (#f2b544) and shade 6 is its brighter
+ * hover (#ffc85c). Mantine reads the next shade for `-filled-hover`; keeping
+ * shade 5 for every named colour preserves autoContrast on non-primary filled
+ * controls, such as the green AND prefix.
  */
 const amber: MantineColorsTuple = [
   "#fff8e6",
@@ -25,11 +28,11 @@ const amber: MantineColorsTuple = [
   "#ffe39a",
   "#ffd66b",
   "#f9c94a",
+  "#f2b544",
+  "#ffc85c",
   "#f7bd3d",
   "#f4b23f",
   "#e6a232",
-  "#f2b544",
-  "#ffc85c",
 ];
 
 /**
@@ -42,7 +45,7 @@ const amber: MantineColorsTuple = [
  * | shade | token      | value   | Mantine role                       |
  * | ----- | ---------- | ------- | ---------------------------------- |
  * | 0     | text       | #e8eaf0 | body text                          |
- * | 1     | text-bright| #c9cfdb | strong secondary text              |
+ * | 1     | text-bright | #c9cfdb | strong secondary text             |
  * | 2     | text-muted | #9aa3b5 | dimmed text                        |
  * | 3     | text-faint | #8b94a6 | placeholders                       |
  * | 4     | border     | #2a303c | default border                     |
@@ -52,8 +55,8 @@ const amber: MantineColorsTuple = [
  * | 8     | surface-3  | #222733 | editor/stat surfaces               |
  * | 9     | surface-4  | #2a303d | selected rows and deep chrome      |
  *
- * The prototype's stronger border (#3b4352) is not a Mantine alias; use
- * `--mantine-color-dark-9` for it when a stronger edge is needed.
+ * The prototype's stronger border (#3b4352) has no Mantine dark-shade alias;
+ * it is emitted separately as `--game-cat-border-strong`.
  */
 const dark: MantineColorsTuple = [
   "#e8eaf0",
@@ -69,22 +72,11 @@ const dark: MantineColorsTuple = [
 ];
 
 const PRIMARY_COLOR = "amber";
-const PRIMARY_SHADE = 8;
-
-export const themeTokens = {
-  primary: {
-    name: PRIMARY_COLOR,
-    shade: PRIMARY_SHADE,
-    shades: amber,
-  },
-  dark: {
-    shades: dark,
-  },
-  fonts: {
-    family: FONT_FAMILY,
-    monospace: FONT_FAMILY_MONOSPACE,
-  },
-} as const;
+const PRIMARY_SHADE = 5;
+/** The prototype's stronger border, exposed as a custom property. */
+const BORDER_STRONG = "#3b4352";
+/** Black on the filled green Installed badge reads at 10.5:1; white is 2.0:1. */
+const INSTALLED_BADGE_TEXT = "#000000";
 
 export const theme = createTheme({
   primaryColor: PRIMARY_COLOR,
@@ -94,7 +86,7 @@ export const theme = createTheme({
   fontFamily: FONT_FAMILY,
   fontFamilyMonospace: FONT_FAMILY_MONOSPACE,
   headings: { fontFamily: FONT_FAMILY },
-  // Yellow is a light primary; dark labels keep AA contrast on filled controls.
+  // Amber is a light primary; dark labels keep AA contrast on filled controls.
   autoContrast: true,
 });
 
@@ -111,15 +103,23 @@ function changedVariables(
  * The CSS Mantine would inject at runtime, derived from the same theme object
  * and reduced to the variables that differ from Mantine's defaults. The build
  * writes this to `theme.generated.css`; the provider then runs with
- * `withCssVariables={false}` and `withGlobalClasses={false}`.
+ * `withCssVariables={false}` and `withGlobalClasses={false}`. The stylesheet is
+ * generated, not committed; restart `npm run dev` after editing this module.
  */
 export function renderThemeCss(): string {
   const merged = mergeMantineTheme(DEFAULT_THEME, theme);
   const current = defaultCssVariablesResolver(merged);
   const defaults = defaultCssVariablesResolver(DEFAULT_THEME);
+  // Mantine defaults anchors to blue; v1 links use the primary accent.
+  current.light["--mantine-color-anchor"] = "var(--mantine-primary-color-filled)";
+  current.dark["--mantine-color-anchor"] = "var(--mantine-primary-color-filled)";
   const css = convertCssVariables(
     {
-      variables: changedVariables(current.variables, defaults.variables),
+      variables: {
+        ...changedVariables(current.variables, defaults.variables),
+        "--game-cat-border-strong": BORDER_STRONG,
+        "--game-cat-installed-badge-text": INSTALLED_BADGE_TEXT,
+      },
       light: changedVariables(current.light, defaults.light),
       dark: changedVariables(current.dark, defaults.dark),
     },

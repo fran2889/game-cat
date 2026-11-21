@@ -80,7 +80,7 @@ test("table headers expose scope and aria-sort, and every icon-only control is n
   await page.goto(`${app.url}smart/new`);
   await page.getByRole("button", { name: "Game list" }).click();
   await expect(page.getByRole("button", { name: "Remove rule 1" })).toBeVisible();
-  await page.getByRole("button", { name: "+ Add rule" }).click();
+  await page.getByRole("button", { name: "Add rule" }).click();
   await expect(page.getByRole("button", { name: "Remove rule 2" })).toBeVisible();
 
   await page.goto(`${app.url}games/620`);

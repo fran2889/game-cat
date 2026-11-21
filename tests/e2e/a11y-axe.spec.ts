@@ -57,6 +57,17 @@ test("a saved Smart Collection editor has no serious axe violations", async ({ p
   await expectNoSeriousA11yViolations(page, "Saved Smart Collection editor");
 });
 
+test("the Smart Collection leave dialog has no serious axe violations", async ({ page }) => {
+  await page.goto(`${app.url}smart/new`);
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
+  await page.getByRole("textbox", { name: "Name" }).fill("Axe unsaved draft");
+  await page.getByRole("link", { name: "All games" }).click();
+
+  const dialog = page.getByRole("alertdialog", { name: "Leave with unsaved changes" });
+  await expect(dialog).toBeVisible();
+  await expectNoSeriousA11yViolations(page, "Smart Collection leave dialog");
+});
+
 test("the Game detail dialog has no serious axe violations", async ({ page }) => {
   await page.goto(`${app.url}games/620`);
   const dialog = page.locator('[role="dialog"].detail-dialog');

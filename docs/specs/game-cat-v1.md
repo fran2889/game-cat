@@ -125,10 +125,11 @@ The following are explicitly out of scope for v1.
 - Generic plumbing is provided by established libraries rather than hand-written code: Fastify route
   schemas for request validation and response serialisation, Kysely for SQL construction over that
   same connection, TanStack Query for client fetching, Mantine for components (adopted last, behind
-  the accessibility and E2E gate), and `commander` for CLI flags. Domain logic — rule evaluation,
-  Refresh phases, migrations and their safety guards, config precedence, and the Autosave state
-  machine — stays hand-written. See [ADR 0004](../adr/0004-libraries-over-boilerplate.md) for the
-  policy, constraints, and rejected options.
+  the accessibility and E2E gate), `@tabler/icons-react` for the sidebar and top-bar icon set, and
+  `commander` for CLI flags. Domain logic — rule evaluation, Refresh phases, migrations and their
+  safety guards, config precedence, and the Autosave state machine — stays hand-written. See
+  [ADR 0004](../adr/0004-libraries-over-boilerplate.md) for the policy, constraints, and rejected
+  options, and [ADR 0006](../adr/0006-tabler-icons-for-shell-chrome.md) for the icon dependency.
 - One process serves the UI and `/api` on one loopback port. One in-process Refresh worker runs at a
   time. There is no queue, scheduler, second writer, or separate worker process.
 - The server starts before the browser and exposes `GET /api/status` as its readiness signal.
@@ -157,27 +158,27 @@ The contract is implementable in vertical slices. Each slice ends with its accep
 
 These were left open by earlier tickets. They are normative for v1.
 
-| Topic                     | Decision                                                                                                                                                                                                                                                    |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Library layout default    | Grid. The user can switch to table from the toolbar or table header controls.                                                                                                                                                                               |
-| Layout persistence        | The choice is stored in browser `localStorage` per view kind (`library`, `installed`, `smart`, `steam`) under `game-cat.layout.v1.<viewKind>`. It is a client preference, not server state.                                                                 |
-| Selection scope           | Selection is per view kind (`library`, `installed`, `smart`, `steam`). Each view keeps its own set for the session; switching views never merges sets.                                                                                                      |
-| Large Library rendering   | Server-side pagination at 60 Games per page. The client does not virtualize or render the full Library. Page controls replace infinite scrolling.                                                                                                           |
-| Autosave                  | A new Smart Collection is created by an explicit Save. After that, name and Rule edits autosave 600 ms after the last change. One save is in flight at a time; newer edits coalesce into the next save. No undo in v1.                                      |
-| Autosave failure          | Retry after 2 s, 5 s, and 15 s. Keep local edits, show `Save failed`, and offer Retry. Block navigation with a confirmation while the save is failed.                                                                                                       |
-| Save conflicts            | Last-write-wins. v1 is single-user and has no ETag/version field.                                                                                                                                                                                           |
-| Refresh-errors view       | A separate route, `/errors`, linked from the refresh banner. It lists one row per source with status, timestamps, retry deadline, safe last error, affected and pending Game counts, and actions.                                                           |
-| Per-Game error text       | Not exposed. The API exposes per-Game statuses and per-source `lastError`; raw upstream bodies and per-Game error strings stay server-side.                                                                                                                 |
-| Launch                    | Enabled only when `installed === true`. Opens `steam://rungameid/<appId>`. v1 cannot detect a launch failure; it shows an "Opening Steam" toast and never writes Steam files.                                                                               |
-| Non-game Library entries  | Shown in the Library by default. `storefrontType` is a Rule Field, so DLC, demos, tools, and soundtracks can be filtered without being silently hidden.                                                                                                     |
-| Table header sorting      | Table headers sort Game (`name`), Playtime, Last played, and Released (`releaseYear`). The toolbar sort control still exposes the full `/api/games` whitelist, including Metacritic and App ID. Installed, Review, and Tags headers are not sortable in v1. |
-| Dynamic Steam Collections | Never evaluated and never counted. The UI labels them `dynamic` and explains that Steam computes their membership.                                                                                                                                          |
-| Library search scope      | Game name only. Tags, Genres, developers, and playtime belong in Rules. FTS5 is deferred.                                                                                                                                                                   |
-| New from selection limit  | Disabled with an explanation when the selection is empty or larger than 1,000, because the `game` Rule accepts 1-1,000 App IDs.                                                                                                                             |
-| Empty Rules copy          | `No rules. This matches all N games. Add a rule to narrow it.`                                                                                                                                                                                              |
-| No matches copy           | `No games match these rules. An OR rule widens the result; a NOT rule removes games.`                                                                                                                                                                       |
-| NOT copy                  | `NOT removes matching games. It does not require the field to have a value.`                                                                                                                                                                                |
-| Metadata source wording   | "Metadata", never "Enrichment". "Fetch" and "Full Refresh" are Refresh modes.                                                                                                                                                                               |
+| Topic                     | Decision                                                                                                                                                                                                                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Library layout default    | Grid. The user can switch to table from the toolbar or table header controls.                                                                                                                                                                                               |
+| Layout persistence        | The choice is stored in browser `localStorage` per view kind (`library`, `installed`, `steam`) under `game-cat.layout.v1.<viewKind>`. It is a client preference, not server state. The Smart Collection editor preview is always grid, and `/smart/*` has no layout switch. |
+| Selection scope           | Selection is per view kind (`library`, `installed`, `smart`, `steam`). Each view keeps its own set for the session; switching views never merges sets.                                                                                                                      |
+| Large Library rendering   | Server-side pagination at 60 Games per page. The client does not virtualize or render the full Library. Page controls replace infinite scrolling.                                                                                                                           |
+| Autosave                  | A new Smart Collection is created by an explicit Save. After that, name and Rule edits autosave 600 ms after the last change. One save is in flight at a time; newer edits coalesce into the next save. No undo in v1.                                                      |
+| Autosave failure          | Retry after 2 s, 5 s, and 15 s. Keep local edits, show `Save failed`, and offer Retry. Block navigation with a confirmation while the save is failed.                                                                                                                       |
+| Save conflicts            | Last-write-wins. v1 is single-user and has no ETag/version field.                                                                                                                                                                                                           |
+| Refresh-errors view       | A separate route, `/errors`, linked from the refresh banner. It lists one row per source with status, timestamps, retry deadline, safe last error, affected and pending Game counts, and actions.                                                                           |
+| Per-Game error text       | Not exposed. The API exposes per-Game statuses and per-source `lastError`; raw upstream bodies and per-Game error strings stay server-side.                                                                                                                                 |
+| Launch                    | Enabled only when `installed === true`. Opens `steam://rungameid/<appId>`. v1 cannot detect a launch failure; it shows an "Opening Steam" toast and never writes Steam files.                                                                                               |
+| Non-game Library entries  | Shown in the Library by default. `storefrontType` is a Rule Field, so DLC, demos, tools, and soundtracks can be filtered without being silently hidden.                                                                                                                     |
+| Table header sorting      | Table headers sort Game (`name`), Playtime, Last played, and Released (`releaseYear`). The toolbar sort control still exposes the full `/api/games` whitelist, including Metacritic and App ID. Installed, Review, and Tags headers are not sortable in v1.                 |
+| Dynamic Steam Collections | Never evaluated and never counted. The UI labels them `dynamic` and explains that Steam computes their membership.                                                                                                                                                          |
+| Library search scope      | Game name only. Tags, Genres, developers, and playtime belong in Rules. FTS5 is deferred.                                                                                                                                                                                   |
+| New from selection limit  | Disabled with an explanation when the selection is empty or larger than 1,000, because the `game` Rule accepts 1-1,000 App IDs.                                                                                                                                             |
+| Empty Rules copy          | `No rules. This matches all N games. Add a rule to narrow it.`                                                                                                                                                                                                              |
+| No matches copy           | `No games match these rules. An OR rule widens the result; a NOT rule removes games.`                                                                                                                                                                                       |
+| NOT copy                  | `NOT removes matching games. It does not require the field to have a value.`                                                                                                                                                                                                |
+| Metadata source wording   | "Metadata", never "Enrichment". "Fetch" and "Full Refresh" are Refresh modes.                                                                                                                                                                                               |
 
 ## 2. Domain model
 
@@ -2693,7 +2694,8 @@ that the Steam profile may be private; do not claim the Library is complete.
 
 - Grid is the default. The toolbar switch toggles grid and table. The choice is persisted in
   `localStorage` per view kind under `game-cat.layout.v1.<viewKind>`, where `viewKind` is `library`,
-  `installed`, `smart`, or `steam`.
+  `installed`, or `steam`. The Smart Collection editor preview is always grid, and `/smart/*` has no
+  layout switch, so creating a collection from a table Library never changes the preview.
 - The client requests `GET /api/games` (or the equivalent Smart Collection/preview endpoint) with
   `pageSize=60`. It renders one page at a time and does not virtualize or render the full Library.
   Page controls show the current page and total pages; changing search, sort, filter, or view resets to

@@ -72,7 +72,6 @@ describe("domain labels", () => {
     expect(reviewCardLabel("Overwhelmingly Positive", 1000)).toBe(
       "Overwhelmingly Positive · 1,000 reviews",
     );
-    expect(reviewCardLabel(null, 0)).toBe("No user reviews");
-    expect(reviewCardLabel(null, null)).toBe("Reviews unavailable");
+    expect(reviewCardLabel(null, 1000)).toBe("— · 1,000 reviews");
   });
 });

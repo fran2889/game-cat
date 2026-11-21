@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -76,7 +76,7 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
       aria-label="Library navigation"
     >
       <Group className="brand" gap="sm" px="md" py="sm" wrap="nowrap">
-        <ThemeIcon size={34} radius="md" variant="light" color="yellow" aria-hidden="true">
+        <ThemeIcon size={34} radius="md" variant="light" color="amber" aria-hidden="true">
           <IconCat size={20} aria-hidden="true" />
         </ThemeIcon>
         <Text fw={700} size="lg">
@@ -275,7 +275,7 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
         </Paper>
 
         <Group component="section" aria-label="Steam Account" gap={9} p={2} wrap="nowrap">
-          <Avatar radius="xl" size={30} color="yellow" variant="light" aria-hidden="true">
+          <Avatar radius="xl" size={30} color="amber" variant="light" aria-hidden="true">
             {account === null ? "?" : account.personaName.slice(0, 1).toUpperCase()}
           </Avatar>
           <Box miw={0}>
@@ -330,7 +330,21 @@ interface SidebarLinkProps {
   onNavigate(): void;
 }
 
-/** One sidebar row. Mantine owns the hover and active treatment. */
+/**
+ * The active row's surface, text, and hover stay inside Mantine's NavLink
+ * variables. `styles.css` owns the compact row shape, the accent edge, and the
+ * shadow Mantine cannot express.
+ */
+const ROW_STYLE = {
+  "--nl-bg": "var(--mantine-color-dark-6)",
+  "--nl-hover": "var(--mantine-color-dark-5)",
+  "--nl-color": "var(--mantine-color-text)",
+} as CSSProperties;
+
+/**
+ * One sidebar row. Mantine owns the surface, hover, and focus ring; `styles.css`
+ * owns the shape.
+ */
 function SidebarLink({ to, label, icon, count, active, title, onNavigate }: SidebarLinkProps) {
   return (
     <NavLink
@@ -342,6 +356,7 @@ function SidebarLink({ to, label, icon, count, active, title, onNavigate }: Side
       active={active}
       aria-current={active ? "page" : undefined}
       onClick={onNavigate}
+      style={ROW_STYLE}
       noWrap
       leftSection={icon}
       rightSection={

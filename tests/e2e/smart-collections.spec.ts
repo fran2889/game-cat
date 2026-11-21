@@ -53,7 +53,7 @@ test("create, reopen, rename, and delete a Smart Collection with a live sidebar 
   await page.goto(`${app.url}smart/new`);
   await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
   await page.getByRole("textbox", { name: "Name" }).fill("Co-op picks");
-  await page.getByRole("button", { name: "+ Add rule" }).click();
+  await page.getByRole("button", { name: "Add rule" }).click();
   await page.locator('[data-rule-index="0"] .rule-value input').fill("Co-op");
   await expect(page.getByTestId("match-count")).toHaveText("1 game matches · updates as you edit");
 
@@ -147,7 +147,7 @@ test("a 422 maps dotted Rule field errors and the name error onto the editor", a
 
   await page.goto(`${app.url}smart/new`);
   await page.getByRole("textbox", { name: "Name" }).fill("Server rejects this");
-  await page.getByRole("button", { name: "+ Add rule" }).click();
+  await page.getByRole("button", { name: "Add rule" }).click();
   await page.locator('[data-rule-index="0"] .rule-value input').fill("Puzzle");
   await page.getByRole("button", { name: "Save" }).click();
 

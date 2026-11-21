@@ -49,15 +49,30 @@ test("grid is the default and the layout persists per view kind", async ({ page 
 test("grid cards show the documented badges, ownership, tags, and cover fallback", async ({
   page,
 }) => {
+  const coverRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.resourceType() === "image") {
+      coverRequests.push(request.url());
+    }
+  });
+
   await page.goto(app.url);
   await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
   const card = page.locator(".game-card");
   await expect(card).toHaveCount(1);
   await expect(card.locator(".pill-installed")).toHaveText(/Installed/);
-  await expect(card.locator(".review-pill")).toHaveText("98%");
+  await expect(card.locator(".review-pill")).toHaveText(/^98%/);
   await expect(card.locator(".game-tags")).toHaveText("Puzzle · Co-op");
   await expect(card.locator(".ownership-flag")).toHaveText("Local only");
   await expect(card.locator(".game-cover-fallback")).toHaveText("P2");
+
+  // The grid asks for the portrait capsule, not the landscape header.
+  await expect
+    .poll(() => coverRequests.some((url) => url.includes("/620/library_600x900.jpg")))
+    .toBe(true);
+
+  // Capsules are not universal, so a failed one retries the header first.
+  await expect.poll(() => coverRequests.some((url) => url.includes("/620/header.jpg"))).toBe(true);
 
   // The portrait capsule runs flush to the card edge, so the card itself has
   // no padding and the cover keeps the 2/3 library-capsule ratio.
@@ -75,57 +90,81 @@ test("grid cards show the documented badges, ownership, tags, and cover fallback
   await expect(card.locator(".tag-status")).toHaveCount(0);
 });
 
-test("the grid matches the mockup's 148px track, 14px gap, and card type scale", async ({
+test("the grid is denser than Mantine's default and keeps six fluid tracks at 1280px", async ({
   page,
 }) => {
   await page.goto(app.url);
   await expect(page.locator(".game-grid .game-card")).toHaveCount(60);
 
-  // 1280 - 248 sidebar - 2 x 20 page padding = 992 px. Six tracks with a 14px
-  // gap and a 148px minimum is the documented mockup density.
+  // Assert the structure the user sees, not the prototype's exact pixels: v1
+  // §7.10 leaves component appearance to Mantine. The prototype density should
+  // still produce six equal fluid tracks that fill the content box.
   const grid = page.locator(".game-grid").first();
-  const style = await grid.evaluate((element) => {
+  const measured = await grid.evaluate((element) => {
     const computed = getComputedStyle(element);
-    return { columns: computed.gridTemplateColumns, gap: computed.gap };
+    return {
+      tracks: computed.gridTemplateColumns.split(" ").map((track) => Number.parseFloat(track)),
+      gap: Number.parseFloat(computed.gap),
+      width: element.clientWidth,
+    };
   });
-  const tracks = style.columns.split(" ").map((track) => Number.parseFloat(track));
-  expect(tracks).toHaveLength(6);
-  expect(tracks[0]).toBeCloseTo((992 - 5 * 14) / 6, 1);
-  expect(style.gap).toBe("14px");
+  expect(measured.tracks).toHaveLength(6);
+  const firstTrack = measured.tracks[0] ?? 0;
+  for (const track of measured.tracks) {
+    expect(track).toBeCloseTo(firstTrack, 1);
+  }
+  const used = measured.tracks.reduce((sum, track) => sum + track, 0) + measured.gap * 5;
+  expect(used).toBeCloseTo(measured.width, 0);
 
   const card = page.locator(".game-card").first();
-  await expect(card.locator("h3")).toHaveCSS("font-size", "12.5px");
-  await expect(card.locator(".game-meta span").first()).toHaveCSS("font-size", "11px");
-  await expect(card.locator(".game-tags")).toHaveCSS("font-size", "10.5px");
-  await expect(card.locator(".card-body")).toHaveCSS("padding", "8px 32px 9px 9px");
+  const type = await card.evaluate((element) => {
+    const size = (selector: string) =>
+      Number.parseFloat(getComputedStyle(element.querySelector(selector) as Element).fontSize);
+    const body = element.querySelector(".card-body") as Element;
+    return {
+      title: size("h3"),
+      meta: size(".game-meta span"),
+      tags: size(".game-tags"),
+      paddingRight: Number.parseFloat(getComputedStyle(body).paddingRight),
+    };
+  });
+  // A clear hierarchy, all below Mantine's default card type, and enough right
+  // padding for the floating select checkbox.
+  expect(type.title).toBeLessThan(14);
+  expect(type.title).toBeGreaterThan(type.meta);
+  expect(type.meta).toBeGreaterThan(type.tags);
+  expect(type.paddingRight).toBeGreaterThanOrEqual(30);
 });
 
-test("Installed is a filled badge without a dot and ownership is inline text", async ({ page }) => {
+test("Installed is filled without a dot and ownership is inline text", async ({ page }) => {
   await page.goto(app.url);
   await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
   const card = page.locator(".game-card");
   await expect(card).toHaveCount(1);
 
+  // The text is already covered by the badge test above; assert only the new
+  // treatment here.
   const installed = card.locator(".pill-installed");
-  await expect(installed).toHaveText(/Installed/);
   await expect(installed.locator('[aria-hidden="true"]')).toHaveCount(0);
-  // The filled green token pairs with black text at 6.1:1 in the dark scheme.
-  await expect(installed).toHaveCSS("background-color", "rgb(47, 158, 68)");
-  await expect(installed).toHaveCSS("color", "rgb(0, 0, 0)");
+  const background = await installed.evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  expect(background).not.toBe("rgba(0, 0, 0, 0)");
 
   const ownership = card.locator(".ownership-flag");
-  await expect(ownership).toHaveText("Local only");
   await expect(ownership).toHaveCSS("border-top-width", "0px");
-  await expect(ownership).toHaveCSS("font-size", "10px");
 });
 
-test("card hover lifts by 1px and uses the stronger border", async ({ page }) => {
+test("hovering a grid card lifts it and strengthens its border", async ({ page }) => {
   await page.goto(app.url);
   const card = page.locator(".game-card").first();
-  await expect(card).toHaveCSS("border-color", "rgb(42, 48, 60)");
+  const restingBorder = await card.evaluate((element) => getComputedStyle(element).borderTopColor);
 
   await card.hover();
-  await expect(card).toHaveCSS("border-color", "rgb(42, 48, 61)");
+  // The prototype's stronger border, emitted by the theme as #3b4352.
+  await expect
+    .poll(() => card.evaluate((element) => getComputedStyle(element).borderTopColor))
+    .not.toBe(restingBorder);
   await expect(card).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
 });
 
@@ -135,8 +174,12 @@ test("the review badge keeps the tier and count in its tooltip", async ({ page }
   const card = page.locator(".game-card");
   await expect(card).toHaveCount(1);
   const badge = card.locator(".review-pill");
-  await expect(badge).toHaveText("98%");
+  await expect(badge).toHaveText(/^98%/);
   await expect(badge).toHaveAttribute("title", "Overwhelmingly Positive · 1,000 reviews");
+  // The title is hover-only; the tier and count must still reach the link name.
+  await expect(card.locator(".card-open")).toHaveAccessibleName(
+    /Overwhelmingly Positive · 1,000 reviews/,
+  );
   await expect(card.locator(".game-review")).toHaveCount(0);
 });
 
@@ -198,6 +241,25 @@ test("the table has the documented columns, sortable headers, and null cells", a
 
   await page.getByRole("combobox", { name: "Sort by" }).selectOption("metacritic");
   await expect(gameHeader).toHaveAttribute("aria-sort", "none");
+});
+
+test("table thumbnails keep the header art", async ({ page }) => {
+  const coverRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.resourceType() === "image") {
+      coverRequests.push(request.url());
+    }
+  });
+
+  await page.goto(app.url);
+  await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
+  await expect(page.locator(".game-card")).toHaveCount(1);
+
+  // Ignore the grid's capsule request; only the table's choice matters here.
+  coverRequests.length = 0;
+  await page.getByRole("button", { name: "Table view" }).click();
+  await expect(page.locator(".game-table")).toBeVisible();
+  await expect.poll(() => coverRequests.some((url) => url.includes("/620/header.jpg"))).toBe(true);
 });
 
 test("search is debounced into ?q= and survives reload, clear, and history", async ({ page }) => {

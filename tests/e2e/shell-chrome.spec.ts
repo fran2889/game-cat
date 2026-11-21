@@ -11,6 +11,14 @@ let app: TestApp;
 
 test.beforeAll(async () => {
   app = await startTestApp({ games: 3 });
+  const response = await fetch(`${app.url}api/smart-collections`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Shell fixture", rules: [] }),
+  });
+  if (!response.ok) {
+    throw new Error(`Smart Collection seed failed: ${response.status} ${await response.text()}`);
+  }
 });
 
 test.afterAll(async () => {
@@ -21,9 +29,9 @@ test.beforeEach(async ({ context }) => {
   await blockExternalRequests(context);
 });
 
-const TEXT_GLYPHS = /[▤✓✦🔒⌕▦☰↑↓×●]/u;
+const TEXT_GLYPHS = /[▤✓✦🔒⌕▦☰↑↓×+●]/u;
 
-test("the shell renders icons instead of text glyphs and keeps its accessible names", async ({
+test("the shell renders icons instead of text glyphs and names its controls with visible labels", async ({
   page,
 }) => {
   await page.goto(app.url);
@@ -31,6 +39,10 @@ test("the shell renders icons instead of text glyphs and keeps its accessible na
 
   expect(await page.locator("#sidebar").innerText()).not.toMatch(TEXT_GLYPHS);
   expect(await page.locator(".topbar").innerText()).not.toMatch(TEXT_GLYPHS);
+  // innerHTML also covers attributes such as aria-label, so a glyph cannot
+  // creep back in through an accessible name.
+  expect(await page.locator("#sidebar").innerHTML()).not.toMatch(TEXT_GLYPHS);
+  expect(await page.locator(".topbar").innerHTML()).not.toMatch(TEXT_GLYPHS);
 
   // Brand, rows, section actions, and the status-card action all use the icon
   // package. The close control is hidden on desktop but stays in the DOM.
@@ -39,6 +51,7 @@ test("the shell renders icons instead of text glyphs and keeps its accessible na
   await expect(page.getByRole("link", { name: "New Smart Collection" }).locator("svg")).toHaveCount(
     1,
   );
+  await expect(page.locator('#sidebar .side-item[href^="/smart/"] svg')).toHaveCount(1);
   await expect(page.locator('.side-item[href="/"] svg')).toHaveCount(1);
   await expect(page.locator('.side-item[href="/installed"] svg')).toHaveCount(1);
   await expect(page.locator('#sidebar a[href^="/steam/"] svg')).toHaveCount(1);
@@ -55,14 +68,14 @@ test("the shell renders icons instead of text glyphs and keeps its accessible na
   await expect(page.getByRole("button", { name: "Grid view" }).locator("svg")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Table view" }).locator("svg")).toHaveCount(1);
   await expect(page.locator(".toggle-button")).toHaveCount(1);
-  // The check glyph became an icon; the accessible name deliberately stays
-  // the same as before the swap.
-  await expect(page.locator(".toggle-button")).toHaveAccessibleName("✓ Installed");
+  // The check glyph became an icon; the accessible name matches the visible
+  // label rather than retaining the old symbol.
+  await expect(page.locator(".toggle-button")).toHaveAccessibleName("Installed");
   await expect(page.locator(".toggle-button").locator("svg")).toHaveCount(1);
-  await expect(page.getByRole("link", { name: "+ New collection" })).toHaveAccessibleName(
-    "+ New collection",
+  await expect(page.getByRole("link", { name: "New collection" })).toHaveAccessibleName(
+    "New collection",
   );
-  await expect(page.getByRole("link", { name: "+ New collection" }).locator("svg")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "New collection" }).locator("svg")).toHaveCount(1);
 
   const search = page.getByRole("searchbox", { name: "Search game names" });
   await search.fill("portal");

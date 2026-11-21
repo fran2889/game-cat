@@ -15,6 +15,13 @@ function gateResponse(page: Page, pattern: string): Promise<() => void> {
     .then(() => release);
 }
 
+async function gridTracks(locator: Locator): Promise<number[]> {
+  const columns = await locator.evaluate(
+    (element) => getComputedStyle(element).gridTemplateColumns,
+  );
+  return columns.split(" ").map((track) => Number.parseFloat(track));
+}
+
 async function expectFlushPortraitPlaceholder(skeleton: Locator): Promise<void> {
   await expect(skeleton).toHaveCSS("padding", "0px");
   const card = await skeleton.boundingBox();
@@ -74,6 +81,32 @@ test("the Library loading grid reserves the card slot until cards arrive", async
   }
 });
 
+test("the narrow grid keeps two columns and no overflow at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const app = await startTestApp({ games: 10 });
+  try {
+    const release = await gateResponse(page, "**/api/games?*");
+    await page.goto(app.url);
+
+    const skeleton = page.locator(".skeleton-grid");
+    await expect(skeleton).toBeVisible();
+    const skeletonTracks = await gridTracks(skeleton);
+
+    release();
+    await expect(page.locator(".game-card").first()).toBeVisible();
+    const cardTracks = await gridTracks(page.locator(".game-grid").first());
+    expect(cardTracks).toEqual(skeletonTracks);
+    expect(cardTracks).toHaveLength(2);
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  } finally {
+    await app.close();
+  }
+});
+
 test("the Steam and Smart Collection loading grids share the flush placeholder", async ({
   page,
 }) => {
@@ -102,6 +135,30 @@ test("the Steam and Smart Collection loading grids share the flush placeholder",
     await expect(smartSkeleton).toBeVisible();
     await expectFlushPortraitPlaceholder(smartSkeleton);
     releaseSmart();
+    await expect(page.getByTestId("match-count")).toHaveText(
+      "10 games match · updates as you edit",
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test("the editor preview shows the shared loading grid until matches arrive", async ({ page }) => {
+  const app = await startTestApp({ games: 10 });
+  try {
+    const created = await page.request.post(`${app.url}api/smart-collections`, {
+      data: { name: "Preview loading", rules: [] },
+    });
+    expect(created.status()).toBe(201);
+    const body = (await created.json()) as { data: { id: string } };
+    const release = await gateResponse(page, "**/api/rules/preview*");
+    await page.goto(`${app.url}smart/${body.data.id}`);
+
+    const skeleton = page.locator('[aria-label="Loading matches"] .skeleton-card').first();
+    await expect(skeleton).toBeVisible();
+    await expectFlushPortraitPlaceholder(skeleton);
+
+    release();
     await expect(page.getByTestId("match-count")).toHaveText(
       "10 games match · updates as you edit",
     );
