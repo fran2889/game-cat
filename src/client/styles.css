@@ -50,7 +50,8 @@
   top: 0;
   height: 100vh;
   overflow-y: auto;
-  background: var(--mantine-color-dark-6);
+  /* The page surface; a selected row lifts to the dark-6 default surface. */
+  background: var(--mantine-color-dark-7);
   border-right: 1px solid var(--mantine-color-dark-4);
   display: flex;
   flex-direction: column;
@@ -75,15 +76,13 @@
   display: none;
 }
 
-/* The active row is a surface tint with a 3px accent edge and a soft shadow,
- * not Mantine's filled primary block. The edge plus the tint keeps the row
- * distinguishable without relying on colour alone. */
-.side-item[data-active] {
-  background-color: var(--mantine-color-dark-6);
-  color: var(--mantine-color-text);
+/* The active row's surface, text, and hover come from the `--nl-*` variables
+ * set on the NavLink in Sidebar.tsx. Mantine cannot express an inset accent
+ * edge or a drop shadow on that row, so only those live here. */
+.side-item[aria-current="page"] {
   box-shadow:
     inset 3px 0 0 var(--mantine-primary-color-filled),
-    0 1px 3px rgb(0 0 0 / 28%);
+    0 1px 3px color-mix(in srgb, var(--mantine-color-black) 28%, transparent);
 }
 
 .workspace {
@@ -146,6 +145,15 @@ main {
   gap: 14px;
 }
 
+.skeleton-card {
+  overflow: hidden;
+}
+
+.skeleton-cover {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+}
+
 /* Grid cards use the portrait library capsule, flush to the card edge. The
  * wrapper clips the CDN image and the initials fallback. */
 .game-cover-wrap {
@@ -162,14 +170,21 @@ main {
     transform 120ms ease;
 }
 
-/* The mockup lifts the card 1px and strengthens the border on hover. */
-.game-card:hover {
-  border-color: var(--mantine-color-dark-9);
-  transform: translateY(-1px);
+/* The card clips the art flush to its edge, which also clips the anchor's own
+ * focus ring. Draw the ring on the card instead, inset so it stays visible. */
+.game-card:focus-within {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
 }
 
-.game-card.is-selected:hover {
-  border-color: var(--mantine-primary-color-filled);
+.game-card .card-open:focus-visible {
+  outline: none;
+}
+
+/* The mockup lifts the card 1px and strengthens the border on hover. */
+.game-card:hover {
+  border-color: var(--game-cat-border-strong);
+  transform: translateY(-1px);
 }
 
 /* The card body follows the mockup's denser type scale: 8/9px padding, a
@@ -284,8 +299,9 @@ main {
 }
 
 /* The editor keeps the prototype's two-pane layout: the results preview on
- * the left and a 370px rule rail on the right. Grid areas keep the DOM and
- * focus order (editor first) while matching the visual order. */
+ * the left and a 370px rule rail on the right. Grid areas move the rail
+ * visually; the DOM stays editor-first, so keyboard and reading order start
+ * with the form rather than the results it produces. */
 .editor-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 370px;
@@ -302,18 +318,21 @@ main {
   grid-area: preview;
 }
 
-/* Every rule row carries the prefix colour as a 3px edge, matching the
- * prefix buttons. The colour comes from RuleRow's `--rule-accent`. */
+/* Every rule row carries the prefix colour as a 3px inset edge, matching the
+ * selected sidebar row. The token is the same `-filled` variable the active
+ * prefix button uses, so the two cannot drift. RuleRow sets `--rule-accent`;
+ * the fallback is AND's blue. */
 .rule-row {
-  border-left: 3px solid var(--rule-accent, var(--mantine-color-blue-6));
+  box-shadow: inset 3px 0 0 var(--rule-accent, var(--mantine-color-blue-filled));
 }
 
 /* Rule fields keep the prefix-first shape: field, operator, and value on one
- * line (stacked on narrow screens). */
+ * line (stacked on narrow screens). The 6px gap matches the mockup's field
+ * grid. */
 .rule-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
-  gap: var(--mantine-spacing-xs);
+  gap: 6px;
   align-items: end;
 }
 

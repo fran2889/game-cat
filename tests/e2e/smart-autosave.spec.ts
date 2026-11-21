@@ -200,7 +200,7 @@ test("an autosaved 422 maps dotted Rule field errors onto the editor", async ({ 
   const app = await startTestApp({ games: 20 });
   try {
     await createCollection(page, app.url, "Validation target");
-    await page.getByRole("button", { name: "+ Add rule" }).click();
+    await page.getByRole("button", { name: "Add rule" }).click();
     await page.locator('[data-rule-index="0"] .rule-value input').fill("Puzzle");
     await expect(page.getByTestId("save-state")).toHaveText("Saved");
 

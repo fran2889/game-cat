@@ -1,4 +1,15 @@
-import { Anchor, Badge, Box, Card, Checkbox, Group, Stack, Text, Title } from "@mantine/core";
+import {
+  Anchor,
+  Badge,
+  Box,
+  Card,
+  Checkbox,
+  Group,
+  Stack,
+  Text,
+  Title,
+  VisuallyHidden,
+} from "@mantine/core";
 import { Link, useLocation } from "react-router-dom";
 import type { GameSummary } from "../../shared/types.ts";
 import {
@@ -29,7 +40,8 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
   const location = useLocation();
   const flag = ownershipFlag(game);
   const review = reviewPillLabel(game.reviewScore);
-  const reviewLabel = reviewCardLabel(game.reviewTier, game.reviewCount);
+  const reviewLabel =
+    game.reviewCount === null ? "" : reviewCardLabel(game.reviewTier, game.reviewCount);
   const tone = reviewTone(game.reviewScore);
   const tags = game.tags.slice(0, 2).map((tag) => tag.name);
 
@@ -75,7 +87,7 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
           >
             {game.installed === true ? (
               // Filled, without the dot, matches the mockup. Black text keeps
-              // the dark scheme's green-8 at 6.1:1; white is 3.4:1 and fails AA.
+              // the dark scheme's green-5 at 10.5:1; white is 2.0:1 and fails AA.
               <Badge
                 className="pill pill-installed"
                 color="green"
@@ -103,9 +115,10 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
                 color={reviewColor(tone)}
                 variant="light"
                 tt="none"
-                title={reviewLabel}
+                title={reviewLabel === "" ? undefined : reviewLabel}
               >
                 {review}
+                {reviewLabel !== "" && <VisuallyHidden> · {reviewLabel}</VisuallyHidden>}
               </Badge>
             )}
           </Group>
@@ -115,7 +128,7 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
             {game.name}
           </Title>
           <Group className="game-meta" gap={6} justify="space-between" wrap="nowrap">
-            <Text component="span" fz={11}>
+            <Text component="span" fz={11} truncate>
               {formatPlaytime(game.playtimeMinutes)}
             </Text>
             {flag !== null && (

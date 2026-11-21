@@ -50,6 +50,20 @@ describe("Smart Collection autosave", () => {
     expect(controller.getState().status).toBe("idle");
   });
 
+  it("reports edits to a new draft as dirty against its initial draft", () => {
+    const save = vi.fn(async (draft: AutosaveSnapshot) => draft);
+    const controller = controllerFor(save);
+    controller.reset(null, ALPHA);
+    expect(controller.getState()).toMatchObject({ status: "idle", dirty: false });
+
+    controller.updateDraft(BETA, true);
+    expect(controller.getState()).toMatchObject({ status: "idle", dirty: true });
+
+    controller.updateDraft(ALPHA, true);
+    expect(controller.getState()).toMatchObject({ status: "idle", dirty: false });
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it("debounces name and Rule edits 600 ms after the last change", async () => {
     const save = vi.fn(async (draft: AutosaveSnapshot) => draft);
     const controller = controllerFor(save);

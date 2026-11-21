@@ -41,11 +41,10 @@ const PREFIX_COLORS: Record<RulePrefix, string> = {
   NOT: "red",
 };
 
-const PREFIX_ACCENTS: Record<RulePrefix, string> = {
-  AND: "var(--mantine-color-blue-6)",
-  OR: "var(--mantine-color-orange-6)",
-  NOT: "var(--mantine-color-red-6)",
-};
+/** The row edge uses the same filled token as the active prefix button. */
+function prefixAccent(prefix: RulePrefix): string {
+  return `var(--mantine-color-${PREFIX_COLORS[prefix]}-filled)`;
+}
 
 export interface RuleRowProps {
   index: number;
@@ -90,9 +89,9 @@ export function RuleRow({
       className={`rule-row${invalid ? " is-invalid" : ""}`}
       data-rule-index={index}
       p="xs"
-      radius="sm"
+      radius="md"
       withBorder
-      style={{ "--rule-accent": PREFIX_ACCENTS[rule.prefix] } as CSSProperties}
+      style={{ "--rule-accent": prefixAccent(rule.prefix) } as CSSProperties}
     >
       <Stack gap={8}>
         <Group className="rule-head" justify="space-between" align="center" gap="xs" wrap="nowrap">

@@ -24,6 +24,11 @@ export interface TopBarProps {
   onRetryStatus(): void;
 }
 
+/** Every route that renders the Smart Collection editor, including `/smart/new`. */
+export function isEditorPath(pathname: string): boolean {
+  return pathname === "/smart/new" || pathname.startsWith("/smart/");
+}
+
 export function breadcrumbFor(pathname: string): { kicker: string; title: string } {
   if (pathname === "/") {
     return { kicker: "Library", title: "All games" };
@@ -31,11 +36,11 @@ export function breadcrumbFor(pathname: string): { kicker: string; title: string
   if (pathname === "/installed") {
     return { kicker: "Library", title: "Installed" };
   }
-  if (pathname === "/smart/new") {
-    return { kicker: "Smart collections", title: "New collection" };
-  }
-  if (pathname.startsWith("/smart/")) {
-    return { kicker: "Smart collections", title: "Smart Collection" };
+  if (isEditorPath(pathname)) {
+    return {
+      kicker: "Smart collections",
+      title: pathname === "/smart/new" ? "New collection" : "Smart Collection",
+    };
   }
   if (pathname.startsWith("/steam/")) {
     return { kicker: "Steam collections", title: "Steam Collection" };
@@ -58,7 +63,7 @@ export function breadcrumbFor(pathname: string): { kicker: string; title: string
 export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: TopBarProps) {
   const location = useLocation();
   const breadcrumb = breadcrumbFor(location.pathname);
-  const inEditor = location.pathname.startsWith("/smart/");
+  const inEditor = isEditorPath(location.pathname);
   const {
     viewKind,
     layout,

@@ -49,15 +49,30 @@ test("grid is the default and the layout persists per view kind", async ({ page 
 test("grid cards show the documented badges, ownership, tags, and cover fallback", async ({
   page,
 }) => {
+  const coverRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.resourceType() === "image") {
+      coverRequests.push(request.url());
+    }
+  });
+
   await page.goto(app.url);
   await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
   const card = page.locator(".game-card");
   await expect(card).toHaveCount(1);
   await expect(card.locator(".pill-installed")).toHaveText(/Installed/);
-  await expect(card.locator(".review-pill")).toHaveText("98%");
+  await expect(card.locator(".review-pill")).toHaveText(/^98%/);
   await expect(card.locator(".game-tags")).toHaveText("Puzzle · Co-op");
   await expect(card.locator(".ownership-flag")).toHaveText("Local only");
   await expect(card.locator(".game-cover-fallback")).toHaveText("P2");
+
+  // The grid asks for the portrait capsule, not the landscape header.
+  await expect
+    .poll(() => coverRequests.some((url) => url.includes("/620/library_600x900.jpg")))
+    .toBe(true);
+
+  // Capsules are not universal, so a failed one retries the header first.
+  await expect.poll(() => coverRequests.some((url) => url.includes("/620/header.jpg"))).toBe(true);
 
   // The portrait capsule runs flush to the card edge, so the card itself has
   // no padding and the cover keeps the 2/3 library-capsule ratio.
@@ -109,8 +124,8 @@ test("Installed is a filled badge without a dot and ownership is inline text", a
   const installed = card.locator(".pill-installed");
   await expect(installed).toHaveText(/Installed/);
   await expect(installed.locator('[aria-hidden="true"]')).toHaveCount(0);
-  // The filled green token pairs with black text at 6.1:1 in the dark scheme.
-  await expect(installed).toHaveCSS("background-color", "rgb(47, 158, 68)");
+  // The filled green token pairs with black text at 10.5:1 in the dark scheme.
+  await expect(installed).toHaveCSS("background-color", "rgb(81, 207, 102)");
   await expect(installed).toHaveCSS("color", "rgb(0, 0, 0)");
 
   const ownership = card.locator(".ownership-flag");
@@ -119,13 +134,14 @@ test("Installed is a filled badge without a dot and ownership is inline text", a
   await expect(ownership).toHaveCSS("font-size", "10px");
 });
 
-test("card hover lifts by 1px and uses the stronger border", async ({ page }) => {
+test("hovering a grid card lifts it and strengthens its border", async ({ page }) => {
   await page.goto(app.url);
   const card = page.locator(".game-card").first();
   await expect(card).toHaveCSS("border-color", "rgb(42, 48, 60)");
 
   await card.hover();
-  await expect(card).toHaveCSS("border-color", "rgb(42, 48, 61)");
+  // The prototype's stronger border, emitted by the theme as #3b4352.
+  await expect(card).toHaveCSS("border-color", "rgb(59, 67, 82)");
   await expect(card).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
 });
 
@@ -135,8 +151,12 @@ test("the review badge keeps the tier and count in its tooltip", async ({ page }
   const card = page.locator(".game-card");
   await expect(card).toHaveCount(1);
   const badge = card.locator(".review-pill");
-  await expect(badge).toHaveText("98%");
+  await expect(badge).toHaveText(/^98%/);
   await expect(badge).toHaveAttribute("title", "Overwhelmingly Positive · 1,000 reviews");
+  // The title is hover-only; the tier and count must still reach the link name.
+  await expect(card.locator(".card-open")).toHaveAccessibleName(
+    /Overwhelmingly Positive · 1,000 reviews/,
+  );
   await expect(card.locator(".game-review")).toHaveCount(0);
 });
 
@@ -198,6 +218,25 @@ test("the table has the documented columns, sortable headers, and null cells", a
 
   await page.getByRole("combobox", { name: "Sort by" }).selectOption("metacritic");
   await expect(gameHeader).toHaveAttribute("aria-sort", "none");
+});
+
+test("table thumbnails keep the header art", async ({ page }) => {
+  const coverRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.resourceType() === "image") {
+      coverRequests.push(request.url());
+    }
+  });
+
+  await page.goto(app.url);
+  await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
+  await expect(page.locator(".game-card")).toHaveCount(1);
+
+  // Ignore the grid's capsule request; only the table's choice matters here.
+  coverRequests.length = 0;
+  await page.getByRole("button", { name: "Table view" }).click();
+  await expect(page.locator(".game-table")).toBeVisible();
+  await expect.poll(() => coverRequests.some((url) => url.includes("/620/header.jpg"))).toBe(true);
 });
 
 test("search is debounced into ?q= and survives reload, clear, and history", async ({ page }) => {
