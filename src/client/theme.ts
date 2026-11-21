@@ -119,6 +119,9 @@ export function renderThemeCss(): string {
   const merged = mergeMantineTheme(DEFAULT_THEME, theme);
   const current = defaultCssVariablesResolver(merged);
   const defaults = defaultCssVariablesResolver(DEFAULT_THEME);
+  // Mantine defaults anchors to blue; v1 links use the primary accent.
+  current.light["--mantine-color-anchor"] = "var(--mantine-primary-color-filled)";
+  current.dark["--mantine-color-anchor"] = "var(--mantine-primary-color-filled)";
   const css = convertCssVariables(
     {
       variables: changedVariables(current.variables, defaults.variables),

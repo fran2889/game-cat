@@ -31,6 +31,7 @@ describe("client theme", () => {
     // Non-primary colours stay on shade 5, so autoContrast keeps green filled
     // controls on a dark label (green-8 + white was 3.44:1).
     expect(css).toContain("--mantine-color-green-filled: var(--mantine-color-green-5)");
+    expect(css).toContain("--mantine-color-anchor: var(--mantine-primary-color-filled)");
     expect(css).toContain("--mantine-color-dark-7: #0f1115");
     expect(css).toContain("--mantine-color-dark-6: #15181e");
     expect(css).toContain("--mantine-color-dark-5: #1b1f27");

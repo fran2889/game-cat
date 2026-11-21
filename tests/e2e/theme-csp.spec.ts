@@ -40,6 +40,7 @@ test("the built app serves the generated theme CSS with no runtime style tags or
       darkSurface: style.getPropertyValue("--mantine-color-dark-6").trim(),
       border: style.getPropertyValue("--mantine-color-default-border").trim(),
       dimmed: style.getPropertyValue("--mantine-color-dimmed").trim(),
+      anchor: style.getPropertyValue("--mantine-color-anchor").trim(),
     };
   });
   expect(variables).toEqual({
@@ -49,6 +50,7 @@ test("the built app serves the generated theme CSS with no runtime style tags or
     darkSurface: "#15181e",
     border: "#2a303c",
     dimmed: "#9aa3b5",
+    anchor: "#f2b544",
   });
 
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(15, 17, 21)");
