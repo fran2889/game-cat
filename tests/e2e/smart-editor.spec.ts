@@ -50,7 +50,7 @@ test("Rule edits update counts, debounce preview, and skip the API while invalid
   await expect(page.getByTestId("match-count")).toHaveText("130 matches");
   const initialCalls = previewCalls;
 
-  await page.getByRole("button", { name: "+ Add rule" }).click();
+  await page.getByRole("button", { name: "Add rule" }).click();
   await expect(page.getByTestId("prefix-counts")).toHaveText("1 AND · 0 OR · 0 NOT");
   await expect(page.locator('[data-rule-index="0"] .rule-errors')).toContainText(
     "must not be empty",
@@ -156,7 +156,7 @@ test("the boolean Installed control toggles true and false", async ({ page }) =>
   await page.goto(`${app.url}smart/new`);
   await expect(page.getByTestId("match-count")).toHaveText("130 matches");
 
-  await page.getByRole("button", { name: "+ Add rule" }).click();
+  await page.getByRole("button", { name: "Add rule" }).click();
   await page.locator('[data-rule-index="0"] .rule-field select').selectOption("installed");
   const toggle = page.locator('[data-rule-index="0"] .rule-value input[type="checkbox"]');
   await expect(toggle).toBeChecked();

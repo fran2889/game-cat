@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
   ActionIcon,
   Box,
@@ -35,10 +36,15 @@ const OPERATOR_LABELS: Record<RuleOperator, string> = {
 };
 
 const PREFIX_COLORS: Record<RulePrefix, string> = {
-  AND: "green",
-  OR: "yellow",
+  AND: "blue",
+  OR: "orange",
   NOT: "red",
 };
+
+/** The row edge uses the same filled token as the active prefix button. */
+function prefixAccent(prefix: RulePrefix): string {
+  return `var(--mantine-color-${PREFIX_COLORS[prefix]}-filled)`;
+}
 
 export interface RuleRowProps {
   index: number;
@@ -82,9 +88,10 @@ export function RuleRow({
       component="li"
       className={`rule-row${invalid ? " is-invalid" : ""}`}
       data-rule-index={index}
-      p="sm"
-      radius="sm"
+      p="xs"
+      radius="md"
       withBorder
+      style={{ "--rule-accent": prefixAccent(rule.prefix) } as CSSProperties}
     >
       <Stack gap={8}>
         <Group className="rule-head" justify="space-between" align="center" gap="xs" wrap="nowrap">

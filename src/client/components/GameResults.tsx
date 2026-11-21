@@ -6,11 +6,14 @@ import { GameTable } from "./GameTable.tsx";
 
 export interface GameResultsProps {
   games: GameSummary[];
+  /** The editor preview is always grid; the Library and Steam views use the stored layout. */
+  forceGrid?: boolean;
 }
 
-/** The one grid/table switch shared by the Library and Steam Collection views. */
-export function GameResults({ games }: GameResultsProps) {
-  const { layout, isSelected, toggleSelected } = useBrowse();
+/** The one grid/table switch shared by the Library, Steam Collection, and editor preview. */
+export function GameResults({ games, forceGrid = false }: GameResultsProps) {
+  const { layout: storedLayout, isSelected, toggleSelected } = useBrowse();
+  const layout = forceGrid ? "grid" : storedLayout;
 
   if (layout === "table") {
     return <GameTable games={games} />;

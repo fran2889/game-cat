@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQueries, useQuery } from "@tanstack/react-query";
-import { Link, useBlocker } from "react-router-dom";
+import { Link, useBlocker, useNavigate } from "react-router-dom";
 import {
   Alert,
   Anchor,
@@ -8,7 +8,6 @@ import {
   Button,
   Checkbox,
   Code,
-  Fieldset,
   Group,
   Paper,
   Stack,
@@ -81,6 +80,37 @@ const AUTOSAVE_LABELS: Partial<Record<AutosaveStatus, string>> = {
   failed: "Save failed",
 };
 
+/** One copy source for both navigation-guard reasons. */
+const LEAVE_CONFIRMATIONS = {
+  failed: {
+    label: "Leave with a failed save",
+    message: "Your latest changes could not be saved. Leave this page and lose those changes?",
+  },
+  draft: {
+    label: "Leave with unsaved changes",
+    message: "This Smart Collection has not been saved. Leave and discard the draft?",
+  },
+} as const;
+
+/** The mockup's 14 px plus; an inline glyph avoids a whole icon dependency. */
+function PlusIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
 const EMPTY_AUTOSAVE_STATE: AutosaveState = {
   status: "idle",
   dirty: false,
@@ -116,7 +146,7 @@ interface Conflict {
 /**
  * The Smart Collection editor (§7.4).
  *
- * A new Collection is created by the explicit first Save. After that the
+ * A new Smart Collection is created by the explicit first Save. After that the
  * AutosaveController owns debounced name/Rule saves, the retry schedule, and
  * the failure navigation guard; the preview remains a separate 300 ms debounce.
  */
@@ -129,6 +159,7 @@ export function SmartEditor({
 }: SmartEditorProps) {
   const { sort, order, selectedIds, selectedCount } = useBrowse();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [name, setName] = useState(collection?.name ?? initialName ?? NEW_COLLECTION_NAME);
   const [rules, setRules] = useState<Rule[]>(collection?.rules ?? initialRules ?? []);
   const [page, setPage] = useState(1);
@@ -174,6 +205,10 @@ export function SmartEditor({
   const patchMutationRef = useRef(patchMutation);
   patchMutationRef.current = patchMutation;
 
+  const initialDraft = {
+    name: initialName ?? NEW_COLLECTION_NAME,
+    rules: initialRules ?? [],
+  };
   const savedId = collection?.id ?? null;
   const savedIdRef = useRef(savedId);
   savedIdRef.current = savedId;
@@ -183,6 +218,9 @@ export function SmartEditor({
   const saveFailed = autosaveState.status === "failed" || autosaveState.lastError !== null;
   const failedRef = useRef(false);
   failedRef.current = saveFailed;
+  const draftDirty = savedId === null && autosaveState.dirty;
+  const draftDirtyRef = useRef(false);
+  draftDirtyRef.current = draftDirty;
 
   function applySaveError(error: unknown): void {
     if (error instanceof ApiError && error.code === "NAME_CONFLICT") {
@@ -249,6 +287,7 @@ export function SmartEditor({
       savedId === null || collection === null
         ? null
         : { name: collection.name, rules: collection.rules },
+      savedId === null ? initialDraft : undefined,
     );
   }, [autosave, savedId]);
 
@@ -345,6 +384,7 @@ export function SmartEditor({
       autosave.markSaved({ name: saved.name, rules: saved.rules });
       setName(saved.name);
       setRules(saved.rules);
+      allowNavigationRef.current = true;
       onSaved?.(saved);
     } catch (error) {
       applySaveError(error);
@@ -365,6 +405,16 @@ export function SmartEditor({
   };
 
   const discard = (): void => {
+    if (saving || deleting) {
+      return;
+    }
+    if (savedId === null) {
+      // A new Smart Collection has no saved state to restore; Discard leaves
+      // the explicit first-save flow without creating anything. A dirty draft
+      // is caught by the navigation blocker below.
+      navigate("/");
+      return;
+    }
     const snapshot = autosave.discard();
     if (snapshot === null) {
       return;
@@ -422,7 +472,7 @@ export function SmartEditor({
 
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      failedRef.current &&
+      (failedRef.current || draftDirtyRef.current) &&
       !allowNavigationRef.current &&
       currentLocation.pathname !== nextLocation.pathname,
   );
@@ -462,6 +512,7 @@ export function SmartEditor({
   const totalPages = preview?.pagination.totalPages ?? 0;
   const dataAsOf = preview?.meta.dataAsOf ?? null;
   const selectedPlatforms = platformsInRules(rules);
+  const leaveConfirmation = LEAVE_CONFIRMATIONS[failedRef.current ? "failed" : "draft"];
 
   return (
     <Stack component="section" className="smart-editor" aria-labelledby="editor-heading" gap="md">
@@ -485,7 +536,7 @@ export function SmartEditor({
             <Box className="editor-name">
               <TextInput
                 id="collection-name"
-                label="Name"
+                aria-label="Name"
                 value={name}
                 aria-invalid={nameError !== null || undefined}
                 aria-describedby={nameError === null ? undefined : "collection-name-error"}
@@ -536,16 +587,17 @@ export function SmartEditor({
             </Box>
 
             <Group className="editor-save" gap="xs" wrap="wrap">
-              <Button onClick={save} disabled={saveDisabled}>
+              <Button size="compact-sm" onClick={save} disabled={saveDisabled}>
                 Save
               </Button>
-              {savedId !== null &&
-                (autosaveState.dirty || autosaveState.status === "failed") &&
-                autosaveState.status !== "saving" && (
-                  <Button variant="default" size="compact-sm" onClick={discard} disabled={deleting}>
-                    Discard
-                  </Button>
-                )}
+              <Button
+                variant="default"
+                size="compact-sm"
+                onClick={discard}
+                disabled={saving || deleting}
+              >
+                Discard
+              </Button>
               {savedId !== null && !confirmingDelete && (
                 <Button
                   variant="default"
@@ -632,14 +684,12 @@ export function SmartEditor({
               <Paper
                 className="editor-confirm"
                 role="alertdialog"
-                aria-label="Leave with a failed save"
+                aria-label={leaveConfirmation.label}
                 p="sm"
                 withBorder
               >
                 <Stack gap="sm">
-                  <Text size="sm">
-                    Your latest changes could not be saved. Leave this page and lose those changes?
-                  </Text>
+                  <Text size="sm">{leaveConfirmation.message}</Text>
                   <Group gap="xs">
                     <Button variant="default" size="compact-sm" onClick={() => blocker.proceed()}>
                       Leave
@@ -651,120 +701,130 @@ export function SmartEditor({
                 </Stack>
               </Paper>
             )}
-          </Stack>
-          <Group className="editor-status" gap="sm" wrap="wrap">
-            <Text
-              component="p"
-              className="editor-match-count"
-              aria-live="polite"
-              data-testid="match-count"
-              fw={700}
+            <Group className="editor-status" gap="sm" wrap="wrap">
+              <Text
+                component="p"
+                className="editor-match-count"
+                aria-live="polite"
+                data-testid="match-count"
+                fw={700}
+              >
+                {preview === null
+                  ? rulesInvalid
+                    ? "No preview yet"
+                    : "Loading matches…"
+                  : `${totalItems} matches`}
+              </Text>
+              {pending && (
+                <Text className="updating" role="status" size="sm" c="yellow">
+                  Updating…
+                </Text>
+              )}
+            </Group>
+
+            <Paper
+              className="prefix-callout"
+              aria-label="Global prefix summary"
+              p="xs"
+              radius="sm"
+              withBorder
             >
-              {preview === null
-                ? rulesInvalid
-                  ? "No preview yet"
-                  : "Loading matches…"
-                : `${totalItems} matches`}
-            </Text>
-            {pending && (
-              <Text className="updating" role="status" size="sm" c="yellow">
-                Updating…
-              </Text>
-            )}
-          </Group>
+              <Stack gap={4}>
+                <Text className="prefix-counts" data-testid="prefix-counts" size="xs" fw={700}>
+                  {counts.AND} AND · {counts.OR} OR · {counts.NOT} NOT
+                </Text>
+                <Text size="xs" c="gray.5">
+                  Prefixes group globally: every AND must match, at least one OR must match, no NOT
+                  may match. They are not evaluated row by row.
+                </Text>
+                <Text className="prefix-not-copy" size="xs" c="gray.5">
+                  NOT removes matching games. It does not require the field to have a value.
+                </Text>
+              </Stack>
+            </Paper>
 
-          <Paper
-            className="prefix-callout"
-            aria-label="Global prefix summary"
-            p="sm"
-            radius="sm"
-            withBorder
-          >
-            <Stack gap={4}>
-              <Text className="prefix-counts" data-testid="prefix-counts" fw={700}>
-                {counts.AND} AND · {counts.OR} OR · {counts.NOT} NOT
+            {rules.length === 0 ? (
+              <Text className="editor-no-rules" size="sm" c="gray.5">
+                No rules yet. Add a rule below, or pick a quick add.
               </Text>
-              <Text size="sm" c="gray.5">
-                Prefixes group globally: every AND must match, at least one OR must match, no NOT
-                may match. They are not evaluated row by row.
-              </Text>
-              <Text className="prefix-not-copy" size="sm" c="gray.5">
-                NOT removes matching games. It does not require the field to have a value.
-              </Text>
-            </Stack>
-          </Paper>
-
-          {rules.length === 0 ? (
-            <Text className="editor-no-rules" size="sm" c="gray.5">
-              No rules yet. Add a rule below, or pick a quick add.
-            </Text>
-          ) : (
-            <Stack
-              component="ol"
-              className="rule-list"
-              gap="xs"
-              style={{ listStyle: "none", padding: 0, margin: 0 }}
-            >
-              {rules.map((rule, index) => (
-                <RuleRow
-                  key={index}
-                  index={index}
-                  rule={rule}
-                  fieldErrors={fieldErrors}
-                  suggestions={suggestions}
-                  collections={collections}
-                  selectedIds={selectedIds}
-                  onChange={(next) =>
-                    updateRules(
-                      rules.map((current, position) => (position === index ? next : current)),
-                    )
-                  }
-                  onRemove={() => updateRules(rules.filter((_, position) => position !== index))}
-                />
-              ))}
-            </Stack>
-          )}
-
-          <Group className="editor-actions" gap="xs">
-            <Button variant="default" onClick={() => addRules([emptyRule()])}>
-              + Add rule
-            </Button>
-          </Group>
-
-          <Paper className="quick-add" p="sm" radius="sm" withBorder>
-            <Stack gap="sm">
-              <Title order={3} size="sm" c="gray.5" tt="uppercase">
-                Quick add
-              </Title>
-              <Group className="quick-add-row" gap="xs" wrap="wrap">
-                {QUICK_ADD_FIELDS.map((field) => (
-                  <Button
-                    key={field}
-                    variant="default"
-                    size="compact-sm"
-                    onClick={() => addRules([emptyRule(field)])}
-                  >
-                    {ruleFieldDefinition(field)?.label ?? field}
-                  </Button>
+            ) : (
+              <Stack
+                component="ol"
+                className="rule-list"
+                gap="xs"
+                style={{ listStyle: "none", padding: 0, margin: 0 }}
+              >
+                {rules.map((rule, index) => (
+                  <RuleRow
+                    key={index}
+                    index={index}
+                    rule={rule}
+                    fieldErrors={fieldErrors}
+                    suggestions={suggestions}
+                    collections={collections}
+                    selectedIds={selectedIds}
+                    onChange={(next) =>
+                      updateRules(
+                        rules.map((current, position) => (position === index ? next : current)),
+                      )
+                    }
+                    onRemove={() => updateRules(rules.filter((_, position) => position !== index))}
+                  />
                 ))}
-              </Group>
-              <Fieldset className="platform-add" legend="Platform">
-                <Group gap="md" wrap="wrap">
-                  {PLATFORM_VALUES.map((platform) => (
-                    <Checkbox
-                      key={platform}
-                      label={platform}
-                      checked={selectedPlatforms.includes(platform)}
-                      onChange={() => updateRules(togglePlatformRule(rules, platform))}
-                    />
+              </Stack>
+            )}
+
+            <Group className="editor-actions" gap="xs">
+              <Button
+                variant="default"
+                size="compact-sm"
+                fullWidth
+                leftSection={<PlusIcon />}
+                onClick={() => addRules([emptyRule()])}
+              >
+                Add rule
+              </Button>
+            </Group>
+
+            <Paper className="quick-add" p="xs" radius="sm" withBorder>
+              <Stack gap="xs">
+                <Title order={3} size="xs" c="gray.5" tt="uppercase">
+                  Quick add
+                </Title>
+                <Group className="quick-add-row" gap="xs" wrap="wrap">
+                  {QUICK_ADD_FIELDS.map((field) => (
+                    <Button
+                      key={field}
+                      variant="default"
+                      size="compact-sm"
+                      onClick={() => addRules([emptyRule(field)])}
+                    >
+                      {ruleFieldDefinition(field)?.label ?? field}
+                    </Button>
                   ))}
                 </Group>
-              </Fieldset>
-              <Text className="quick-add-note" size="xs" c="gray.5">
-                Each platform adds one <Code>AND platform has</Code> rule.
-              </Text>
-            </Stack>
-          </Paper>
+                <Box className="platform-add" role="group" aria-labelledby="platform-label">
+                  <Text component="p" id="platform-label" size="xs" c="gray.5" mb={4}>
+                    Platform
+                  </Text>
+                  <Group gap="md" wrap="wrap">
+                    {PLATFORM_VALUES.map((platform) => (
+                      <Checkbox
+                        key={platform}
+                        size="xs"
+                        label={platform}
+                        checked={selectedPlatforms.includes(platform)}
+                        onChange={() => updateRules(togglePlatformRule(rules, platform))}
+                      />
+                    ))}
+                  </Group>
+                </Box>
+                <Text className="quick-add-note" size="xs" c="gray.5">
+                  Each platform adds one <Code>AND platform has</Code> rule.
+                </Text>
+              </Stack>
+            </Paper>
+          </Stack>
         </Paper>
         <Stack
           component="section"
@@ -821,7 +881,7 @@ export function SmartEditor({
             </Paper>
           )}
 
-          {preview !== null && rows.length > 0 && <GameResults games={rows} />}
+          {preview !== null && rows.length > 0 && <GameResults games={rows} forceGrid />}
 
           {preview !== null && totalItems > 0 && !rulesInvalid && (
             <Pagination
