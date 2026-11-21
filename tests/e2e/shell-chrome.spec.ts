@@ -11,6 +11,14 @@ let app: TestApp;
 
 test.beforeAll(async () => {
   app = await startTestApp({ games: 3 });
+  const response = await fetch(`${app.url}api/smart-collections`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Shell fixture", rules: [] }),
+  });
+  if (!response.ok) {
+    throw new Error(`Smart Collection seed failed: ${response.status} ${await response.text()}`);
+  }
 });
 
 test.afterAll(async () => {
@@ -43,6 +51,7 @@ test("the shell renders icons instead of text glyphs and names its controls with
   await expect(page.getByRole("link", { name: "New Smart Collection" }).locator("svg")).toHaveCount(
     1,
   );
+  await expect(page.locator('#sidebar .side-item[href^="/smart/"] svg')).toHaveCount(1);
   await expect(page.locator('.side-item[href="/"] svg')).toHaveCount(1);
   await expect(page.locator('.side-item[href="/installed"] svg')).toHaveCount(1);
   await expect(page.locator('#sidebar a[href^="/steam/"] svg')).toHaveCount(1);
