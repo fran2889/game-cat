@@ -32,6 +32,7 @@ describe("client theme", () => {
     // controls on a dark label (green-8 + white was 3.44:1).
     expect(css).toContain("--mantine-color-green-filled: var(--mantine-color-green-5)");
     expect(css).toContain("--mantine-color-anchor: var(--mantine-primary-color-filled)");
+    expect(css).toContain("--game-cat-border-strong: #3b4352");
     expect(css).toContain("--mantine-color-dark-7: #0f1115");
     expect(css).toContain("--mantine-color-dark-6: #15181e");
     expect(css).toContain("--mantine-color-dark-5: #1b1f27");

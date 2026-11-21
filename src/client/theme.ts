@@ -54,8 +54,8 @@ const amber: MantineColorsTuple = [
  * | 8     | surface-3  | #222733 | editor/stat surfaces               |
  * | 9     | surface-4  | #2a303d | selected rows and deep chrome      |
  *
- * The prototype's stronger border (#3b4352) is not a Mantine alias; use
- * `--mantine-color-dark-9` for it when a stronger edge is needed.
+ * The prototype's stronger border (#3b4352) has no Mantine dark-shade alias;
+ * it is emitted separately as `--game-cat-border-strong`.
  */
 const dark: MantineColorsTuple = [
   "#e8eaf0",
@@ -72,6 +72,7 @@ const dark: MantineColorsTuple = [
 
 const PRIMARY_COLOR = "amber";
 const PRIMARY_SHADE = 5;
+const BORDER_STRONG = "#3b4352";
 
 export const themeTokens = {
   primary: {
@@ -124,7 +125,10 @@ export function renderThemeCss(): string {
   current.dark["--mantine-color-anchor"] = "var(--mantine-primary-color-filled)";
   const css = convertCssVariables(
     {
-      variables: changedVariables(current.variables, defaults.variables),
+      variables: {
+        ...changedVariables(current.variables, defaults.variables),
+        "--game-cat-border-strong": BORDER_STRONG,
+      },
       light: changedVariables(current.light, defaults.light),
       dark: changedVariables(current.dark, defaults.dark),
     },

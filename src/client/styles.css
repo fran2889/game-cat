@@ -14,7 +14,8 @@
  *    gradient.
  *
  * Theme variables live in `theme.generated.css`, derived from `theme.ts` at
- * build time. Nothing here restates the theme.
+ * build time. Nothing here restates the theme. The prototype's stronger
+ * border is available as `--game-cat-border-strong`.
  */
 
 /* The jump target and the skip link are bespoke because Mantine has no
