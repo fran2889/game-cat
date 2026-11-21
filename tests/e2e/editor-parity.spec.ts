@@ -34,8 +34,8 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
   expect(editorBox?.x).toBeGreaterThan(previewBox?.x ?? 0);
   expect(editorBox?.width).toBeCloseTo(370, 0);
 
-  const add = page.getByRole("button", { name: "+ Add rule" });
-  await expect(add).toHaveAccessibleName("+ Add rule");
+  const add = page.getByRole("button", { name: "Add rule" });
+  await expect(add).toHaveAccessibleName("Add rule");
   await expect(add.locator("svg")).toHaveCount(1);
   const actionsBox = await page.locator(".editor-actions").boundingBox();
   const addBox = await add.boundingBox();
@@ -196,7 +196,7 @@ test("the rail header pairs the Smart Collection eyebrow with the autosave state
 
 test("rule rows describe their field, operator, and value", async ({ page }) => {
   await page.goto(`${app.url}smart/new`);
-  await page.getByRole("button", { name: "+ Add rule" }).click();
+  await page.getByRole("button", { name: "Add rule" }).click();
   const row = page.locator('[data-rule-index="0"]');
   const description = row.locator(".rule-description");
 

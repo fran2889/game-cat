@@ -818,7 +818,6 @@ export function SmartEditor({
                 size="compact-sm"
                 fullWidth
                 leftSection={<IconPlus size={14} aria-hidden="true" />}
-                aria-label="+ Add rule"
                 onClick={() => addRules([emptyRule()])}
               >
                 Add rule
