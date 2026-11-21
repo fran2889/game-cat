@@ -86,13 +86,13 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
             style={{ pointerEvents: "none" }}
           >
             {game.installed === true ? (
-              // Filled, without the dot, matches the mockup. Black text keeps
-              // the dark scheme's green-5 at 10.5:1; white is 2.0:1 and fails AA.
+              // Filled, without the dot, follows the prototype. The theme owns
+              // the black text token because white on green-5 fails AA.
               <Badge
                 className="pill pill-installed"
                 color="green"
                 variant="filled"
-                c="black"
+                style={{ color: "var(--game-cat-installed-badge-text)" }}
                 tt="none"
               >
                 Installed
