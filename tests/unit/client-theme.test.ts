@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderThemeCss, theme, themeTokens } from "../../src/client/theme.ts";
+import { renderThemeCss, theme } from "../../src/client/theme.ts";
 
 describe("client theme", () => {
   it("defines the v1 palette once", () => {
@@ -19,7 +19,6 @@ describe("client theme", () => {
       "#222733",
       "#2a303d",
     ]);
-    expect(themeTokens.primary.name).toBe("amber");
   });
 
   it("renders the documented variables", () => {

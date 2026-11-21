@@ -13,8 +13,9 @@ const FONT_FAMILY_MONOSPACE =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
 
 /**
- * The v1 palette. Every colour the UI uses comes from here; the generated
- * stylesheet in `theme.generated.css` is derived from the same object.
+ * The v1 palette. Every colour this theme overrides is defined here; the rest
+ * come from Mantine's defaults. The generated stylesheet in
+ * `theme.generated.css` is derived from the same object.
  *
  * Primary shade 5 is the filled accent (#f2b544) and shade 6 is its brighter
  * hover (#ffc85c). Mantine reads the next shade for `-filled-hover`; keeping
@@ -44,7 +45,7 @@ const amber: MantineColorsTuple = [
  * | shade | token      | value   | Mantine role                       |
  * | ----- | ---------- | ------- | ---------------------------------- |
  * | 0     | text       | #e8eaf0 | body text                          |
- * | 1     | text-bright| #c9cfdb | strong secondary text              |
+ * | 1     | text-bright | #c9cfdb | strong secondary text             |
  * | 2     | text-muted | #9aa3b5 | dimmed text                        |
  * | 3     | text-faint | #8b94a6 | placeholders                       |
  * | 4     | border     | #2a303c | default border                     |
@@ -72,22 +73,8 @@ const dark: MantineColorsTuple = [
 
 const PRIMARY_COLOR = "amber";
 const PRIMARY_SHADE = 5;
+/** The prototype's stronger border, exposed as a custom property. */
 const BORDER_STRONG = "#3b4352";
-
-export const themeTokens = {
-  primary: {
-    name: PRIMARY_COLOR,
-    shade: PRIMARY_SHADE,
-    shades: amber,
-  },
-  dark: {
-    shades: dark,
-  },
-  fonts: {
-    family: FONT_FAMILY,
-    monospace: FONT_FAMILY_MONOSPACE,
-  },
-} as const;
 
 export const theme = createTheme({
   primaryColor: PRIMARY_COLOR,
