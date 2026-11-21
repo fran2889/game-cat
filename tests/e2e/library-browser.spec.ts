@@ -86,6 +86,16 @@ test("the review badge keeps the tier and count in its tooltip", async ({ page }
   await expect(card.locator(".game-review")).toHaveCount(0);
 });
 
+test("hovering a grid card strengthens its border", async ({ page }) => {
+  await page.goto(app.url);
+  const card = page.locator(".game-card").first();
+  await expect(card).toBeVisible();
+
+  await card.hover();
+  // The prototype's stronger border, emitted by the theme as #3b4352.
+  await expect(card).toHaveCSS("border-color", "rgb(59, 67, 82)");
+});
+
 test("an unknown stored layout falls back to grid", async ({ page }) => {
   await page.goto(app.url);
   await page.evaluate(() => {

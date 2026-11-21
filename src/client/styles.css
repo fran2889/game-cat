@@ -160,11 +160,7 @@ main {
 }
 
 .game-card:hover {
-  border-color: var(--mantine-color-dark-9);
-}
-
-.game-card.is-selected:hover {
-  border-color: var(--mantine-primary-color-filled);
+  border-color: var(--game-cat-border-strong);
 }
 
 .game-cover,
