@@ -332,8 +332,8 @@ interface SidebarLinkProps {
 
 /**
  * The active row's surface, text, and hover stay inside Mantine's NavLink
- * variables. `styles.css` adds only the accent edge and shadow Mantine cannot
- * express.
+ * variables. `styles.css` owns the compact row shape, the accent edge, and the
+ * shadow Mantine cannot express.
  */
 const ROW_STYLE = {
   "--nl-bg": "var(--mantine-color-dark-6)",
@@ -341,7 +341,10 @@ const ROW_STYLE = {
   "--nl-color": "var(--mantine-color-text)",
 } as CSSProperties;
 
-/** One sidebar row. Mantine owns the shape, surface, hover, and focus ring. */
+/**
+ * One sidebar row. Mantine owns the surface, hover, and focus ring; `styles.css`
+ * owns the shape.
+ */
 function SidebarLink({ to, label, icon, count, active, title, onNavigate }: SidebarLinkProps) {
   return (
     <NavLink
