@@ -12,7 +12,9 @@ import {
 } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import {
+  describeRule,
   RULE_FIELD_DEFINITIONS,
+  RULE_OPERATOR_LABELS,
   RULE_PREFIXES,
   ruleFieldDefinition,
   type Rule,
@@ -22,13 +24,7 @@ import {
   type RuleValue,
 } from "../../shared/rules.ts";
 import type { SteamCollectionSummary } from "../../shared/types.ts";
-import {
-  changeRuleField,
-  changeRuleOperator,
-  changeRulePrefix,
-  describeRule,
-  RULE_OPERATOR_LABELS,
-} from "../rule-editor.ts";
+import { changeRuleField, changeRuleOperator, changeRulePrefix } from "../rule-editor.ts";
 import { RuleValueControl, type RuleSuggestions } from "./RuleValueControl.tsx";
 
 const PREFIX_COLORS: Record<RulePrefix, string> = {
