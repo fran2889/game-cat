@@ -40,7 +40,8 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
   const location = useLocation();
   const flag = ownershipFlag(game);
   const review = reviewPillLabel(game.reviewScore);
-  const reviewLabel = reviewCardLabel(game.reviewTier, game.reviewCount);
+  const reviewLabel =
+    game.reviewCount === null ? "" : reviewCardLabel(game.reviewTier, game.reviewCount);
   const tone = reviewTone(game.reviewScore);
   const tags = game.tags.slice(0, 2).map((tag) => tag.name);
 
@@ -102,10 +103,10 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
                 color={reviewColor(tone)}
                 variant="light"
                 tt="none"
-                title={reviewLabel}
+                title={reviewLabel === "" ? undefined : reviewLabel}
               >
                 {review}
-                <VisuallyHidden> · {reviewLabel}</VisuallyHidden>
+                {reviewLabel !== "" && <VisuallyHidden> · {reviewLabel}</VisuallyHidden>}
               </Badge>
             )}
           </Group>
