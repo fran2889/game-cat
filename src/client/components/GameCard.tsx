@@ -86,12 +86,24 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
             style={{ pointerEvents: "none" }}
           >
             {game.installed === true ? (
-              <Badge className="pill pill-installed" color="green" variant="light" tt="none">
-                <Box component="span" w={5} h={5} bg="green.5" bdrs="50%" aria-hidden="true" />
+              // Filled, without the dot, follows the prototype. The theme owns
+              // the black text token because white on green-5 fails AA.
+              <Badge
+                className="pill pill-installed"
+                color="green"
+                variant="filled"
+                style={{ color: "var(--game-cat-installed-badge-text)" }}
+                tt="none"
+              >
                 Installed
               </Badge>
             ) : game.installed === null ? (
-              <Badge className="pill pill-installed is-unknown" variant="light" tt="none">
+              <Badge
+                className="pill pill-installed is-unknown"
+                variant="default"
+                c="dimmed"
+                tt="none"
+              >
                 Unknown
               </Badge>
             ) : (
@@ -111,21 +123,21 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
             )}
           </Group>
         </Box>
-        <Stack gap={4} p="sm" pr={36}>
-          <Title order={3} title={game.name} fz="sm" lineClamp={1}>
+        <Stack className="card-body" gap={4}>
+          <Title order={3} title={game.name} lineClamp={1}>
             {game.name}
           </Title>
-          <Group className="game-meta" gap={8} justify="space-between" wrap="nowrap">
-            <Text component="span" size="xs">
+          <Group className="game-meta" gap={6} justify="space-between" wrap="nowrap">
+            <Text component="span" truncate>
               {formatPlaytime(game.playtimeMinutes)}
             </Text>
             {flag !== null && (
-              <Badge className="ownership-flag" variant="outline" size="xs" tt="none">
+              <Text component="span" className="ownership-flag">
                 {flag}
-              </Badge>
+              </Text>
             )}
           </Group>
-          <Text component="p" className="game-tags" size="xs" truncate>
+          <Text component="p" className="game-tags" truncate>
             {tags.length > 0 ? tags.join(" · ") : "No tags yet"}
           </Text>
         </Stack>

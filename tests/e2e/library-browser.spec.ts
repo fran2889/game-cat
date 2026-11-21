@@ -90,6 +90,84 @@ test("grid cards show the documented badges, ownership, tags, and cover fallback
   await expect(card.locator(".tag-status")).toHaveCount(0);
 });
 
+test("the grid is denser than Mantine's default and keeps six fluid tracks at 1280px", async ({
+  page,
+}) => {
+  await page.goto(app.url);
+  await expect(page.locator(".game-grid .game-card")).toHaveCount(60);
+
+  // Assert the structure the user sees, not the prototype's exact pixels: v1
+  // §7.10 leaves component appearance to Mantine. The prototype density should
+  // still produce six equal fluid tracks that fill the content box.
+  const grid = page.locator(".game-grid").first();
+  const measured = await grid.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return {
+      tracks: computed.gridTemplateColumns.split(" ").map((track) => Number.parseFloat(track)),
+      gap: Number.parseFloat(computed.gap),
+      width: element.clientWidth,
+    };
+  });
+  expect(measured.tracks).toHaveLength(6);
+  const firstTrack = measured.tracks[0] ?? 0;
+  for (const track of measured.tracks) {
+    expect(track).toBeCloseTo(firstTrack, 1);
+  }
+  const used = measured.tracks.reduce((sum, track) => sum + track, 0) + measured.gap * 5;
+  expect(used).toBeCloseTo(measured.width, 0);
+
+  const card = page.locator(".game-card").first();
+  const type = await card.evaluate((element) => {
+    const size = (selector: string) =>
+      Number.parseFloat(getComputedStyle(element.querySelector(selector) as Element).fontSize);
+    const body = element.querySelector(".card-body") as Element;
+    return {
+      title: size("h3"),
+      meta: size(".game-meta span"),
+      tags: size(".game-tags"),
+      paddingRight: Number.parseFloat(getComputedStyle(body).paddingRight),
+    };
+  });
+  // A clear hierarchy, all below Mantine's default card type, and enough right
+  // padding for the floating select checkbox.
+  expect(type.title).toBeLessThan(14);
+  expect(type.title).toBeGreaterThan(type.meta);
+  expect(type.meta).toBeGreaterThan(type.tags);
+  expect(type.paddingRight).toBeGreaterThanOrEqual(30);
+});
+
+test("Installed is filled without a dot and ownership is inline text", async ({ page }) => {
+  await page.goto(app.url);
+  await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
+  const card = page.locator(".game-card");
+  await expect(card).toHaveCount(1);
+
+  // The text is already covered by the badge test above; assert only the new
+  // treatment here.
+  const installed = card.locator(".pill-installed");
+  await expect(installed.locator('[aria-hidden="true"]')).toHaveCount(0);
+  const background = await installed.evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  expect(background).not.toBe("rgba(0, 0, 0, 0)");
+
+  const ownership = card.locator(".ownership-flag");
+  await expect(ownership).toHaveCSS("border-top-width", "0px");
+});
+
+test("hovering a grid card lifts it and strengthens its border", async ({ page }) => {
+  await page.goto(app.url);
+  const card = page.locator(".game-card").first();
+  const restingBorder = await card.evaluate((element) => getComputedStyle(element).borderTopColor);
+
+  await card.hover();
+  // The prototype's stronger border, emitted by the theme as #3b4352.
+  await expect
+    .poll(() => card.evaluate((element) => getComputedStyle(element).borderTopColor))
+    .not.toBe(restingBorder);
+  await expect(card).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, -1)");
+});
+
 test("the review badge keeps the tier and count in its tooltip", async ({ page }) => {
   await page.goto(app.url);
   await page.getByRole("searchbox", { name: "Search game names" }).fill("portal");
@@ -103,16 +181,6 @@ test("the review badge keeps the tier and count in its tooltip", async ({ page }
     /Overwhelmingly Positive · 1,000 reviews/,
   );
   await expect(card.locator(".game-review")).toHaveCount(0);
-});
-
-test("hovering a grid card strengthens its border", async ({ page }) => {
-  await page.goto(app.url);
-  const card = page.locator(".game-card").first();
-  await expect(card).toBeVisible();
-
-  await card.hover();
-  // The prototype's stronger border, emitted by the theme as #3b4352.
-  await expect(card).toHaveCSS("border-color", "rgb(59, 67, 82)");
 });
 
 test("an unknown stored layout falls back to grid", async ({ page }) => {

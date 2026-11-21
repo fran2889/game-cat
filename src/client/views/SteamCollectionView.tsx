@@ -5,8 +5,8 @@ import { Alert, Badge, Box, Button, Group, Paper, Stack, Text, Title } from "@ma
 import type { SteamCollectionSummary } from "../../shared/types.ts";
 import { ApiError, steamCollectionGamesQueryOptions, steamCollectionQueryOptions } from "../api.ts";
 import { useBrowse } from "../browse-context.tsx";
+import { GameGridSkeleton } from "../components/GameGridSkeleton.tsx";
 import { GameResults } from "../components/GameResults.tsx";
-import { LoadingGrid } from "../components/LoadingGrid.tsx";
 import { Pagination } from "../components/Pagination.tsx";
 import { ResultsHeader } from "../components/ResultsHeader.tsx";
 import { SelectionBar } from "../components/SelectionBar.tsx";
@@ -111,7 +111,7 @@ export function SteamCollectionView() {
   }
 
   if (summary === null) {
-    return <LoadingGrid label="Loading the Steam Collection" count={4} />;
+    return <GameGridSkeleton label="Loading the Steam Collection" />;
   }
 
   const header = (
@@ -179,7 +179,7 @@ export function SteamCollectionView() {
     return (
       <Stack component="section" aria-labelledby="collection-heading" gap="md">
         {header}
-        <LoadingGrid label="Loading the Steam Collection" count={4} />
+        <GameGridSkeleton label="Loading the Steam Collection" />
       </Stack>
     );
   }

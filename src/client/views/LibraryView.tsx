@@ -4,8 +4,8 @@ import { Link, useOutletContext } from "react-router-dom";
 import { Alert, Box, Button, Code, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { ApiError, gamesQueryOptions, startLibraryScan } from "../api.ts";
 import { useBrowse } from "../browse-context.tsx";
+import { GameGridSkeleton } from "../components/GameGridSkeleton.tsx";
 import { GameResults } from "../components/GameResults.tsx";
-import { LoadingGrid } from "../components/LoadingGrid.tsx";
 import { OwnershipBanner } from "../components/OwnershipBanner.tsx";
 import { Pagination } from "../components/Pagination.tsx";
 import { ResultsHeader } from "../components/ResultsHeader.tsx";
@@ -96,11 +96,11 @@ export function LibraryView({ mode }: LibraryViewProps) {
 
   if (status === null) {
     // AppShell already shows the disconnected banner when the status fetch fails.
-    return statusError === null ? <LoadingGrid label="Loading the Library" /> : null;
+    return statusError === null ? <GameGridSkeleton label="Loading the Library" /> : null;
   }
 
   if (games === null && error === null) {
-    return <LoadingGrid label="Loading the Library" />;
+    return <GameGridSkeleton label="Loading the Library" />;
   }
 
   const steamRoot = status.steam.root;

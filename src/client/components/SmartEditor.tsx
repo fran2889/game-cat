@@ -49,6 +49,7 @@ import {
   type AutosaveStatus,
 } from "../autosave.ts";
 import { useBrowse } from "../browse-context.tsx";
+import { GameGridSkeleton } from "./GameGridSkeleton.tsx";
 import { GameResults } from "./GameResults.tsx";
 import { Pagination } from "./Pagination.tsx";
 import { RuleRow } from "./RuleRow.tsx";
@@ -92,7 +93,7 @@ const LEAVE_CONFIRMATIONS = {
   },
 } as const;
 
-/** The mockup's 14 px plus; an inline glyph avoids a whole icon dependency. */
+/** The prototype's 14 px plus; an inline glyph avoids a whole icon dependency. */
 function PlusIcon() {
   return (
     <svg
@@ -829,6 +830,7 @@ export function SmartEditor({
         <Stack
           component="section"
           aria-label="Live preview"
+          aria-busy={pending}
           className="preview-pane"
           miw={0}
           gap="sm"
@@ -860,9 +862,7 @@ export function SmartEditor({
           )}
 
           {preview === null && !rulesInvalid && (
-            <Text className="preview-loading" role="status" c="gray.5">
-              Loading matches…
-            </Text>
+            <GameGridSkeleton label="Loading matches" count={6} />
           )}
 
           {preview !== null && rules.length === 0 && (

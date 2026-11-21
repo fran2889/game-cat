@@ -35,7 +35,7 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
   const addBox = await add.boundingBox();
   expect(addBox?.width).toBeCloseTo(actionsBox?.width ?? 0, 0);
 
-  // The mockup's compact control heights and tighter panel padding.
+  // The prototype's compact control heights and tighter panel padding.
   await expect(page.getByRole("button", { name: "Save" })).toHaveCSS("height", "26px");
   await expect(add).toHaveCSS("height", "26px");
   await expect(page.locator(".prefix-callout")).toHaveCSS("padding", "10px");

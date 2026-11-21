@@ -2,7 +2,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Box, Button, Paper, Stack, Text, Title } from "@mantine/core";
 import { ApiError, smartCollectionQueryOptions } from "../api.ts";
-import { LoadingGrid } from "../components/LoadingGrid.tsx";
+import { GameGridSkeleton } from "../components/GameGridSkeleton.tsx";
 import { SmartEditor } from "../components/SmartEditor.tsx";
 import { useSmartCollections } from "../smart-collections-context.tsx";
 
@@ -68,7 +68,7 @@ export function SmartCollectionView() {
   }
 
   if (collection === null) {
-    return <LoadingGrid label="Loading the Smart Collection" count={4} />;
+    return <GameGridSkeleton label="Loading the Smart Collection" />;
   }
 
   return (

@@ -75,6 +75,8 @@ const PRIMARY_COLOR = "amber";
 const PRIMARY_SHADE = 5;
 /** The prototype's stronger border, exposed as a custom property. */
 const BORDER_STRONG = "#3b4352";
+/** Black on the filled green Installed badge reads at 10.5:1; white is 2.0:1. */
+const INSTALLED_BADGE_TEXT = "#000000";
 
 export const theme = createTheme({
   primaryColor: PRIMARY_COLOR,
@@ -116,6 +118,7 @@ export function renderThemeCss(): string {
       variables: {
         ...changedVariables(current.variables, defaults.variables),
         "--game-cat-border-strong": BORDER_STRONG,
+        "--game-cat-installed-badge-text": INSTALLED_BADGE_TEXT,
       },
       light: changedVariables(current.light, defaults.light),
       dark: changedVariables(current.dark, defaults.dark),
