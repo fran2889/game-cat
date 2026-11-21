@@ -50,7 +50,8 @@
   top: 0;
   height: 100vh;
   overflow-y: auto;
-  background: var(--mantine-color-dark-6);
+  /* The page surface; a selected row lifts to the dark-6 default surface. */
+  background: var(--mantine-color-dark-7);
   border-right: 1px solid var(--mantine-color-dark-4);
   display: flex;
   flex-direction: column;
