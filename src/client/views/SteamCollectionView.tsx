@@ -111,7 +111,7 @@ export function SteamCollectionView() {
   }
 
   if (summary === null) {
-    return <GameGridSkeleton label="Loading the Steam Collection" count={4} />;
+    return <GameGridSkeleton label="Loading the Steam Collection" />;
   }
 
   const header = (
@@ -179,7 +179,7 @@ export function SteamCollectionView() {
     return (
       <Stack component="section" aria-labelledby="collection-heading" gap="md">
         {header}
-        <GameGridSkeleton label="Loading the Steam Collection" count={4} />
+        <GameGridSkeleton label="Loading the Steam Collection" />
       </Stack>
     );
   }
