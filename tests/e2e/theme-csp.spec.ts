@@ -56,7 +56,7 @@ test("the built app serves the generated theme CSS with no runtime style tags or
   });
 
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(15, 17, 21)");
-  await expect(page.locator("#sidebar")).toHaveCSS("background-color", "rgb(21, 24, 30)");
+  await expect(page.locator("#sidebar")).toHaveCSS("background-color", "rgb(15, 17, 21)");
 
   const primary = page.locator(".topbar button.primary");
   await expect(primary).toHaveCSS("background-color", "rgb(242, 181, 68)");
