@@ -219,7 +219,6 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
         <Button
           className="toggle-button"
           variant={installedPressed ? "light" : "default"}
-          aria-label="✓ Installed"
           aria-pressed={installedPressed}
           disabled={viewKind === "installed"}
           title={
@@ -271,7 +270,6 @@ export function TopBar({ status, sidebarOpen, onOpenSidebar, onRetryStatus }: To
           component={Link}
           to="/smart/new"
           variant="default"
-          aria-label="+ New collection"
           leftSection={<IconPlus size={16} aria-hidden="true" />}
         >
           New collection
