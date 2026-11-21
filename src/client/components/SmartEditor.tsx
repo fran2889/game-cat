@@ -93,7 +93,7 @@ const LEAVE_CONFIRMATIONS = {
   },
 } as const;
 
-/** The mockup's 14 px plus; an inline glyph avoids a whole icon dependency. */
+/** The prototype's 14 px plus; an inline glyph avoids a whole icon dependency. */
 function PlusIcon() {
   return (
     <svg

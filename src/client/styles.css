@@ -135,7 +135,7 @@ main {
 /* Fluid cover grid: the track count follows the available width, which a
  * fixed-column SimpleGrid cannot do without JS breakpoints.
  *
- * Density follows the mockup: a 148px minimum track and a 14px gap, which is
+ * Density follows the prototype: a 148px minimum track and a 14px gap, which is
  * six ~154px cards at 1280px. The loading grid shares the exact tracks so the
  * first paint and the loaded cards line up. */
 .game-grid,
@@ -181,7 +181,7 @@ main {
   outline: none;
 }
 
-/* The mockup lifts the card 1px and strengthens the border on hover. */
+/* The prototype lifts the card 1px and strengthens the border on hover. */
 .game-card:hover {
   border-color: var(--game-cat-border-strong);
   transform: translateY(-1px);
@@ -345,7 +345,7 @@ main {
 }
 
 /* Rule fields keep the prefix-first shape: field, operator, and value on one
- * line (stacked on narrow screens). The 6px gap matches the mockup's field
+ * line (stacked on narrow screens). The 6px gap matches the prototype's field
  * grid. */
 .rule-fields {
   display: grid;
