@@ -47,3 +47,6 @@ uses its faint text token (`dark-3`).
 - **Body height is reserved.** The skeleton uses the loaded card's 74px body slot. The exact value
   may change with Mantine's type metrics; the parity test compares the skeletal card's box with the
   loaded card's box, so both move together.
+- **A refetch keeps the previous preview.** The live-preview section is marked `aria-busy` and shows
+  `Updating…`; the skeleton replaces only the first load, so a debounced rule edit does not flash
+  the grid.

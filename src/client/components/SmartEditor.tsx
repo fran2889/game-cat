@@ -830,6 +830,7 @@ export function SmartEditor({
         <Stack
           component="section"
           aria-label="Live preview"
+          aria-busy={pending}
           className="preview-pane"
           miw={0}
           gap="sm"
