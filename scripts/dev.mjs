@@ -3,7 +3,7 @@
 // The browser always talks to Vite on 5173. Vite proxies /api to the API on
 // GAME_CAT_PORT (default 4780), so the production Host/Origin checks run
 // unchanged. Stop either child and the other is stopped too.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -68,6 +68,22 @@ process.on("SIGINT", () => {
 process.on("SIGTERM", () => {
   void shutdown(0);
 });
+
+// The client imports the generated stylesheet, so write it once before Vite
+// starts. Restart dev after editing theme.ts.
+const theme = spawnSync(process.execPath, [join(root, "scripts", "generate-theme-css.mjs")], {
+  cwd: root,
+  env: process.env,
+  stdio: "inherit",
+});
+if (theme.status !== 0) {
+  console.error(
+    theme.error === undefined
+      ? "[dev] theme css generation failed."
+      : `[dev] theme css generation failed: ${theme.error.message}`,
+  );
+  process.exit(theme.status ?? 1);
+}
 
 console.log("[dev] API:   http://127.0.0.1:4780/ (or GAME_CAT_PORT)");
 console.log("[dev] UI:    http://127.0.0.1:5173/");

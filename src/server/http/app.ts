@@ -23,6 +23,9 @@ import { registerApiRoutes, registerConfigRoutes, type ConfigRoutes } from "./ap
 
 export const REQUEST_BODY_LIMIT = 256 * 1024;
 
+// React applies `style` props through the CSSOM, which CSP does not govern, so
+// Mantine spacing and positioning need no `style-src-attr` exception. Only
+// markup style attributes and inline `<style>` elements are blocked.
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",

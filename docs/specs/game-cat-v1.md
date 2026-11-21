@@ -1816,6 +1816,10 @@ An empty list is not an error. `404` is reserved for a specific resource that do
 - Serve HTML with `Content-Security-Policy`, `X-Frame-Options: DENY`, and `Referrer-Policy:
 no-referrer`. Send `X-Content-Type-Options: nosniff` on every response. The CSP must not require
   inline script.
+- React applies component `style` props through the CSSOM, which `style-src` does not govern, so
+  Mantine spacing, gaps, and positioning work without a `style-src-attr` exception. Only markup
+  `style` attributes and inline `<style>` elements are blocked. Do not add
+  `style-src-attr 'unsafe-inline'` for Mantine.
 - The Steam Web API key is a secret. It lives in server-side configuration or environment, never in
   SQLite, API responses, or logs. Redact `key` from upstream URLs in request logs. The settings API is
   write-only for the key.

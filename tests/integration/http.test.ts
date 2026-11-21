@@ -144,8 +144,16 @@ describe("static React shell", () => {
     expect(response.headers["referrer-policy"]).toBe("no-referrer");
     expect(response.headers["x-content-type-options"]).toBe("nosniff");
     const csp = String(response.headers["content-security-policy"]);
-    expect(csp).toContain("default-src 'self'");
-    expect(csp).toContain("script-src 'self'");
+    const directives = new Map(
+      csp.split("; ").map((directive) => {
+        const [name, ...values] = directive.split(" ");
+        return [name, values.join(" ")];
+      }),
+    );
+    expect(directives.get("default-src")).toBe("'self'");
+    expect(directives.get("script-src")).toBe("'self'");
+    expect(directives.get("style-src")).toBe("'self'");
+    // No directive anywhere may permit inline script or styles.
     expect(csp).not.toContain("'unsafe-inline'");
   });
 

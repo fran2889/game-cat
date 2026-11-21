@@ -65,7 +65,7 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
       aria-label="Library navigation"
     >
       <Group className="brand" gap={10} px="sm" py="sm" wrap="nowrap">
-        <ThemeIcon size={30} radius="md" variant="light" color="yellow" aria-hidden="true">
+        <ThemeIcon size={30} radius="md" variant="light" color="amber" aria-hidden="true">
           <Text size="xs" fw={800} lts="0.03em">
             GC
           </Text>
@@ -260,7 +260,7 @@ export function Sidebar({ status, open, onClose, onRetryStatus }: SidebarProps) 
         </Paper>
 
         <Group component="section" aria-label="Steam Account" gap={9} p={2} wrap="nowrap">
-          <Avatar radius="xl" size={30} color="yellow" variant="light" aria-hidden="true">
+          <Avatar radius="xl" size={30} color="amber" variant="light" aria-hidden="true">
             {account === null ? "?" : account.personaName.slice(0, 1).toUpperCase()}
           </Avatar>
           <Box miw={0}>
