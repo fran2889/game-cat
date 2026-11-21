@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import type { GameSummary } from "../../shared/types.ts";
 import type { TableSortField } from "../browse.ts";
 import { useBrowse } from "../browse-context.tsx";
+import { shownSelection } from "../selection.ts";
 import {
   formatDate,
   formatPlaytime,
@@ -17,14 +18,6 @@ export interface GameTableProps {
   games: GameSummary[];
 }
 
-function selectAllState(games: GameSummary[], isSelected: (appId: number) => boolean) {
-  const selectedCount = games.filter((game) => isSelected(game.appId)).length;
-  return {
-    all: games.length > 0 && selectedCount === games.length,
-    some: selectedCount > 0 && selectedCount < games.length,
-  };
-}
-
 function tagStatusColor(status: string): string {
   if (status === "ok") {
     return "green";
@@ -37,7 +30,7 @@ export function GameTable({ games }: GameTableProps) {
   const location = useLocation();
   const { sort, order, applyTableSort, isSelected, toggleSelected, selectShown, clearShown } =
     useBrowse();
-  const state = selectAllState(games, isSelected);
+  const state = shownSelection(games, isSelected);
 
   const sortableHeader = (label: string, field: TableSortField) => {
     const active = sort === field;
@@ -61,11 +54,10 @@ export function GameTable({ games }: GameTableProps) {
   };
 
   const toggleAll = () => {
-    const ids = games.map((game) => game.appId);
     if (state.all) {
-      clearShown(ids);
+      clearShown(state.appIds);
     } else {
-      selectShown(ids);
+      selectShown(state.appIds);
     }
   };
 

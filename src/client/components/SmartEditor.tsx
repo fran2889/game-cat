@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useBlocker, useNavigate } from "react-router-dom";
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Box,
@@ -16,6 +17,7 @@ import {
   Title,
   VisuallyHidden,
 } from "@mantine/core";
+import { IconInfoCircle, IconPlus, IconTrash } from "@tabler/icons-react";
 import type {
   GameSummary,
   GamesResponse,
@@ -55,9 +57,11 @@ import { Pagination } from "./Pagination.tsx";
 import { RuleRow } from "./RuleRow.tsx";
 import { type RuleSuggestions } from "./RuleValueControl.tsx";
 import { SelectionBar } from "./SelectionBar.tsx";
+import { SelectShownButton } from "./SelectShownButton.tsx";
 import { useToast } from "./ToastProvider.tsx";
 import { formatRange } from "../browse.ts";
 import { formatCount, formatTimestamp } from "../format.ts";
+import { shownSelection } from "../selection.ts";
 import {
   addSelectionToGameRule,
   emptyRule,
@@ -81,6 +85,14 @@ const AUTOSAVE_LABELS: Partial<Record<AutosaveStatus, string>> = {
   failed: "Save failed",
 };
 
+/** The rail header dot mirrors the autosave state without adding another word. */
+const AUTOSAVE_DOT_COLORS: Partial<Record<AutosaveStatus, string>> = {
+  saved: "var(--mantine-color-green-6)",
+  saving: "var(--mantine-color-yellow-6)",
+  unsaved: "var(--mantine-color-yellow-6)",
+  failed: "var(--mantine-color-red-6)",
+};
+
 /** One copy source for both navigation-guard reasons. */
 const LEAVE_CONFIRMATIONS = {
   failed: {
@@ -92,25 +104,6 @@ const LEAVE_CONFIRMATIONS = {
     message: "This Smart Collection has not been saved. Leave and discard the draft?",
   },
 } as const;
-
-/** The prototype's 14 px plus; an inline glyph avoids a whole icon dependency. */
-function PlusIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
 
 const EMPTY_AUTOSAVE_STATE: AutosaveState = {
   status: "idle",
@@ -158,7 +151,7 @@ export function SmartEditor({
   onSaved,
   onDeleted,
 }: SmartEditorProps) {
-  const { sort, order, selectedIds, selectedCount } = useBrowse();
+  const { sort, order, selectedIds, selectedCount, isSelected, selectShown } = useBrowse();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [name, setName] = useState(collection?.name ?? initialName ?? NEW_COLLECTION_NAME);
@@ -513,6 +506,7 @@ export function SmartEditor({
   const totalPages = preview?.pagination.totalPages ?? 0;
   const dataAsOf = preview?.meta.dataAsOf ?? null;
   const selectedPlatforms = platformsInRules(rules);
+  const shown = shownSelection(rows, isSelected);
   const leaveConfirmation = LEAVE_CONFIRMATIONS[failedRef.current ? "failed" : "draft"];
 
   return (
@@ -534,6 +528,36 @@ export function SmartEditor({
           withBorder
         >
           <Stack gap="sm">
+            <Group className="editor-head" justify="space-between" gap="xs" wrap="nowrap">
+              <Text className="editor-heading" size="xs" tt="uppercase" c="gray.5" fw={600}>
+                Smart Collection
+              </Text>
+              {savedId !== null && AUTOSAVE_LABELS[autosaveState.status] !== undefined && (
+                <Group className="editor-save-state-group" gap={5} wrap="nowrap">
+                  <Box
+                    className={`editor-save-dot is-${autosaveState.status}`}
+                    aria-hidden="true"
+                    w={6}
+                    h={6}
+                    style={{
+                      borderRadius: "50%",
+                      background: AUTOSAVE_DOT_COLORS[autosaveState.status],
+                    }}
+                  />
+                  <Text
+                    className={`editor-save-state is-${autosaveState.status}`}
+                    role="status"
+                    aria-live="polite"
+                    data-testid="save-state"
+                    size="xs"
+                    c={autosaveState.status === "failed" ? "red" : "gray.5"}
+                  >
+                    {AUTOSAVE_LABELS[autosaveState.status]}
+                  </Text>
+                </Group>
+              )}
+            </Group>
+
             <Box className="editor-name">
               <TextInput
                 id="collection-name"
@@ -543,18 +567,6 @@ export function SmartEditor({
                 aria-describedby={nameError === null ? undefined : "collection-name-error"}
                 onChange={(event) => updateName(event.currentTarget.value)}
               />
-              {savedId !== null && AUTOSAVE_LABELS[autosaveState.status] !== undefined && (
-                <Text
-                  className={`editor-save-state is-${autosaveState.status}`}
-                  role="status"
-                  aria-live="polite"
-                  data-testid="save-state"
-                  size="sm"
-                  c={autosaveState.status === "failed" ? "red" : "gray.5"}
-                >
-                  {AUTOSAVE_LABELS[autosaveState.status]}
-                </Text>
-              )}
               {nameError !== null && (
                 <Text
                   className="field-error"
@@ -600,14 +612,18 @@ export function SmartEditor({
                 Discard
               </Button>
               {savedId !== null && !confirmingDelete && (
-                <Button
-                  variant="default"
-                  size="compact-sm"
+                <ActionIcon
+                  className="editor-delete"
+                  variant="subtle"
+                  color="gray"
+                  aria-label="Delete"
+                  title="Delete Smart Collection"
                   onClick={() => setConfirmingDelete(true)}
                   disabled={saving || deleting}
+                  ml="auto"
                 >
-                  Delete
-                </Button>
+                  <IconTrash size={15} aria-hidden="true" />
+                </ActionIcon>
               )}
             </Group>
 
@@ -677,7 +693,7 @@ export function SmartEditor({
             )}
             {saveError === null && savedId !== null && autosaveState.status === "saved" && (
               <Text className="editor-save-note" size="xs" c="gray.5">
-                Changes save automatically.
+                Changes save automatically · Rules save as a whole array.
               </Text>
             )}
 
@@ -702,19 +718,32 @@ export function SmartEditor({
                 </Stack>
               </Paper>
             )}
-            <Group className="editor-status" gap="sm" wrap="wrap">
-              <Text
-                component="p"
-                className="editor-match-count"
-                aria-live="polite"
-                data-testid="match-count"
-                fw={700}
-              >
-                {preview === null
-                  ? rulesInvalid
-                    ? "No preview yet"
-                    : "Loading matches…"
-                  : `${totalItems} matches`}
+            <Group className="editor-status" gap="sm" align="baseline" wrap="nowrap">
+              <Text component="p" className="editor-match-count" data-testid="match-count" m={0}>
+                <Text span aria-live="polite">
+                  {preview === null ? (
+                    rulesInvalid ? (
+                      "No preview yet"
+                    ) : (
+                      "Loading matches…"
+                    )
+                  ) : (
+                    <>
+                      <Text span className="editor-match-total" fw={700} size="lg">
+                        {totalItems}
+                      </Text>{" "}
+                      {totalItems === 1 ? "game matches" : "games match"}
+                    </>
+                  )}
+                </Text>
+                {preview !== null && (
+                  <>
+                    {" "}
+                    <Text span className="editor-match-hint" size="xs" c="gray.5">
+                      · updates as you edit
+                    </Text>
+                  </>
+                )}
               </Text>
               {pending && (
                 <Text className="updating" role="status" size="sm" c="yellow">
@@ -723,12 +752,15 @@ export function SmartEditor({
               )}
             </Group>
 
-            <Paper
+            <Alert
               className="prefix-callout"
+              role="note"
               aria-label="Global prefix summary"
+              color="blue"
+              variant="light"
+              icon={<IconInfoCircle size={16} aria-hidden="true" />}
               p="xs"
               radius="sm"
-              withBorder
             >
               <Stack gap={4}>
                 <Text className="prefix-counts" data-testid="prefix-counts" size="xs" fw={700}>
@@ -742,7 +774,7 @@ export function SmartEditor({
                   NOT removes matching games. It does not require the field to have a value.
                 </Text>
               </Stack>
-            </Paper>
+            </Alert>
 
             {rules.length === 0 ? (
               <Text className="editor-no-rules" size="sm" c="gray.5">
@@ -780,7 +812,7 @@ export function SmartEditor({
                 variant="default"
                 size="compact-sm"
                 fullWidth
-                leftSection={<PlusIcon />}
+                leftSection={<IconPlus size={14} aria-hidden="true" />}
                 onClick={() => addRules([emptyRule()])}
               >
                 Add rule
@@ -836,9 +868,17 @@ export function SmartEditor({
           gap="sm"
         >
           {preview !== null && totalItems > 0 && !rulesInvalid && (
-            <Text className="preview-range" size="sm" c="gray.5">
-              {formatRange(page, PAGE_SIZE, totalItems)}
-            </Text>
+            <Group className="preview-head" justify="space-between" gap="sm" wrap="nowrap">
+              <Text className="preview-range" size="sm" c="gray.5">
+                {formatRange(page, PAGE_SIZE, totalItems)}
+              </Text>
+              {rows.length > 0 && (
+                <SelectShownButton
+                  allShownSelected={shown.all}
+                  onSelectShown={() => selectShown(shown.appIds)}
+                />
+              )}
+            </Group>
           )}
 
           {selectedCount > 0 && (

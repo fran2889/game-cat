@@ -372,6 +372,13 @@ main {
   align-items: end;
 }
 
+/* The row summary takes the space between the prefix buttons and the remove
+ * action, matching the mockup's muted, right-aligned description. */
+.rule-description {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Refresh progress is a custom visualisation, not a Mantine control. */
 .progress {
   height: 6px;

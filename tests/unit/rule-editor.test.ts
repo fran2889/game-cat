@@ -3,7 +3,6 @@ import {
   addSelectionToGameRule,
   changeRuleField,
   emptyRule,
-  formatMinutesAsHours,
   gameRuleIds,
   mergedGameRuleIds,
   parseHoursToMinutes,
@@ -12,7 +11,7 @@ import {
   togglePlatformRule,
   validateCollectionName,
 } from "../../src/client/rule-editor.ts";
-import { validateRules, type Rule } from "../../src/shared/rules.ts";
+import { formatMinutesAsHours, validateRules, type Rule } from "../../src/shared/rules.ts";
 
 describe("editor Rule construction", () => {
   it("starts a new Rule with an allowed Operator and a typed value", () => {

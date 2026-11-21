@@ -106,13 +106,6 @@ export function parseHoursToMinutes(input: string): number | null {
   return Number.isSafeInteger(minutes) && minutes >= 0 ? minutes : null;
 }
 
-export function formatMinutesAsHours(minutes: number): string {
-  if (!Number.isFinite(minutes) || minutes < 0) {
-    return "";
-  }
-  return Number((minutes / 60).toFixed(2)).toString();
-}
-
 /** One `AND platform has <name>` Rule per selected platform. */
 export function platformsInRules(rules: readonly Rule[]): string[] {
   return rules

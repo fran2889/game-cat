@@ -10,8 +10,11 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
+import { IconX } from "@tabler/icons-react";
 import {
+  describeRule,
   RULE_FIELD_DEFINITIONS,
+  RULE_OPERATOR_LABELS,
   RULE_PREFIXES,
   ruleFieldDefinition,
   type Rule,
@@ -23,17 +26,6 @@ import {
 import type { SteamCollectionSummary } from "../../shared/types.ts";
 import { changeRuleField, changeRuleOperator, changeRulePrefix } from "../rule-editor.ts";
 import { RuleValueControl, type RuleSuggestions } from "./RuleValueControl.tsx";
-
-const OPERATOR_LABELS: Record<RuleOperator, string> = {
-  is: "is",
-  contains: "contains",
-  has: "has",
-  in: "is one of",
-  lt: "is less than",
-  lte: "is at most",
-  gt: "is greater than",
-  gte: "is at least",
-};
 
 const PREFIX_COLORS: Record<RulePrefix, string> = {
   AND: "blue",
@@ -82,6 +74,9 @@ export function RuleRow({
   const valueId = `rule-${index}-value`;
   const valueLabel =
     rule.field === "game" ? "Games" : rule.field === "playtime" ? "Hours" : "Value";
+  const description = describeRule(rule, {
+    collectionName: (id) => collections.find((collection) => collection.id === id)?.name,
+  });
 
   return (
     <Paper
@@ -118,13 +113,16 @@ export function RuleRow({
               })}
             </Button.Group>
           </Box>
+          <Text className="rule-description" size="xs" c="gray.5" ta="right" lineClamp={2}>
+            {description}
+          </Text>
           <ActionIcon
             className="rule-remove"
             variant="subtle"
             aria-label={`Remove rule ${index + 1}`}
             onClick={onRemove}
           >
-            ×
+            <IconX size={14} aria-hidden="true" />
           </ActionIcon>
         </Group>
 
@@ -150,7 +148,7 @@ export function RuleRow({
             value={rule.operator}
             data={(ruleFieldDefinition(rule.field)?.operators ?? []).map((operator) => ({
               value: operator,
-              label: OPERATOR_LABELS[operator],
+              label: RULE_OPERATOR_LABELS[operator],
             }))}
             onChange={(event) =>
               onChange(changeRuleOperator(rule, event.currentTarget.value as RuleOperator))

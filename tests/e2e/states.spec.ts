@@ -135,7 +135,9 @@ test("the Steam and Smart Collection loading grids share the flush placeholder",
     await expect(smartSkeleton).toBeVisible();
     await expectFlushPortraitPlaceholder(smartSkeleton);
     releaseSmart();
-    await expect(page.getByTestId("match-count")).toHaveText("10 matches");
+    await expect(page.getByTestId("match-count")).toHaveText(
+      "10 games match · updates as you edit",
+    );
   } finally {
     await app.close();
   }
@@ -157,7 +159,9 @@ test("the editor preview shows the shared loading grid until matches arrive", as
     await expectFlushPortraitPlaceholder(skeleton);
 
     release();
-    await expect(page.getByTestId("match-count")).toHaveText("10 matches");
+    await expect(page.getByTestId("match-count")).toHaveText(
+      "10 games match · updates as you edit",
+    );
   } finally {
     await app.close();
   }

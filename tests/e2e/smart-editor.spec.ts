@@ -27,7 +27,7 @@ test("the empty editor shows the global prefix copy and all-Games state", async 
   await expect(
     page.getByText("NOT removes matching games. It does not require the field to have a value."),
   ).toBeVisible();
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
   await expect(
     page.getByText("No rules. This matches all 130 games. Add a rule to narrow it."),
   ).toBeVisible();
@@ -47,7 +47,7 @@ test("Rule edits update counts, debounce preview, and skip the API while invalid
   });
 
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
   const initialCalls = previewCalls;
 
   await page.getByRole("button", { name: "Add rule" }).click();
@@ -61,20 +61,20 @@ test("Rule edits update counts, debounce preview, and skip the API while invalid
 
   await page.locator('[data-rule-index="0"] .rule-value input').fill("Puzzle");
   await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
-  await expect(page.getByTestId("match-count")).toHaveText("1 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("1 game matches · updates as you edit");
   expect(previewCalls).toBeGreaterThan(initialCalls);
   await expect(page.locator(".game-grid .game-card")).toHaveCount(1);
 
   await page.getByRole("button", { name: "NOT prefix for Rule 1" }).click();
   await expect(page.getByTestId("prefix-counts")).toHaveText("0 AND · 0 OR · 1 NOT");
-  await expect(page.getByTestId("match-count")).toHaveText("129 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("129 games match · updates as you edit");
 
   await page.getByRole("button", { name: "Remove rule 1" }).click();
   await expect(page.getByTestId("prefix-counts")).toHaveText("0 AND · 0 OR · 0 NOT");
   await expect(
     page.getByText("No rules. This matches all 130 games. Add a rule to narrow it."),
   ).toBeVisible();
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
 });
 
 test("no matches and invalid hours use the documented copy without calling the API", async ({
@@ -88,7 +88,7 @@ test("no matches and invalid hours use the documented copy without calling the A
   });
 
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
 
   await page.getByRole("button", { name: "Playtime", exact: true }).click();
   await page.locator('[data-rule-index="0"] .rule-operator select').selectOption("gt");
@@ -99,7 +99,7 @@ test("no matches and invalid hours use the documented copy without calling the A
       "No games match these rules. An OR rule widens the result; a NOT rule removes games.",
     ),
   ).toBeVisible();
-  await expect(page.getByTestId("match-count")).toHaveText("0 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("0 games match · updates as you edit");
   const callsAfterMatch = previewCalls;
 
   await hours.fill("");
@@ -117,13 +117,13 @@ test("no matches and invalid hours use the documented copy without calling the A
 
 test("a broad Rule pages through every match", async ({ page }) => {
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
   await expect(page.locator(".pagination-range")).toHaveText("1–60 of 130");
 
   await page.getByRole("button", { name: "Next" }).click();
   await expect(page.getByText("Page 2 of 3")).toBeVisible();
   await expect(page.locator(".pagination-range")).toHaveText("61–120 of 130");
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
   await expect(page.locator(".game-grid .game-card")).toHaveCount(60);
 
   await page.getByRole("button", { name: "Next" }).click();
@@ -148,20 +148,22 @@ test("New from selection prefills one ascending game Rule", async ({ page }) => 
   const second = Number((await chips.nth(1).textContent())?.replace(/\D/g, ""));
   expect(Number.isSafeInteger(first)).toBe(true);
   expect(first).toBeLessThan(second);
-  await expect(page.getByTestId("match-count")).toHaveText("2 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("2 games match · updates as you edit");
   await expect(page.locator(".game-grid .game-card")).toHaveCount(2);
 });
 
 test("the boolean Installed control toggles true and false", async ({ page }) => {
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
 
   await page.getByRole("button", { name: "Add rule" }).click();
   await page.locator('[data-rule-index="0"] .rule-field select').selectOption("installed");
   const toggle = page.locator('[data-rule-index="0"] .rule-value input[type="checkbox"]');
   await expect(toggle).toBeChecked();
   await expect(page.locator('[data-rule-index="0"] .rule-value .unit')).toHaveText("true");
-  await expect(page.getByTestId("match-count")).not.toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).not.toHaveText(
+    "130 games match · updates as you edit",
+  );
   const installedCount = await page.getByTestId("match-count").textContent();
 
   await toggle.uncheck();
@@ -171,7 +173,7 @@ test("the boolean Installed control toggles true and false", async ({ page }) =>
 
 test("the platform quick add emits one has Rule per selected platform", async ({ page }) => {
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
 
   await page.getByLabel("linux").check();
   await expect(page.getByTestId("prefix-counts")).toHaveText("1 AND · 0 OR · 0 NOT");

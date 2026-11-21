@@ -2734,6 +2734,9 @@ Review, Released, Tags.
 
 - A Game can be selected from the grid or table. The results header offers Select shown and Clear
   selection. The selection bar shows `N selected`, Clear, and New from selection.
+- The Smart Collection editor's preview header also offers Select shown for the preview page. The
+  button reads `All shown selected` and is disabled when every shown Game is selected; clearing stays
+  in the shared selection bar.
 - Selection is scoped to the active view kind: `library`, `installed`, `smart`, or `steam`. Each view
   keeps its own set for the session; switching views shows that view's set and never merges sets.
   Clear and creating a Smart Collection from the selection clear the active view's set; a full page
@@ -2764,13 +2767,16 @@ There are no nested groups. Prefixes are global, and the editor must not imply r
 #### Editor layout
 
 - The results pane shows the live matches using the current grid/table layout and the same page
-  controls as the Library, so a broad Rule remains browsable. The editor pane contains the name, save
-  state, match count, global prefix callout, Rule rows, Add rule, and quick-add actions for Tag,
-  Playtime, Steam Collection, and Game list.
+  controls as the Library, so a broad Rule remains browsable. The editor pane opens with a rail header
+  showing the `SMART COLLECTION` eyebrow and, for a saved Collection, the save-state dot and label. It
+  then contains the name, match count, global prefix callout, Rule rows, Add rule, and quick-add
+  actions for Tag, Playtime, Steam Collection, and Game list.
 - The name is a text field with the 1-80 code point limit. A blank or duplicate name is an inline
   validation error.
 - Each Rule row is prefix-first: an `AND`/`OR`/`NOT` segmented control, a Field select, an
   Operator select constrained by the Field, and a value control. A remove action is always available.
+  Each row also shows a short description derived from the Field registry, its Operator, and its
+  value.
 - Value controls: boolean toggle for `installed`; enum select for `ownershipStatus`; a platform select
   for `windows`, `mac`, and `linux` that emits one `has` Rule per selected platform; Collection select
   for `steamCollection` with dynamic Collections disabled and labelled `dynamic`; date input for
@@ -2790,8 +2796,10 @@ Prefixes group globally: every AND must match, at least one OR must match, no NO
 They are not evaluated row by row.
 ```
 
-The counts update as Rules are added, removed, or have their prefix changed. The match count is
-`aria-live="polite"`.
+The counts update as Rules are added, removed, or have their prefix changed. The match count reads
+`N games match · updates as you edit` (`1 game matches` for a single match) and is
+`aria-live="polite"`; only the count and noun are in the live region, so the static hint is not
+re-announced. The prefix callout is static guidance and does not use an alert role.
 
 #### Live preview
 
@@ -2805,6 +2813,8 @@ The counts update as Rules are added, removed, or have their prefix changed. The
   `pageSize=60`. The total comes from `pagination.totalItems`; the pane shows the current range (for
   example `1-60 of 240`) and page controls. Changing the page re-requests immediately; changing a Rule
   resets the page to 1.
+- The preview header shows the range and offers Select shown for the current page, using the active
+  view's selection set.
 - Empty Rules show the copy in [§1.7](#17-decisions-this-document-makes) and match every Game.
 - No matches show the copy in [§1.7](#17-decisions-this-document-makes).
 
@@ -2816,8 +2826,8 @@ The counts update as Rules are added, removed, or have their prefix changed. The
 - After the first save, name and Rule edits autosave 600 ms after the last change. One save is in
   flight at a time. Edits made during a save are coalesced into the next save, which starts when the
   current one finishes.
-- Save states are `Saved`, `Saving…`, `Unsaved changes`, and `Save failed`. The indicator is visible
-  next to the name.
+- Save states are `Saved`, `Saving…`, `Unsaved changes`, and `Save failed`. For a saved Collection
+  the indicator is visible in the rail header, beside the `SMART COLLECTION` eyebrow.
 - A failed save is retried after 2 s, 5 s, and 15 s. The local edits remain. After the third failure,
   show `Save failed` with a Retry action and a message that the server may be unavailable. Navigating
   away while the save is failed asks for confirmation.
@@ -2961,7 +2971,7 @@ fetch timestamps, and counts.
 | Ownership invalid key         | `Ownership incomplete`; owned/local-only/unknown counts                                                      | View refresh errors, Fix API key, Retry |
 | Fetch partial                 | Banner with the run error or `Fetch finished with some work incomplete.`                                     | View refresh errors, Retry              |
 | Fetch failed                  | Banner with the run error                                                                                    | View refresh errors, Retry              |
-| Save failed                   | `Save failed` next to the name; edits retained                                                               | Retry, Keep editing                     |
+| Save failed                   | `Save failed` in the rail header; edits retained                                                             | Retry, Keep editing                     |
 | Server disconnected           | `Cannot reach game-cat. Is the server still running?` with the last known data where possible                | Retry connection                        |
 | Unknown route or Game         | `Not found` with a link back to the Library                                                                  | Back to Library                         |
 | Metadata missing              | Game detail shows `No tags yet`, `Not available on the store`, or `Reviews unavailable`                      | Fetch, Refresh selected                 |

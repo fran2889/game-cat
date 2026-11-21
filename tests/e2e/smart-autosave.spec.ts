@@ -13,7 +13,7 @@ async function createCollection(page: Page, url: string, name: string): Promise<
   await expect(page.getByTestId("save-state")).toHaveText("Saved");
 }
 
-test("autosave shows Saved, Unsaved changes, Saving…, and Saved next to the name", async ({
+test("autosave shows Saved, Unsaved changes, Saving…, and Saved in the rail header", async ({
   page,
 }) => {
   const app = await startTestApp({ games: 20 });
@@ -141,7 +141,9 @@ test("Add to current rules extends the one game Rule and autosaves it", async ({
   const app = await startTestApp({ games: 20 });
   try {
     await createCollection(page, app.url, "Selection target");
-    await expect(page.getByTestId("match-count")).toHaveText("20 matches");
+    await expect(page.getByTestId("match-count")).toHaveText(
+      "20 games match · updates as you edit",
+    );
 
     const checks = page.locator(".preview-pane .game-card input[type=checkbox]");
     await checks.nth(0).check();
@@ -152,7 +154,7 @@ test("Add to current rules extends the one game Rule and autosaves it", async ({
     await expect(page.getByTestId("prefix-counts")).toHaveText("1 AND · 0 OR · 0 NOT");
     await expect(page.locator('[data-rule-index="0"] .rule-field select')).toHaveValue("game");
     await expect(page.locator('[data-rule-index="0"] .picker-chips .chip')).toHaveCount(2);
-    await expect(page.getByTestId("match-count")).toHaveText("2 matches");
+    await expect(page.getByTestId("match-count")).toHaveText("2 games match · updates as you edit");
     await expect(page.getByTestId("save-state")).toHaveText("Saved");
 
     // Adding the same selection again extends the existing Rule instead of
@@ -259,7 +261,7 @@ test("New from selection limits the draft and clears the Library selection after
 
     await expect(page).toHaveURL(/\/smart\/new$/);
     await expect(page.getByTestId("prefix-counts")).toHaveText("1 AND · 0 OR · 0 NOT");
-    await expect(page.getByTestId("match-count")).toHaveText("2 matches");
+    await expect(page.getByTestId("match-count")).toHaveText("2 games match · updates as you edit");
 
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page).toHaveURL(/\/smart\/[0-9a-f-]{36}$/);

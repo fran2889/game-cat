@@ -108,7 +108,10 @@ test("match counts, Refresh progress, and toasts are announced politely", async 
   await expect(page.locator(".results-count")).toHaveAttribute("aria-live", "polite");
 
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveAttribute("aria-live", "polite");
+  // The live region wraps only the count and noun; the static hint sits outside
+  // it so edits do not re-announce "updates as you edit".
+  const matchCount = page.getByTestId("match-count").locator('[aria-live="polite"]');
+  await expect(matchCount).toHaveText("130 games match");
 
   await page.goto(`${app.url}games/620`);
   await expect(page.getByRole("heading", { name: "Portal 2" })).toBeVisible();

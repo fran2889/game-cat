@@ -164,7 +164,7 @@ test("keyboard-only Library browsing: search, layout, selection, detail, and foc
 
 test("the editor rail precedes the results preview in keyboard order", async ({ page }) => {
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
 
   await focusMain(page);
   // The rail sits on the right visually but comes first in the DOM, so Tab
@@ -175,7 +175,7 @@ test("the editor rail precedes the results preview in keyboard order", async ({ 
 
 test("keyboard-only Smart Collection create and autosave", async ({ page }) => {
   await page.goto(`${app.url}smart/new`);
-  await expect(page.getByTestId("match-count")).toHaveText("130 matches");
+  await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
 
   await focusMain(page);
   const name = page.getByRole("textbox", { name: "Name" });

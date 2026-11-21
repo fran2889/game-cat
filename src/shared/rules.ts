@@ -60,6 +60,40 @@ export type RuleValueKind =
   | "steamCollection"
   | "appIds";
 
+/** Dropdown labels and sentence fallbacks share one Operator vocabulary. */
+export const RULE_OPERATOR_LABELS: Record<RuleOperator, string> = {
+  is: "is",
+  contains: "contains",
+  has: "has",
+  in: "is one of",
+  lt: "is less than",
+  lte: "is at most",
+  gt: "is greater than",
+  gte: "is at least",
+};
+
+const COMPARISON_SYMBOLS: Partial<Record<RuleOperator, string>> = {
+  lt: "<",
+  lte: "≤",
+  gt: ">",
+  gte: "≥",
+};
+
+export interface RuleDescriptionContext {
+  /** Resolve a Steam Collection id to its mirrored name for the row copy. */
+  collectionName?(id: string): string | undefined;
+}
+
+/**
+ * Short row copy for one Rule. Returning `undefined` asks `describeRule` for
+ * the generic `<Label> <operator>…` fallback, so a draft row is never blank.
+ */
+export type RuleFieldDescriber = (
+  rule: Rule,
+  definition: RuleFieldDefinition,
+  context: RuleDescriptionContext,
+) => string | undefined;
+
 export interface RuleFieldDefinition {
   field: RuleField;
   label: string;
@@ -73,6 +107,96 @@ export interface RuleFieldDefinition {
   values?: readonly string[];
   min?: number;
   max?: number;
+  /** Human-readable row copy derived from this Field, its Operator, and value. */
+  describe: RuleFieldDescriber;
+}
+
+function hasTextValue(value: RuleValue): value is string {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+function hasNonNegativeNumber(value: RuleValue): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function humanizeValue(value: string): string {
+  const words = value.split(/[_\s]+/).filter((word) => word !== "");
+  if (words.length === 0) {
+    return value;
+  }
+  const sentence = words.join(" ").toLowerCase();
+  return sentence[0]!.toUpperCase() + sentence.slice(1);
+}
+
+const describeName: RuleFieldDescriber = (rule) => {
+  if (!hasTextValue(rule.value)) {
+    return undefined;
+  }
+  return rule.operator === "is" ? `Named "${rule.value}"` : `Name contains "${rule.value}"`;
+};
+
+const describeBoolean: RuleFieldDescriber = (rule, definition) => {
+  if (typeof rule.value !== "boolean") {
+    return undefined;
+  }
+  if (rule.field === "installed") {
+    return rule.value ? "Installed" : "Not installed";
+  }
+  return `${definition.label}: ${rule.value ? "true" : "false"}`;
+};
+
+function comparisonDescriber(format?: (value: number) => string): RuleFieldDescriber {
+  return (rule, definition) => {
+    const symbol = COMPARISON_SYMBOLS[rule.operator];
+    if (!hasNonNegativeNumber(rule.value) || symbol === undefined) {
+      return undefined;
+    }
+    return `${definition.label} ${symbol} ${format?.(rule.value) ?? String(rule.value)}`;
+  };
+}
+
+const describeDate: RuleFieldDescriber = (rule, definition) => {
+  const symbol = COMPARISON_SYMBOLS[rule.operator];
+  if (!hasTextValue(rule.value) || symbol === undefined) {
+    return undefined;
+  }
+  return `${definition.label} ${symbol} ${rule.value}`;
+};
+
+const describeEnum: RuleFieldDescriber = (rule, definition) =>
+  hasTextValue(rule.value) ? `${definition.label}: ${humanizeValue(rule.value)}` : undefined;
+
+const describeOpenEnum: RuleFieldDescriber = (rule, definition) =>
+  hasTextValue(rule.value)
+    ? `${definition.label} ${RULE_OPERATOR_LABELS[rule.operator]} "${rule.value}"`
+    : undefined;
+
+const describeColonText: RuleFieldDescriber = (rule, definition) =>
+  hasTextValue(rule.value) ? `${definition.label}: ${rule.value}` : undefined;
+
+const describeTag: RuleFieldDescriber = (rule) =>
+  hasTextValue(rule.value) ? `Tagged "${rule.value}"` : undefined;
+
+const describeSteamCollection: RuleFieldDescriber = (rule, definition, context) => {
+  if (!hasTextValue(rule.value)) {
+    return undefined;
+  }
+  return `${definition.label}: ${context.collectionName?.(rule.value) ?? rule.value}`;
+};
+
+const describeGameList: RuleFieldDescriber = (rule, definition) => {
+  if (!Array.isArray(rule.value) || rule.value.length === 0) {
+    return undefined;
+  }
+  const count = rule.value.length;
+  return `${definition.label}: ${count} ${count === 1 ? "game" : "games"}`;
+};
+
+export function formatMinutesAsHours(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes < 0) {
+    return "";
+  }
+  return Number((minutes / 60).toFixed(2)).toString();
 }
 
 const TEXT_MISSING = "never missing";
@@ -86,6 +210,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["is", "contains"],
     source: "games.name",
     missing: TEXT_MISSING,
+    describe: describeName,
   },
   {
     field: "playtime",
@@ -95,6 +220,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     source: "games.playtime_minutes",
     missing: "never missing; 0 is a real value",
     min: 0,
+    describe: comparisonDescriber((minutes) => `${formatMinutesAsHours(minutes)} h`),
   },
   {
     field: "installed",
@@ -103,6 +229,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["is"],
     source: "games.installed",
     missing: "null means unknown",
+    describe: describeBoolean,
   },
   {
     field: "ownershipStatus",
@@ -112,6 +239,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     source: "games.ownership_status",
     missing: TEXT_MISSING,
     values: ["owned", "local_only", "unknown"],
+    describe: describeEnum,
   },
   {
     field: "lastPlayed",
@@ -120,6 +248,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["lt", "lte", "gt", "gte"],
     source: "v_games.last_played_at",
     missing: "null means never or unknown",
+    describe: describeDate,
   },
   {
     field: "releaseYear",
@@ -130,6 +259,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     missing: METADATA_MISSING,
     min: 1000,
     max: 9999,
+    describe: comparisonDescriber(),
   },
   {
     field: "metacriticScore",
@@ -140,6 +270,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     missing: METADATA_MISSING,
     min: 0,
     max: 100,
+    describe: comparisonDescriber(),
   },
   {
     field: "reviewScore",
@@ -150,6 +281,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     missing: "null means no usable review summary",
     min: 0,
     max: 100,
+    describe: comparisonDescriber(),
   },
   {
     field: "reviewTier",
@@ -158,6 +290,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["is"],
     source: "steam_review_summaries.review_tier",
     missing: "null means no usable review summary",
+    describe: describeOpenEnum,
   },
   {
     field: "reviewCount",
@@ -167,6 +300,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     source: "steam_review_summaries.review_total",
     missing: "null means unknown; 0 is known",
     min: 0,
+    describe: comparisonDescriber(),
   },
   {
     field: "storefrontType",
@@ -175,6 +309,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["is"],
     source: "storefront_appdetails.type",
     missing: METADATA_MISSING,
+    describe: describeOpenEnum,
   },
   {
     field: "platform",
@@ -184,6 +319,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     source: "storefront_appdetails.platforms_json",
     missing: "empty set when unknown",
     values: ["windows", "mac", "linux"],
+    describe: describeEnum,
   },
   {
     field: "genre",
@@ -192,6 +328,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["has"],
     source: "storefront_appdetails.genres_json",
     missing: "empty set when unknown",
+    describe: describeColonText,
   },
   {
     field: "category",
@@ -200,6 +337,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["has"],
     source: "storefront_appdetails.categories_json",
     missing: "empty set when unknown",
+    describe: describeColonText,
   },
   {
     field: "developer",
@@ -208,6 +346,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["has"],
     source: "storefront_appdetails.developers_json",
     missing: "empty set when unknown",
+    describe: describeColonText,
   },
   {
     field: "publisher",
@@ -216,6 +355,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["has"],
     source: "storefront_appdetails.publishers_json",
     missing: "empty set when unknown",
+    describe: describeColonText,
   },
   {
     field: "tag",
@@ -224,6 +364,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["has"],
     source: "tags, game_tags",
     missing: "empty set when unknown",
+    describe: describeTag,
   },
   {
     field: "steamCollection",
@@ -232,6 +373,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["has"],
     source: "steam_collections, steam_collection_games",
     missing: "empty set when unknown",
+    describe: describeSteamCollection,
   },
   {
     field: "game",
@@ -240,6 +382,7 @@ export const RULE_FIELD_DEFINITIONS: readonly RuleFieldDefinition[] = [
     operators: ["in"],
     source: "games.app_id",
     missing: TEXT_MISSING,
+    describe: describeGameList,
   },
 ];
 
@@ -249,6 +392,23 @@ const FIELD_INDEX = new Map<string, RuleFieldDefinition>(
 
 export function ruleFieldDefinition(field: string): RuleFieldDefinition | undefined {
   return FIELD_INDEX.get(field);
+}
+
+/**
+ * A short, human-readable summary of one Rule, built from the Field registry
+ * above. A Field's describer returns `undefined` when its value is not usable;
+ * the fallback still names the Field and Operator, so a draft row is never
+ * blank.
+ */
+export function describeRule(rule: Rule, context: RuleDescriptionContext = {}): string {
+  const definition = ruleFieldDefinition(rule.field);
+  if (definition === undefined) {
+    return "Rule";
+  }
+  return (
+    definition.describe(rule, definition, context) ??
+    `${definition.label} ${RULE_OPERATOR_LABELS[rule.operator]}…`
+  );
 }
 
 export function isRulePrefix(value: unknown): value is RulePrefix {

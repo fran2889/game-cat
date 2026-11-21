@@ -4,6 +4,7 @@ import { Link, useOutletContext } from "react-router-dom";
 import { Alert, Box, Button, Code, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import { ApiError, gamesQueryOptions, startLibraryScan } from "../api.ts";
 import { useBrowse } from "../browse-context.tsx";
+import { shownSelection } from "../selection.ts";
 import { GameGridSkeleton } from "../components/GameGridSkeleton.tsx";
 import { GameResults } from "../components/GameResults.tsx";
 import { OwnershipBanner } from "../components/OwnershipBanner.tsx";
@@ -111,7 +112,7 @@ export function LibraryView({ mode }: LibraryViewProps) {
   const dataAsOf = games?.meta.dataAsOf ?? null;
   const rows = games?.data ?? [];
   const filtered = search.trim() !== "" || installedFilter;
-  const allShownSelected = rows.length > 0 && rows.every((game) => isSelected(game.appId));
+  const shown = shownSelection(rows, isSelected);
 
   const actions = (
     <Group gap="sm" wrap="wrap">
@@ -256,10 +257,10 @@ export function LibraryView({ mode }: LibraryViewProps) {
           totalItems={totalItems}
           shownItems={rows.length}
           filtered={filtered}
-          allShownSelected={allShownSelected}
+          allShownSelected={shown.all}
           hasGames={rows.length > 0}
           selectionCount={selectedCount}
-          onSelectShown={() => selectShown(rows.map((game) => game.appId))}
+          onSelectShown={() => selectShown(shown.appIds)}
           onClearSelection={clearSelection}
         />
         <GameResults games={rows} />

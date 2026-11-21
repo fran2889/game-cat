@@ -5,6 +5,7 @@ import { Alert, Badge, Box, Button, Group, Paper, Stack, Text, Title } from "@ma
 import type { SteamCollectionSummary } from "../../shared/types.ts";
 import { ApiError, steamCollectionGamesQueryOptions, steamCollectionQueryOptions } from "../api.ts";
 import { useBrowse } from "../browse-context.tsx";
+import { shownSelection } from "../selection.ts";
 import { GameGridSkeleton } from "../components/GameGridSkeleton.tsx";
 import { GameResults } from "../components/GameResults.tsx";
 import { Pagination } from "../components/Pagination.tsx";
@@ -173,7 +174,7 @@ export function SteamCollectionView() {
   const totalPages = members?.pagination.totalPages ?? 0;
   const dataAsOf = members?.meta.dataAsOf ?? null;
   const rows = members?.data ?? [];
-  const allShownSelected = rows.length > 0 && rows.every((game) => isSelected(game.appId));
+  const shown = shownSelection(rows, isSelected);
 
   if (members === null) {
     return (
@@ -213,10 +214,10 @@ export function SteamCollectionView() {
             totalItems={totalItems}
             shownItems={rows.length}
             filtered={false}
-            allShownSelected={allShownSelected}
+            allShownSelected={shown.all}
             hasGames={rows.length > 0}
             selectionCount={selectedCount}
-            onSelectShown={() => selectShown(rows.map((game) => game.appId))}
+            onSelectShown={() => selectShown(shown.appIds)}
             onClearSelection={clearSelection}
           />
           <GameResults games={rows} />

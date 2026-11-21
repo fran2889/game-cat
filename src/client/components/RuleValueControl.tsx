@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Checkbox, Group, NativeSelect, Text, TextInput } from "@mantine/core";
-import { parseHoursToMinutes, formatMinutesAsHours, sortedGameIds } from "../rule-editor.ts";
+import { parseHoursToMinutes, sortedGameIds } from "../rule-editor.ts";
 import type { RuleValueField, SteamCollectionSummary } from "../../shared/types.ts";
 import {
+  formatMinutesAsHours,
   ruleFieldDefinition,
   isRuleValueField,
   type Rule,
