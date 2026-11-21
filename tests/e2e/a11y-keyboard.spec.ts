@@ -218,3 +218,13 @@ test("keyboard-only /errors flow selects the affected Games", async ({ page }) =
     await errors.close();
   }
 });
+
+test("a focused grid card keeps a visible focus ring", async ({ page }) => {
+  await page.goto(app.url);
+  const card = page.locator(".game-card").first();
+  await expect(card).toBeVisible();
+
+  await card.locator(".card-open").focus();
+  await expect(card).toHaveCSS("outline-style", "solid");
+  await expect(card).toHaveCSS("outline-offset", "-2px");
+});

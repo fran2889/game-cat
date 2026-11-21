@@ -148,6 +148,17 @@ main {
   overflow: hidden;
 }
 
+/* The card clips the art flush to its edge, which also clips the anchor's own
+ * focus ring. Draw the ring on the card instead, inset so it stays visible. */
+.game-card:focus-within {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.game-card .card-open:focus-visible {
+  outline: none;
+}
+
 .game-card:hover {
   border-color: var(--mantine-color-dark-9);
 }
