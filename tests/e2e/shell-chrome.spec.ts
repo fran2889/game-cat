@@ -103,6 +103,9 @@ test("the sidebar matches the mockup's row, section, brand, and type metrics", a
 
   // A 34px cat mark with the large wordmark and the real version badge.
   await expect(page.locator(".brand > :first-child")).toHaveCSS("width", "34px");
+  // Group writes its gap as a CSS variable through the CSSOM, which CSP does
+  // not govern; pin the computed spacing under the real security header.
+  await expect(page.locator("#sidebar .brand")).toHaveCSS("gap", "12px");
   const wordmark = page.locator(".brand").getByText("game-cat", { exact: true });
   await expect(wordmark).toHaveCSS("font-size", "18px");
   await expect(page.locator(".brand .mantine-Badge-root")).toHaveText(/^v\d+\.\d+\.\d+$/);
