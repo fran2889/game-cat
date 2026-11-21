@@ -80,6 +80,37 @@ const AUTOSAVE_LABELS: Partial<Record<AutosaveStatus, string>> = {
   failed: "Save failed",
 };
 
+/** One copy source for both navigation-guard reasons. */
+const LEAVE_CONFIRMATIONS = {
+  failed: {
+    label: "Leave with a failed save",
+    message: "Your latest changes could not be saved. Leave this page and lose those changes?",
+  },
+  draft: {
+    label: "Leave with unsaved changes",
+    message: "This Smart Collection has not been saved. Leave and discard the draft?",
+  },
+} as const;
+
+/** The mockup's 14 px plus; an inline glyph avoids a whole icon dependency. */
+function PlusIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
 const EMPTY_AUTOSAVE_STATE: AutosaveState = {
   status: "idle",
   dirty: false,
@@ -115,7 +146,7 @@ interface Conflict {
 /**
  * The Smart Collection editor (§7.4).
  *
- * A new Collection is created by the explicit first Save. After that the
+ * A new Smart Collection is created by the explicit first Save. After that the
  * AutosaveController owns debounced name/Rule saves, the retry schedule, and
  * the failure navigation guard; the preview remains a separate 300 ms debounce.
  */
@@ -174,14 +205,11 @@ export function SmartEditor({
   const patchMutationRef = useRef(patchMutation);
   patchMutationRef.current = patchMutation;
 
-  const initialDraft = useRef({ name, rules });
+  const initialDraft = {
+    name: initialName ?? NEW_COLLECTION_NAME,
+    rules: initialRules ?? [],
+  };
   const savedId = collection?.id ?? null;
-  const newDraftDirty =
-    savedId === null &&
-    (name !== initialDraft.current.name ||
-      JSON.stringify(rules) !== JSON.stringify(initialDraft.current.rules));
-  const newDraftDirtyRef = useRef(newDraftDirty);
-  newDraftDirtyRef.current = newDraftDirty;
   const savedIdRef = useRef(savedId);
   savedIdRef.current = savedId;
   const onSavedRef = useRef(onSaved);
@@ -190,6 +218,9 @@ export function SmartEditor({
   const saveFailed = autosaveState.status === "failed" || autosaveState.lastError !== null;
   const failedRef = useRef(false);
   failedRef.current = saveFailed;
+  const draftDirty = savedId === null && autosaveState.dirty;
+  const draftDirtyRef = useRef(false);
+  draftDirtyRef.current = draftDirty;
 
   function applySaveError(error: unknown): void {
     if (error instanceof ApiError && error.code === "NAME_CONFLICT") {
@@ -256,6 +287,7 @@ export function SmartEditor({
       savedId === null || collection === null
         ? null
         : { name: collection.name, rules: collection.rules },
+      savedId === null ? initialDraft : undefined,
     );
   }, [autosave, savedId]);
 
@@ -373,10 +405,13 @@ export function SmartEditor({
   };
 
   const discard = (): void => {
+    if (saving || deleting) {
+      return;
+    }
     if (savedId === null) {
-      // A new Collection has no saved state to restore; Discard leaves the
-      // explicit first-save flow without creating anything.
-      allowNavigationRef.current = true;
+      // A new Smart Collection has no saved state to restore; Discard leaves
+      // the explicit first-save flow without creating anything. A dirty draft
+      // is caught by the navigation blocker below.
       navigate("/");
       return;
     }
@@ -437,7 +472,7 @@ export function SmartEditor({
 
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      (failedRef.current || newDraftDirtyRef.current) &&
+      (failedRef.current || draftDirtyRef.current) &&
       !allowNavigationRef.current &&
       currentLocation.pathname !== nextLocation.pathname,
   );
@@ -477,6 +512,7 @@ export function SmartEditor({
   const totalPages = preview?.pagination.totalPages ?? 0;
   const dataAsOf = preview?.meta.dataAsOf ?? null;
   const selectedPlatforms = platformsInRules(rules);
+  const leaveConfirmation = LEAVE_CONFIRMATIONS[failedRef.current ? "failed" : "draft"];
 
   return (
     <Stack component="section" className="smart-editor" aria-labelledby="editor-heading" gap="md">
@@ -554,7 +590,12 @@ export function SmartEditor({
               <Button size="compact-sm" onClick={save} disabled={saveDisabled}>
                 Save
               </Button>
-              <Button variant="default" size="compact-sm" onClick={discard} disabled={deleting}>
+              <Button
+                variant="default"
+                size="compact-sm"
+                onClick={discard}
+                disabled={saving || deleting}
+              >
                 Discard
               </Button>
               {savedId !== null && !confirmingDelete && (
@@ -643,18 +684,12 @@ export function SmartEditor({
               <Paper
                 className="editor-confirm"
                 role="alertdialog"
-                aria-label={
-                  failedRef.current ? "Leave with a failed save" : "Leave with unsaved changes"
-                }
+                aria-label={leaveConfirmation.label}
                 p="sm"
                 withBorder
               >
                 <Stack gap="sm">
-                  <Text size="sm">
-                    {failedRef.current
-                      ? "Your latest changes could not be saved. Leave this page and lose those changes?"
-                      : "This Smart Collection has not been saved. Leave and discard the draft?"}
-                  </Text>
+                  <Text size="sm">{leaveConfirmation.message}</Text>
                   <Group gap="xs">
                     <Button variant="default" size="compact-sm" onClick={() => blocker.proceed()}>
                       Leave
@@ -744,9 +779,10 @@ export function SmartEditor({
                 variant="default"
                 size="compact-sm"
                 fullWidth
+                leftSection={<PlusIcon />}
                 onClick={() => addRules([emptyRule()])}
               >
-                + Add rule
+                Add rule
               </Button>
             </Group>
 
@@ -767,8 +803,8 @@ export function SmartEditor({
                     </Button>
                   ))}
                 </Group>
-                <Box className="platform-add">
-                  <Text component="p" size="xs" c="gray.5" mb={4}>
+                <Box className="platform-add" role="group" aria-labelledby="platform-label">
+                  <Text component="p" id="platform-label" size="xs" c="gray.5" mb={4}>
                     Platform
                   </Text>
                   <Group gap="md" wrap="wrap">
@@ -845,7 +881,7 @@ export function SmartEditor({
             </Paper>
           )}
 
-          {preview !== null && rows.length > 0 && <GameResults games={rows} layout="grid" />}
+          {preview !== null && rows.length > 0 && <GameResults games={rows} forceGrid />}
 
           {preview !== null && totalItems > 0 && !rulesInvalid && (
             <Pagination

@@ -262,8 +262,9 @@ main {
 }
 
 /* The editor keeps the prototype's two-pane layout: the results preview on
- * the left and a 370px rule rail on the right. Grid areas keep the DOM and
- * focus order (editor first) while matching the visual order. */
+ * the left and a 370px rule rail on the right. Grid areas move the rail
+ * visually; the DOM stays editor-first, so keyboard and reading order start
+ * with the form rather than the results it produces. */
 .editor-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 370px;
@@ -280,18 +281,20 @@ main {
   grid-area: preview;
 }
 
-/* Every rule row carries the prefix colour as a 3px edge, matching the
- * prefix buttons. The colour comes from RuleRow's `--rule-accent`. */
+/* Every rule row carries the prefix colour as a 3px edge. The token is the
+ * same `-filled` variable the active prefix button uses, so the two cannot
+ * drift. RuleRow sets `--rule-accent`; the fallback is AND's blue. */
 .rule-row {
-  border-left: 3px solid var(--rule-accent, var(--mantine-color-blue-6));
+  border-left: 3px solid var(--rule-accent, var(--mantine-color-blue-filled));
 }
 
 /* Rule fields keep the prefix-first shape: field, operator, and value on one
- * line (stacked on narrow screens). */
+ * line (stacked on narrow screens). The 6px gap matches the mockup's field
+ * grid. */
 .rule-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
-  gap: var(--mantine-spacing-xs);
+  gap: 6px;
   align-items: end;
 }
 

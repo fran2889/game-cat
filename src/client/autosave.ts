@@ -73,6 +73,12 @@ export class AutosaveController {
   private readonly options: AutosaveOptions;
 
   private saved: AutosaveSnapshot | null = null;
+  /**
+   * The draft the editor started from before the first save. Saved Collections
+   * compare against `saved`; a `/smart/new` draft compares against this so the
+   * leave guard can see edits without duplicating the snapshot comparison.
+   */
+  private initial: AutosaveSnapshot | null = null;
   private draft: AutosaveSnapshot = { name: "", rules: [] };
   private valid = true;
   private status: AutosaveStatus = "idle";
@@ -90,8 +96,12 @@ export class AutosaveController {
     this.retryDelays = options.retryDelays ?? AUTOSAVE_RETRY_DELAYS;
   }
 
-  /** Seed the editor with its last successful save, or `null` for `/smart/new`. */
-  reset(snapshot: AutosaveSnapshot | null): void {
+  /**
+   * Seed the editor with its last successful save, or `null` for `/smart/new`.
+   * A new draft may pass the draft it starts from so `dirty` reports edits
+   * made before the first explicit save.
+   */
+  reset(snapshot: AutosaveSnapshot | null, initialDraft?: AutosaveSnapshot): void {
     this.clearTimer();
     this.disposed = false;
     this.saving = false;
@@ -100,7 +110,9 @@ export class AutosaveController {
     this.retryIndex = 0;
     this.lastError = null;
     this.saved = snapshot === null ? null : cloneSnapshot(snapshot);
-    this.draft = snapshot === null ? { name: "", rules: [] } : cloneSnapshot(snapshot);
+    this.initial =
+      snapshot === null && initialDraft !== undefined ? cloneSnapshot(initialDraft) : null;
+    this.draft = cloneSnapshot(snapshot ?? initialDraft ?? { name: "", rules: [] });
     this.valid = true;
     this.status = snapshot === null ? "idle" : "saved";
     this.emit();
@@ -115,6 +127,7 @@ export class AutosaveController {
     this.retryIndex = 0;
     this.lastError = null;
     this.saved = cloneSnapshot(snapshot);
+    this.initial = null;
     this.status = this.isDirty() ? "unsaved" : "saved";
     this.emit();
   }
@@ -245,7 +258,7 @@ export class AutosaveController {
   getState(): AutosaveState {
     return {
       status: this.status,
-      dirty: this.saved !== null && this.isDirty(),
+      dirty: this.isDirty(),
       retrying: this.retrying,
       retryDelay: this.retryDelay,
       retryAttempt: this.retryIndex,
@@ -255,7 +268,8 @@ export class AutosaveController {
   }
 
   private isDirty(): boolean {
-    return this.saved !== null && serializeSnapshot(this.draft) !== serializeSnapshot(this.saved);
+    const baseline = this.saved ?? this.initial;
+    return baseline !== null && serializeSnapshot(this.draft) !== serializeSnapshot(baseline);
   }
 
   private isRetryable(error: unknown): boolean {
