@@ -45,7 +45,7 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
   await add.click();
   const row = page.locator('[data-rule-index="0"]');
   await expect(row).toHaveCSS("padding", "10px");
-  await expect(row).toHaveCSS("border-left-width", "3px");
+  await expect(row).toHaveCSS("box-shadow", /rgb\(51, 154, 240\) 3px 0px 0px 0px inset/);
 
   // The callout, rule list, Add rule, and quick add are all in the same
   // vertical rhythm; none of them may sit flush against its neighbour.
@@ -59,19 +59,17 @@ test("the editor is a right rail with a full-width Add rule and prefix accents",
   expect(
     (quickAddBox?.y ?? 0) - ((actionsRowBox?.y ?? 0) + (actionsRowBox?.height ?? 0)),
   ).toBeGreaterThanOrEqual(10);
-  await expect(row).toHaveCSS("border-left-color", "rgb(51, 154, 240)");
-
   // The active prefix button and the row edge share the same `-filled` token.
   const or = page.getByRole("button", { name: "OR prefix for Rule 1" });
   await or.click();
   await page.mouse.move(0, 0);
-  await expect(row).toHaveCSS("border-left-color", "rgb(255, 146, 43)");
+  await expect(row).toHaveCSS("box-shadow", /rgb\(255, 146, 43\) 3px 0px 0px 0px inset/);
   await expect(or).toHaveCSS("background-color", "rgb(255, 146, 43)");
 
   const not = page.getByRole("button", { name: "NOT prefix for Rule 1" });
   await not.click();
   await page.mouse.move(0, 0);
-  await expect(row).toHaveCSS("border-left-color", "rgb(255, 107, 107)");
+  await expect(row).toHaveCSS("box-shadow", /rgb\(255, 107, 107\) 3px 0px 0px 0px inset/);
   await expect(not).toHaveCSS("background-color", "rgb(255, 107, 107)");
 });
 
