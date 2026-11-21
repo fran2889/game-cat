@@ -16,8 +16,10 @@ const FONT_FAMILY_MONOSPACE =
  * The v1 palette. Every colour the UI uses comes from here; the generated
  * stylesheet in `theme.generated.css` is derived from the same object.
  *
- * Primary shade 8 is the filled accent (#f2b544) and shade 9 is its brighter
- * hover (#ffc85c). Mantine reads the next shade for `-filled-hover`.
+ * Primary shade 5 is the filled accent (#f2b544) and shade 6 is its brighter
+ * hover (#ffc85c). Mantine reads the next shade for `-filled-hover`; keeping
+ * shade 5 for every named colour preserves autoContrast on non-primary filled
+ * controls, such as the green AND prefix.
  */
 const amber: MantineColorsTuple = [
   "#fff8e6",
@@ -25,11 +27,11 @@ const amber: MantineColorsTuple = [
   "#ffe39a",
   "#ffd66b",
   "#f9c94a",
+  "#f2b544",
+  "#ffc85c",
   "#f7bd3d",
   "#f4b23f",
   "#e6a232",
-  "#f2b544",
-  "#ffc85c",
 ];
 
 /**
@@ -69,7 +71,7 @@ const dark: MantineColorsTuple = [
 ];
 
 const PRIMARY_COLOR = "amber";
-const PRIMARY_SHADE = 8;
+const PRIMARY_SHADE = 5;
 
 export const themeTokens = {
   primary: {
@@ -94,7 +96,7 @@ export const theme = createTheme({
   fontFamily: FONT_FAMILY,
   fontFamilyMonospace: FONT_FAMILY_MONOSPACE,
   headings: { fontFamily: FONT_FAMILY },
-  // Yellow is a light primary; dark labels keep AA contrast on filled controls.
+  // Amber is a light primary; dark labels keep AA contrast on filled controls.
   autoContrast: true,
 });
 

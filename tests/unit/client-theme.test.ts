@@ -4,9 +4,9 @@ import { renderThemeCss, theme, themeTokens } from "../../src/client/theme.ts";
 describe("client theme", () => {
   it("defines the v1 palette once", () => {
     expect(theme.primaryColor).toBe("amber");
-    expect(theme.primaryShade).toBe(8);
-    expect(theme.colors?.amber?.[8]).toBe("#f2b544");
-    expect(theme.colors?.amber?.[9]).toBe("#ffc85c");
+    expect(theme.primaryShade).toBe(5);
+    expect(theme.colors?.amber?.[5]).toBe("#f2b544");
+    expect(theme.colors?.amber?.[6]).toBe("#ffc85c");
     expect(theme.colors?.dark).toEqual([
       "#e8eaf0",
       "#c9cfdb",
@@ -24,9 +24,13 @@ describe("client theme", () => {
 
   it("renders the documented variables", () => {
     const css = renderThemeCss();
-    expect(css).toContain("--mantine-color-amber-8: #f2b544");
-    expect(css).toContain("--mantine-color-amber-9: #ffc85c");
-    expect(css).toContain("--mantine-color-amber-filled-hover: var(--mantine-color-amber-9)");
+    expect(css).toContain("--mantine-color-amber-5: #f2b544");
+    expect(css).toContain("--mantine-color-amber-6: #ffc85c");
+    expect(css).toContain("--mantine-color-amber-filled: var(--mantine-color-amber-5)");
+    expect(css).toContain("--mantine-color-amber-filled-hover: var(--mantine-color-amber-6)");
+    // Non-primary colours stay on shade 5, so autoContrast keeps green filled
+    // controls on a dark label (green-8 + white was 3.44:1).
+    expect(css).toContain("--mantine-color-green-filled: var(--mantine-color-green-5)");
     expect(css).toContain("--mantine-color-dark-7: #0f1115");
     expect(css).toContain("--mantine-color-dark-6: #15181e");
     expect(css).toContain("--mantine-color-dark-5: #1b1f27");

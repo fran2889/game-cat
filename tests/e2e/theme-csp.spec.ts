@@ -34,7 +34,7 @@ test("the built app serves the generated theme CSS with no runtime style tags or
   const variables = await page.evaluate(() => {
     const style = getComputedStyle(document.documentElement);
     return {
-      amber: style.getPropertyValue("--mantine-color-amber-8").trim(),
+      amber: style.getPropertyValue("--mantine-color-amber-5").trim(),
       amberHover: style.getPropertyValue("--mantine-color-amber-filled-hover").trim(),
       darkPage: style.getPropertyValue("--mantine-color-dark-7").trim(),
       darkSurface: style.getPropertyValue("--mantine-color-dark-6").trim(),
