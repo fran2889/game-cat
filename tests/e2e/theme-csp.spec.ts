@@ -15,7 +15,7 @@ test.beforeEach(async ({ context }) => {
   await blockExternalRequests(context);
 });
 
-test("the built app serves the generated theme CSS with no runtime style tags", async ({
+test("the built app serves the generated theme CSS with no runtime style tags or CSP violations", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -59,6 +59,15 @@ test("the built app serves the generated theme CSS with no runtime style tags", 
   await primary.hover();
   await expect(primary).toHaveCSS("background-color", "rgb(255, 200, 92)");
 
+  expect(
+    await page.evaluate(() => (window as unknown as { __violations: string[] }).__violations),
+  ).toEqual([]);
+
+  // The Smart editor is the other CSP-sensitive surface. It must mount with the
+  // same generated theme and without any runtime style element or violation.
+  await page.goto(`${app.url}smart/new`);
+  await expect(page.getByTestId("prefix-counts")).toBeVisible();
+  await expect(page.locator("style[data-mantine-styles]")).toHaveCount(0);
   expect(
     await page.evaluate(() => (window as unknown as { __violations: string[] }).__violations),
   ).toEqual([]);
