@@ -108,6 +108,28 @@ test("the Steam and Smart Collection loading grids share the flush placeholder",
   }
 });
 
+test("the editor preview shows the shared loading grid until matches arrive", async ({ page }) => {
+  const app = await startTestApp({ games: 10 });
+  try {
+    const created = await page.request.post(`${app.url}api/smart-collections`, {
+      data: { name: "Preview loading", rules: [] },
+    });
+    expect(created.status()).toBe(201);
+    const body = (await created.json()) as { data: { id: string } };
+    const release = await gateResponse(page, "**/api/rules/preview*");
+    await page.goto(`${app.url}smart/${body.data.id}`);
+
+    const skeleton = page.locator('[aria-label="Loading matches"] .skeleton-card').first();
+    await expect(skeleton).toBeVisible();
+    await expectFlushPortraitPlaceholder(skeleton);
+
+    release();
+    await expect(page.getByTestId("match-count")).toHaveText("10 matches");
+  } finally {
+    await app.close();
+  }
+});
+
 test("an empty Library renders No games found with recovery actions", async ({ page }) => {
   const app = await startTestApp({ empty: true, steamCollection: false });
   try {

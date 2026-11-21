@@ -49,6 +49,7 @@ import {
   type AutosaveStatus,
 } from "../autosave.ts";
 import { useBrowse } from "../browse-context.tsx";
+import { GameGridSkeleton } from "./GameGridSkeleton.tsx";
 import { GameResults } from "./GameResults.tsx";
 import { Pagination } from "./Pagination.tsx";
 import { RuleRow } from "./RuleRow.tsx";
@@ -860,9 +861,7 @@ export function SmartEditor({
           )}
 
           {preview === null && !rulesInvalid && (
-            <Text className="preview-loading" role="status" c="gray.5">
-              Loading matches…
-            </Text>
+            <GameGridSkeleton label="Loading matches" count={6} />
           )}
 
           {preview !== null && rules.length === 0 && (
