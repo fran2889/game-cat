@@ -111,7 +111,7 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
             )}
           </Group>
         </Box>
-        <Stack className="card-body" gap={4} p="sm" pr={36}>
+        <Stack gap={4} p="sm" pr={36}>
           <Title order={3} title={game.name} fz="sm" lineClamp={1}>
             {game.name}
           </Title>
