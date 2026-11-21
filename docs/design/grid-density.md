@@ -32,8 +32,8 @@ Collection page size.
   text, matching the prototype's `is-unknown` pill.
 
 The title weight and line-height and the tag colour are prototype parity beyond the sizes listed in
-#87: the prototype's `.card-title` uses `font-weight: 650; line-height: 1.25`, and `.card-tags`
-uses its faint text token (`dark-3`).
+issue #87: the prototype's `.card-title` uses `font-weight: 650; line-height: 1.25`, and
+`.card-tags` uses its faint text token (`dark-3`).
 
 ## Deliberate deviations
 
