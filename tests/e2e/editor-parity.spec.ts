@@ -222,7 +222,9 @@ test("rule rows describe their field, operator, and value", async ({ page }) => 
   await expect(description).toHaveText("Installed");
 });
 
-test("Select shown selects the preview page and Clear shown clears it", async ({ page }) => {
+test("Select shown selects the preview page and locks once all shown are selected", async ({
+  page,
+}) => {
   await page.goto(`${app.url}smart/new`);
   await expect(page.getByTestId("match-count")).toHaveText("130 games match · updates as you edit");
 
@@ -231,10 +233,14 @@ test("Select shown selects the preview page and Clear shown clears it", async ({
   await select.click();
   await expect(page.locator(".selection-count")).toHaveText("60 selected");
   await expect(page.locator(".preview-pane .game-card.is-selected")).toHaveCount(60);
+  // The preview uses the Library's vocabulary: Select shown disables at
+  // "All shown selected", and clearing stays in the selection bar.
+  await expect(page.getByRole("button", { name: "All shown selected" })).toBeDisabled();
 
-  await page.getByRole("button", { name: "Clear shown" }).click();
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(page.locator(".selection-bar")).toHaveCount(0);
   await expect(page.locator(".preview-pane .game-card.is-selected")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Select shown" })).toBeEnabled();
 
   // The same selection feeds the existing Add to current rules handoff.
   await page.getByRole("textbox", { name: "Name" }).fill("Shown selection");

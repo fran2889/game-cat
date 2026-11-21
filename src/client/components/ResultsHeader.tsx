@@ -1,5 +1,6 @@
 import { Button, Group, Text } from "@mantine/core";
 import { formatCount } from "../format.ts";
+import { SelectShownButton } from "./SelectShownButton.tsx";
 
 export interface ResultsHeaderProps {
   totalItems: number;
@@ -33,14 +34,7 @@ export function ResultsHeader({
       </Text>
       <Group className="results-actions" gap="xs" ml="auto">
         {hasGames && (
-          <Button
-            size="compact-sm"
-            variant="default"
-            onClick={onSelectShown}
-            disabled={allShownSelected}
-          >
-            {allShownSelected ? "All shown selected" : "Select shown"}
-          </Button>
+          <SelectShownButton allShownSelected={allShownSelected} onSelectShown={onSelectShown} />
         )}
         {selectionCount > 0 && (
           <Button size="compact-sm" variant="default" onClick={onClearSelection}>

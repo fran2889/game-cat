@@ -57,9 +57,11 @@ import { Pagination } from "./Pagination.tsx";
 import { RuleRow } from "./RuleRow.tsx";
 import { type RuleSuggestions } from "./RuleValueControl.tsx";
 import { SelectionBar } from "./SelectionBar.tsx";
+import { SelectShownButton } from "./SelectShownButton.tsx";
 import { useToast } from "./ToastProvider.tsx";
 import { formatRange } from "../browse.ts";
 import { formatCount, formatTimestamp } from "../format.ts";
+import { shownSelection } from "../selection.ts";
 import {
   addSelectionToGameRule,
   emptyRule,
@@ -149,7 +151,7 @@ export function SmartEditor({
   onSaved,
   onDeleted,
 }: SmartEditorProps) {
-  const { sort, order, selectedIds, selectedCount, selectShown, clearShown } = useBrowse();
+  const { sort, order, selectedIds, selectedCount, isSelected, selectShown } = useBrowse();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [name, setName] = useState(collection?.name ?? initialName ?? NEW_COLLECTION_NAME);
@@ -504,16 +506,7 @@ export function SmartEditor({
   const totalPages = preview?.pagination.totalPages ?? 0;
   const dataAsOf = preview?.meta.dataAsOf ?? null;
   const selectedPlatforms = platformsInRules(rules);
-  const shownAppIds = rows.map((game) => game.appId);
-  const allShownSelected =
-    shownAppIds.length > 0 && shownAppIds.every((appId) => selectedIds.includes(appId));
-  const toggleShownSelection = (): void => {
-    if (allShownSelected) {
-      clearShown(shownAppIds);
-    } else {
-      selectShown(shownAppIds);
-    }
-  };
+  const shown = shownSelection(rows, isSelected);
   const leaveConfirmation = LEAVE_CONFIRMATIONS[failedRef.current ? "failed" : "draft"];
 
   return (
@@ -726,12 +719,7 @@ export function SmartEditor({
               </Paper>
             )}
             <Group className="editor-status" gap="sm" align="baseline" wrap="nowrap">
-              <Text
-                component="p"
-                className="editor-match-count"
-                data-testid="match-count"
-                m={0}
-              >
+              <Text component="p" className="editor-match-count" data-testid="match-count" m={0}>
                 <Text span aria-live="polite">
                   {preview === null ? (
                     rulesInvalid ? (
@@ -885,9 +873,10 @@ export function SmartEditor({
                 {formatRange(page, PAGE_SIZE, totalItems)}
               </Text>
               {rows.length > 0 && (
-                <Button variant="default" size="compact-sm" onClick={toggleShownSelection}>
-                  {allShownSelected ? "Clear shown" : "Select shown"}
-                </Button>
+                <SelectShownButton
+                  allShownSelected={shown.all}
+                  onSelectShown={() => selectShown(shown.appIds)}
+                />
               )}
             </Group>
           )}
