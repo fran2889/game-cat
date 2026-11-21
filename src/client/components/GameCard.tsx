@@ -124,20 +124,20 @@ export function GameCard({ game, selected, onToggleSelected }: GameCardProps) {
           </Group>
         </Box>
         <Stack className="card-body" gap={4}>
-          <Title order={3} title={game.name} fz={12.5} lh={1.25} fw={650} lineClamp={1}>
+          <Title order={3} title={game.name} lineClamp={1}>
             {game.name}
           </Title>
           <Group className="game-meta" gap={6} justify="space-between" wrap="nowrap">
-            <Text component="span" fz={11} truncate>
+            <Text component="span" truncate>
               {formatPlaytime(game.playtimeMinutes)}
             </Text>
             {flag !== null && (
-              <Text component="span" className="ownership-flag" fz={10}>
+              <Text component="span" className="ownership-flag">
                 {flag}
               </Text>
             )}
           </Group>
-          <Text component="p" className="game-tags" fz={10.5} c="dark.3" truncate>
+          <Text component="p" className="game-tags" truncate>
             {tags.length > 0 ? tags.join(" · ") : "No tags yet"}
           </Text>
         </Stack>

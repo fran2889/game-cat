@@ -187,20 +187,38 @@ main {
   transform: translateY(-1px);
 }
 
-/* The card body follows the mockup's denser type scale: 8/9px padding, a
- * 12.5px title, 11px meta, and 10.5px tags. The 32px right inset replaces the
- * mockup's 9px so the select checkbox never covers text. The min-height is
- * the loaded card's body height; GameCardSkeleton reserves the same slot, so
- * arriving cards cause no layout shift. */
+/* The card body follows the prototype's denser type scale. Keep the sizes and
+ * weights here rather than in inline props, so one element's type is defined
+ * once. The 32px right inset replaces the prototype's 9px so the select
+ * checkbox never covers text. */
 .card-body {
+  --game-cat-card-body-min-height: 74px;
+
   padding: 8px 32px 9px 9px;
-  min-height: 74px;
+  /* The loaded card's body height; the skeleton reserves the same slot. */
+  min-height: var(--game-cat-card-body-min-height);
+}
+
+.card-body > h3 {
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.card-body .game-meta > span {
+  font-size: 11px;
+}
+
+.card-body .game-tags {
+  color: var(--mantine-color-dark-3);
+  font-size: 10.5px;
 }
 
 /* Ownership is inline text, not an outline badge, and keeps the prototype's
  * orange warning tone. orange-4 is 9.4:1 on the card surface. */
 .ownership-flag {
   color: var(--mantine-color-orange-4);
+  font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
 }
