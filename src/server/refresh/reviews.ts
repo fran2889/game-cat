@@ -1,6 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { APP_NAME, APP_VERSION } from "../../shared/app.ts";
-import { firstSync, queryFor, runSync } from "../db/query.ts";
+import { excludedColumns, firstSync, queryFor, runSync } from "../db/query.ts";
 import { parseRetryAfter } from "../steam/retry-after.ts";
 import type { MetadataSource, MetadataSourceContext, MetadataSourceOutcome } from "./sources.ts";
 
@@ -159,17 +159,21 @@ function upsert(
         updated_at: fields.now,
       })
       .onConflict((oc) =>
-        oc.column("app_id").doUpdateSet((eb) => ({
-          review_positive: eb.ref("excluded.review_positive"),
-          review_negative: eb.ref("excluded.review_negative"),
-          review_total: eb.ref("excluded.review_total"),
-          review_tier: eb.ref("excluded.review_tier"),
-          review_status: eb.ref("excluded.review_status"),
-          review_fetched_at: eb.ref("excluded.review_fetched_at"),
-          review_error: eb.ref("excluded.review_error"),
-          raw_reviews_json: eb.ref("excluded.raw_reviews_json"),
-          updated_at: eb.ref("excluded.updated_at"),
-        })),
+        oc
+          .column("app_id")
+          .doUpdateSet(
+            excludedColumns([
+              "review_positive",
+              "review_negative",
+              "review_total",
+              "review_tier",
+              "review_status",
+              "review_fetched_at",
+              "review_error",
+              "raw_reviews_json",
+              "updated_at",
+            ]),
+          ),
       )
       .compile(),
   );

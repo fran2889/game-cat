@@ -1,5 +1,5 @@
 import type BetterSqlite3 from "better-sqlite3";
-import { allSync, queryFor, runSync } from "../db/query.ts";
+import { allSync, excludedColumns, queryFor, runSync } from "../db/query.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import type { SteamCollectionRecord } from "../steam/collections.ts";
 import type { LocalLibrarySnapshot, LocalManifest, LocalPlaytimeEntry } from "../steam/local.ts";
@@ -417,26 +417,30 @@ function persistSnapshot(
           last_seen_at: seenAt,
         })
         .onConflict((oc) =>
-          oc.column("app_id").doUpdateSet((eb) => ({
-            name: eb.ref("excluded.name"),
-            name_key: eb.ref("excluded.name_key"),
-            name_source: eb.ref("excluded.name_source"),
-            ownership_status: eb.ref("excluded.ownership_status"),
-            installed: eb.ref("excluded.installed"),
-            library_path: eb.ref("excluded.library_path"),
-            install_dir: eb.ref("excluded.install_dir"),
-            size_on_disk_bytes: eb.ref("excluded.size_on_disk_bytes"),
-            state_flags: eb.ref("excluded.state_flags"),
-            local_playtime_minutes: eb.ref("excluded.local_playtime_minutes"),
-            local_playtime_2weeks_minutes: eb.ref("excluded.local_playtime_2weeks_minutes"),
-            playtime_minutes: eb.ref("excluded.playtime_minutes"),
-            playtime_2weeks_minutes: eb.ref("excluded.playtime_2weeks_minutes"),
-            manifest_last_played_at: eb.ref("excluded.manifest_last_played_at"),
-            localconfig_last_played_at: eb.ref("excluded.localconfig_last_played_at"),
-            last_updated_at: eb.ref("excluded.last_updated_at"),
-            source_mask: eb.ref("excluded.source_mask"),
-            last_seen_at: eb.ref("excluded.last_seen_at"),
-          })),
+          oc
+            .column("app_id")
+            .doUpdateSet(
+              excludedColumns([
+                "name",
+                "name_key",
+                "name_source",
+                "ownership_status",
+                "installed",
+                "library_path",
+                "install_dir",
+                "size_on_disk_bytes",
+                "state_flags",
+                "local_playtime_minutes",
+                "local_playtime_2weeks_minutes",
+                "playtime_minutes",
+                "playtime_2weeks_minutes",
+                "manifest_last_played_at",
+                "localconfig_last_played_at",
+                "last_updated_at",
+                "source_mask",
+                "last_seen_at",
+              ]),
+            ),
         )
         .compile(),
     );
@@ -558,14 +562,18 @@ function persistCollections(
           imported_at: importedAt,
         })
         .onConflict((oc) =>
-          oc.column("id").doUpdateSet((eb) => ({
-            name: eb.ref("excluded.name"),
-            kind: eb.ref("excluded.kind"),
-            is_dynamic: eb.ref("excluded.is_dynamic"),
-            filter_spec_json: eb.ref("excluded.filter_spec_json"),
-            raw_value_json: eb.ref("excluded.raw_value_json"),
-            imported_at: eb.ref("excluded.imported_at"),
-          })),
+          oc
+            .column("id")
+            .doUpdateSet(
+              excludedColumns([
+                "name",
+                "kind",
+                "is_dynamic",
+                "filter_spec_json",
+                "raw_value_json",
+                "imported_at",
+              ]),
+            ),
         )
         .compile(),
     );

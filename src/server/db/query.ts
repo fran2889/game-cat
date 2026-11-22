@@ -1,5 +1,5 @@
 import type BetterSqlite3 from "better-sqlite3";
-import { Kysely, SqliteDialect, type CompiledQuery } from "kysely";
+import { Kysely, SqliteDialect, sql, type CompiledQuery, type RawBuilder } from "kysely";
 import type { DatabaseSchema } from "./schema.ts";
 
 /**
@@ -69,4 +69,15 @@ function statementFor(db: BetterSqlite3.Database, sql: string): BetterSqlite3.St
 /** Run a compiled read and take the first row, if any. */
 export function firstSync<T>(db: BetterSqlite3.Database, query: CompiledQuery): T | undefined {
   return db.prepare(query.sql).get(...query.parameters) as T | undefined;
+}
+
+/**
+ * Build a `DO UPDATE SET` payload that copies each column from `excluded`, the
+ * row the insert tried to write. Kysely needs one entry per column, so without
+ * this helper every upsert repeats its column list a second time.
+ */
+export function excludedColumns(columns: readonly string[]): Record<string, RawBuilder<any>> {
+  return Object.fromEntries(
+    columns.map((column): [string, RawBuilder<any>] => [column, sql.ref(`excluded.${column}`)]),
+  );
 }

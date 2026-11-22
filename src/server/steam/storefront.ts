@@ -2,7 +2,7 @@ import type BetterSqlite3 from "better-sqlite3";
 import { APP_NAME, APP_VERSION } from "../../shared/app.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { parseAppId } from "../app-id.ts";
-import { firstSync, queryFor, runSync } from "../db/query.ts";
+import { excludedColumns, firstSync, queryFor, runSync } from "../db/query.ts";
 import type {
   MetadataSource,
   MetadataSourceContext,
@@ -212,11 +212,9 @@ function recordFailure(
           updated_at: now,
         })
         .onConflict((oc) =>
-          oc.column("app_id").doUpdateSet((eb) => ({
-            store_status: eb.ref("excluded.store_status"),
-            store_error: eb.ref("excluded.store_error"),
-            updated_at: eb.ref("excluded.updated_at"),
-          })),
+          oc
+            .column("app_id")
+            .doUpdateSet(excludedColumns(["store_status", "store_error", "updated_at"])),
         )
         .compile(),
     );
@@ -238,12 +236,11 @@ function recordUnavailable(db: BetterSqlite3.Database, appId: number, now: numbe
           updated_at: now,
         })
         .onConflict((oc) =>
-          oc.column("app_id").doUpdateSet((eb) => ({
+          oc.column("app_id").doUpdateSet({
             store_status: "unavailable",
-            store_fetched_at: eb.ref("excluded.store_fetched_at"),
+            ...excludedColumns(["store_fetched_at", "updated_at"]),
             store_error: null,
-            updated_at: eb.ref("excluded.updated_at"),
-          })),
+          }),
         )
         .compile(),
     );
@@ -329,22 +326,24 @@ function persistSuccess(
           updated_at: now,
         })
         .onConflict((oc) =>
-          oc.column("app_id").doUpdateSet((eb) => ({
-            type: eb.ref("excluded.type"),
-            developers_json: eb.ref("excluded.developers_json"),
-            publishers_json: eb.ref("excluded.publishers_json"),
-            genres_json: eb.ref("excluded.genres_json"),
-            categories_json: eb.ref("excluded.categories_json"),
-            platforms_json: eb.ref("excluded.platforms_json"),
-            release_date_raw: eb.ref("excluded.release_date_raw"),
-            release_year: eb.ref("excluded.release_year"),
-            metacritic_score: eb.ref("excluded.metacritic_score"),
+          oc.column("app_id").doUpdateSet({
+            ...excludedColumns([
+              "type",
+              "developers_json",
+              "publishers_json",
+              "genres_json",
+              "categories_json",
+              "platforms_json",
+              "release_date_raw",
+              "release_year",
+              "metacritic_score",
+              "store_fetched_at",
+              "raw_store_json",
+              "updated_at",
+            ]),
             store_status: "ok",
-            store_fetched_at: eb.ref("excluded.store_fetched_at"),
             store_error: null,
-            raw_store_json: eb.ref("excluded.raw_store_json"),
-            updated_at: eb.ref("excluded.updated_at"),
-          })),
+          }),
         )
         .compile(),
     );

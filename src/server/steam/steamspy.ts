@@ -2,7 +2,7 @@ import type BetterSqlite3 from "better-sqlite3";
 import { sql } from "kysely";
 import { APP_NAME, APP_VERSION } from "../../shared/app.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
-import { firstSync, queryFor, runSync } from "../db/query.ts";
+import { excludedColumns, firstSync, queryFor, runSync } from "../db/query.ts";
 import type {
   MetadataSource,
   MetadataSourceContext,
@@ -166,11 +166,9 @@ function recordFailure(
         updated_at: context.now,
       })
       .onConflict((oc) =>
-        oc.column("app_id").doUpdateSet((eb) => ({
-          tags_status: eb.ref("excluded.tags_status"),
-          tags_error: eb.ref("excluded.tags_error"),
-          updated_at: eb.ref("excluded.updated_at"),
-        })),
+        oc
+          .column("app_id")
+          .doUpdateSet(excludedColumns(["tags_status", "tags_error", "updated_at"])),
       )
       .compile(),
   );
@@ -233,16 +231,18 @@ function storeSuccessfulResponse(
           updated_at: context.now,
         })
         .onConflict((oc) =>
-          oc.column("app_id").doUpdateSet((eb) => ({
+          oc.column("app_id").doUpdateSet({
             steamspy_name: sql<
               string | null
-            >`COALESCE(${eb.ref("excluded.steamspy_name")}, ${eb.ref("steamspy_appdetails.steamspy_name")})`,
-            tags_status: eb.ref("excluded.tags_status"),
-            tags_fetched_at: eb.ref("excluded.tags_fetched_at"),
+            >`COALESCE(${sql.ref("excluded.steamspy_name")}, ${sql.ref("steamspy_appdetails.steamspy_name")})`,
+            ...excludedColumns([
+              "tags_status",
+              "tags_fetched_at",
+              "raw_steamspy_json",
+              "updated_at",
+            ]),
             tags_error: null,
-            raw_steamspy_json: eb.ref("excluded.raw_steamspy_json"),
-            updated_at: eb.ref("excluded.updated_at"),
-          })),
+          }),
         )
         .compile(),
     );
