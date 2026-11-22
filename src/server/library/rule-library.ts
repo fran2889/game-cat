@@ -1,7 +1,13 @@
 import type BetterSqlite3 from "better-sqlite3";
 import type { GameSummary, GameOrder, GameSort } from "../../shared/types.ts";
 import type { Rule } from "../../shared/rules.ts";
-import { readTagsForGames, toGameSummary, type GameListResult, type GamesRow } from "./games.ts";
+import {
+  compareGames,
+  readTagsForGames,
+  toGameSummary,
+  type GameListResult,
+  type GamesRow,
+} from "./games.ts";
 import { allSync, queryFor } from "../db/query.ts";
 import { pagination } from "./pagination.ts";
 import { compileRules, type RuleTarget } from "./rule-evaluator.ts";
@@ -187,61 +193,6 @@ export interface GamePageQuery {
   pageSize: number;
   sort: GameSort;
   order: GameOrder;
-}
-
-type SortValue = string | number | null;
-
-function sortValue(row: GamesRow, sort: GameSort): SortValue {
-  switch (sort) {
-    case "name":
-      return row.name_key;
-    case "playtime":
-      return row.playtime_minutes;
-    case "lastPlayed":
-      return row.last_played_at;
-    case "releaseYear":
-      return row.release_year;
-    case "metacritic":
-      return row.metacritic_score;
-    case "appId":
-      return row.app_id;
-  }
-}
-
-/**
- * The SQL comparator from the read path (`sortColumn`): nulls last in both directions, the
- * chosen direction, then `app_id ASC`.
- */
-function compareGames(left: GamesRow, right: GamesRow, sort: GameSort, order: GameOrder): number {
-  if (sort === "appId") {
-    const difference = left.app_id - right.app_id;
-    return order === "desc" ? -difference : difference;
-  }
-
-  const leftValue = sortValue(left, sort);
-  const rightValue = sortValue(right, sort);
-  if (leftValue === null && rightValue === null) {
-    return left.app_id - right.app_id;
-  }
-  if (leftValue === null) {
-    return 1;
-  }
-  if (rightValue === null) {
-    return -1;
-  }
-
-  const difference =
-    typeof leftValue === "number" && typeof rightValue === "number"
-      ? leftValue - rightValue
-      : String(leftValue) < String(rightValue)
-        ? -1
-        : String(leftValue) > String(rightValue)
-          ? 1
-          : 0;
-  if (difference !== 0) {
-    return order === "desc" ? -difference : difference;
-  }
-  return left.app_id - right.app_id;
 }
 
 /** Sort and page matched rows, then load Tags for the visible page only. */

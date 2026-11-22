@@ -1,12 +1,14 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { sql, type CompiledQuery } from "kysely";
-import type { SourceStatus } from "../../shared/types.ts";
+import {
+  METADATA_SOURCE_NAMES,
+  type MetadataSourceName,
+  type SourceStatus,
+} from "../../shared/types.ts";
 import { allSync, firstSync, queryFor, runSync } from "../db/query.ts";
 import { parseAppIds, readRunRow, writeProgress as persistProgress } from "./run-persistence.ts";
 import {
-  METADATA_SOURCE_NAMES,
   type MetadataSource,
-  type MetadataSourceName,
   type MetadataSourceRegistry,
   type MetadataSourceOutcome,
 } from "./sources.ts";
@@ -411,6 +413,32 @@ async function executeSourcePass(
   let attemptedAt: number | null = null;
   let paused = false;
 
+  const pausePass = (
+    index: number,
+    reason: "rate_limited" | "blocked",
+    details: { at: number; until: number; message: string },
+  ): void => {
+    const previous = hostPause.get(hostKey);
+    hostPause.set(hostKey, {
+      until: Math.max(previous?.until ?? 0, details.until),
+      reason,
+    });
+    updateMetadataSourceState(
+      source.name,
+      {
+        status: reason,
+        lastAttemptAt: details.at,
+        lastSuccessAt: null,
+        retryAfterAt: details.until,
+        lastError: details.message,
+      },
+      options,
+    );
+    paused = true;
+    skipFrom(plan, source.name, items, index);
+    persistIfNeeded();
+  };
+
   try {
     for (let index = 0; index < items.length; index += 1) {
       if (options.isStopping()) {
@@ -483,50 +511,14 @@ async function executeSourcePass(
           }
           const at = options.now();
           const until = outcome.retryAfterAt ?? at + backoffSeconds(attempt, options);
-          const previous = hostPause.get(hostKey);
-          hostPause.set(hostKey, {
-            until: Math.max(previous?.until ?? 0, until),
-            reason: "rate_limited",
-          });
-          updateMetadataSourceState(
-            source.name,
-            {
-              status: "rate_limited",
-              lastAttemptAt: at,
-              lastSuccessAt: null,
-              retryAfterAt: until,
-              lastError: outcome.message,
-            },
-            options,
-          );
-          paused = true;
-          skipFrom(plan, source.name, items, index);
-          persistIfNeeded();
+          pausePass(index, "rate_limited", { at, until, message: outcome.message });
           return;
         }
 
         if (outcome.kind === "blocked") {
           const at = options.now();
           const until = at + BLOCK_SECONDS;
-          const previous = hostPause.get(hostKey);
-          hostPause.set(hostKey, {
-            until: Math.max(previous?.until ?? 0, until),
-            reason: "blocked",
-          });
-          updateMetadataSourceState(
-            source.name,
-            {
-              status: "blocked",
-              lastAttemptAt: at,
-              lastSuccessAt: null,
-              retryAfterAt: until,
-              lastError: outcome.message,
-            },
-            options,
-          );
-          paused = true;
-          skipFrom(plan, source.name, items, index);
-          persistIfNeeded();
+          pausePass(index, "blocked", { at, until, message: outcome.message });
           return;
         }
 

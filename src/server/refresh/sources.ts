@@ -1,4 +1,7 @@
 import type BetterSqlite3 from "better-sqlite3";
+import { METADATA_SOURCE_NAMES, type MetadataSourceName } from "../../shared/types.ts";
+
+export { METADATA_SOURCE_NAMES, type MetadataSourceName };
 
 /**
  * Metadata source adapters (spec §6.1, §6.2).
@@ -8,10 +11,6 @@ import type BetterSqlite3 from "better-sqlite3";
  * touches `refresh_runs` or `source_state`. This keeps #28-#30 independent and
  * lets tests replace every adapter without a real network.
  */
-
-export const METADATA_SOURCE_NAMES = ["steamspy", "storefront", "steam_reviews"] as const;
-
-export type MetadataSourceName = (typeof METADATA_SOURCE_NAMES)[number];
 
 /** Host keys shared by Metadata sources that call the same upstream host. */
 export type MetadataHostKey = "steamspy" | "store" | "steam_web_api";

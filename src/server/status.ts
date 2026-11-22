@@ -3,6 +3,7 @@ import { sql } from "kysely";
 import { allSync, firstSync, queryFor } from "./db/query.ts";
 import { APP_VERSION, DB_SCHEMA_VERSION } from "../shared/app.ts";
 import {
+  METADATA_SOURCE_NAMES,
   SOURCE_ORDER,
   type ErrorDetail,
   type OwnershipState,
@@ -226,7 +227,7 @@ function metadataState(db: BetterSqlite3.Database): Status["metadata"] {
     queryFor(db)
       .selectFrom("source_state")
       .select(sql<number | null>`MAX(last_success_at)`.as("last_success_at"))
-      .where("name", "in", ["steamspy", "storefront", "steam_reviews"])
+      .where("name", "in", METADATA_SOURCE_NAMES)
       .compile(),
   );
   return { tags, store, reviews, lastSuccessAt: toIso(row?.last_success_at ?? null) };

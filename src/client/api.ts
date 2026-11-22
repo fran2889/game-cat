@@ -27,6 +27,7 @@ import type {
   SmartCollectionPatchBody,
   SmartCollectionsResponse,
 } from "../shared/smart-collections.ts";
+import { defineQuery } from "./query-client.ts";
 
 export class ApiError extends Error {
   readonly status: number | null;
@@ -360,77 +361,61 @@ export function statusRefetchInterval(status: Status | null | undefined): number
 
 export const statusQueryKey = ["status"] as const;
 export const statusQueryOptions = queryOptions({
-  queryKey: statusQueryKey,
-  queryFn: ({ signal }) => fetchStatus(signal),
+  ...defineQuery(statusQueryKey, fetchStatus),
   refetchInterval: (query) => statusRefetchInterval(query.state.data),
 });
 
 export const configQueryKey = ["config"] as const;
-export const configQueryOptions = queryOptions({
-  queryKey: configQueryKey,
-  queryFn: ({ signal }) => fetchConfig(signal),
-});
+export const configQueryOptions = defineQuery(configQueryKey, fetchConfig);
 
-export const steamAccountsQueryOptions = queryOptions({
-  queryKey: ["steam-accounts"] as const,
-  queryFn: ({ signal }) => fetchSteamAccounts(signal),
-});
+export const steamAccountsQueryOptions = defineQuery(
+  ["steam-accounts"] as const,
+  fetchSteamAccounts,
+);
 
 export function gamesQueryOptions(params: FetchGamesParams = {}) {
-  return queryOptions({
-    queryKey: ["games", params] as const,
-    queryFn: ({ signal }) => fetchGames(params, signal),
-  });
+  return defineQuery(["games", params] as const, (signal) => fetchGames(params, signal));
 }
 
 export function tagsQueryOptions(params: FetchTagsParams = {}) {
-  return queryOptions({
-    queryKey: ["tags", params] as const,
-    queryFn: ({ signal }) => fetchTags(params, signal),
-  });
+  return defineQuery(["tags", params] as const, (signal) => fetchTags(params, signal));
 }
 
 export function ruleValuesQueryOptions(params: FetchRuleValuesParams) {
-  return queryOptions({
-    queryKey: ["rule-values", params] as const,
-    queryFn: ({ signal }) => fetchRuleValues(params, signal),
-  });
+  return defineQuery(["rule-values", params] as const, (signal) => fetchRuleValues(params, signal));
 }
 
 export function gameDetailQueryOptions(appId: number) {
-  return queryOptions({
-    queryKey: ["game-detail", appId] as const,
-    queryFn: ({ signal }) => fetchGameDetail(appId, signal),
-  });
+  return defineQuery(["game-detail", appId] as const, (signal) => fetchGameDetail(appId, signal));
 }
 
 export function steamCollectionsQueryOptions(params: FetchSteamCollectionsParams = {}) {
-  return queryOptions({
-    queryKey: ["steam-collections", params] as const,
-    queryFn: ({ signal }) => fetchSteamCollections(params, signal),
-  });
+  return defineQuery(["steam-collections", params] as const, (signal) =>
+    fetchSteamCollections(params, signal),
+  );
 }
 
 export function steamCollectionQueryOptions(id: string) {
-  return queryOptions({
-    queryKey: ["steam-collection", id] as const,
-    queryFn: ({ signal }) => fetchSteamCollection(id, signal),
-  });
+  return defineQuery(["steam-collection", id] as const, (signal) =>
+    fetchSteamCollection(id, signal),
+  );
 }
 
 export function steamCollectionGamesQueryOptions(
   id: string,
   params: FetchSteamCollectionGamesParams = {},
 ) {
-  return queryOptions({
-    queryKey: ["steam-collection-games", id, params] as const,
-    queryFn: ({ signal }) => fetchSteamCollectionGames(id, params, signal),
-  });
+  return defineQuery(["steam-collection-games", id, params] as const, (signal) =>
+    fetchSteamCollectionGames(id, params, signal),
+  );
 }
 
 export function smartCollectionQueryOptions(id: string) {
-  return queryOptions({
-    queryKey: ["smart-collection", id] as const,
-    queryFn: ({ signal }) => fetchSmartCollection(id, signal),
-  });
+  return defineQuery(["smart-collection", id] as const, (signal) =>
+    fetchSmartCollection(id, signal),
+  );
+}
+
+export function rulesPreviewQueryOptions(body: PreviewRulesBody) {
+  return defineQuery(["rules-preview", body] as const, (signal) => previewRules(body, signal));
 }

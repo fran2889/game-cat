@@ -472,8 +472,7 @@ export class RefreshService {
     const allStats = (stats: InternalMetadataStats): string =>
       JSON.stringify({ ...stats, warnings: libraryWarnings });
     if (library.fatal) {
-      this.finishRun(row.id, {
-        status: "failed",
+      this.finishFailed(row.id, {
         total: null,
         done: 0,
         stats: allStats(emptyInternalStats()),
@@ -488,19 +487,8 @@ export class RefreshService {
     let partial = library.partial;
     let error = library.error;
     const ownership = await performOwnershipPhase(this.ownershipPhaseOptions(row.id, config));
-    if (ownership.fatal) {
-      this.finishRun(row.id, {
-        status: "failed",
-        total: null,
-        done: 0,
-        stats: allStats(emptyInternalStats()),
-        error: ownership.error,
-      });
-      return;
-    }
-    if (ownership.status === "failed") {
-      this.finishRun(row.id, {
-        status: "failed",
+    if (ownership.fatal || ownership.status === "failed") {
+      this.finishFailed(row.id, {
         total: null,
         done: 0,
         stats: allStats(emptyInternalStats()),
@@ -518,8 +506,7 @@ export class RefreshService {
     }
 
     if (metadata.fatal) {
-      this.finishRun(row.id, {
-        status: "failed",
+      this.finishFailed(row.id, {
         total: metadata.total,
         done: metadata.done,
         stats: allStats(metadata.stats),
@@ -545,11 +532,6 @@ export class RefreshService {
       error ??= library.error;
     }
 
-    // Ownership-not-configured is the documented code when it applies.
-    if (ownership.status === "skipped") {
-      error = ownership.error;
-    }
-
     this.finishRun(row.id, {
       status: partial ? "partial" : "succeeded",
       total: metadata.total,
@@ -557,6 +539,11 @@ export class RefreshService {
       stats: allStats(metadata.stats),
       error,
     });
+  }
+
+  /** Every fatal phase failure records the same `failed` outcome shape. */
+  private finishFailed(id: number, outcome: Omit<RunOutcome, "status">): void {
+    this.finishRun(id, { status: "failed", ...outcome });
   }
 
   private finishRun(id: number, outcome: RunOutcome): void {
