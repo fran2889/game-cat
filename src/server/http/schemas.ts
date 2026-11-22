@@ -15,8 +15,11 @@ import {
 import {
   GAME_SORTS,
   LOG_LEVELS,
+  REFRESH_MODES,
+  REFRESH_SCOPES,
   type GameOrder,
   type GameSort,
+  type RefreshScope,
   type RuleValueField,
 } from "../../shared/types.ts";
 import { validationError } from "../request.ts";
@@ -277,14 +280,14 @@ export const refreshBodySchema = {
   type: "object",
   required: ["scope"],
   properties: {
-    scope: { type: "string", enum: ["library", "ownership", "metadata", "all"] },
-    mode: { type: "string", enum: ["fetch", "full"] },
+    scope: { type: "string", enum: [...REFRESH_SCOPES] },
+    mode: { type: "string", enum: [...REFRESH_MODES] },
     appIds: { type: "array", items: { type: "integer", minimum: 1 } },
   },
 };
 
 export type RefreshBody = {
-  scope: "library" | "ownership" | "metadata" | "all";
+  scope: RefreshScope;
   mode?: unknown;
   appIds?: unknown;
 };

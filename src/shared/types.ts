@@ -10,7 +10,8 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
 
 export const LOG_LEVELS: readonly LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal"];
 
-export type SteamState = "ready" | "not_found" | "no_account" | "error";
+export const STEAM_STATES = ["ready", "not_found", "no_account", "error"] as const;
+export type SteamState = (typeof STEAM_STATES)[number];
 
 /** The Metadata sources, in their documented order (§6.1). */
 export const METADATA_SOURCE_NAMES = ["steamspy", "storefront", "steam_reviews"] as const;
@@ -24,32 +25,38 @@ export const SOURCE_ORDER: readonly SourceName[] = [
   ...METADATA_SOURCE_NAMES,
 ];
 
-export type SourceStatus =
-  | "unknown"
-  | "ok"
-  | "partial"
-  | "empty"
-  | "stale"
-  | "not_configured"
-  | "invalid_key"
-  | "rate_limited"
-  | "blocked"
-  | "offline"
-  | "error";
+export const SOURCE_STATUSES = [
+  "unknown",
+  "ok",
+  "partial",
+  "empty",
+  "stale",
+  "not_configured",
+  "invalid_key",
+  "rate_limited",
+  "blocked",
+  "offline",
+  "error",
+] as const;
+export type SourceStatus = (typeof SOURCE_STATUSES)[number];
 
-export type OwnershipState =
-  | "unknown"
-  | "ok"
-  | "partial"
-  | "empty"
-  | "not_configured"
-  | "invalid_key"
-  | "rate_limited"
-  | "error";
+export const OWNERSHIP_STATES = [
+  "unknown",
+  "ok",
+  "partial",
+  "empty",
+  "not_configured",
+  "invalid_key",
+  "rate_limited",
+  "error",
+] as const;
+export type OwnershipState = (typeof OWNERSHIP_STATES)[number];
 
-export type LibraryScanStatus = "never" | "ok" | "partial" | "failed";
+export const LIBRARY_SCAN_STATUSES = ["never", "ok", "partial", "failed"] as const;
+export type LibraryScanStatus = (typeof LIBRARY_SCAN_STATUSES)[number];
 
-export type OwnershipStatus = "owned" | "local_only" | "unknown";
+export const OWNERSHIP_STATUSES = ["owned", "local_only", "unknown"] as const;
+export type OwnershipStatus = (typeof OWNERSHIP_STATUSES)[number];
 
 /** The documented `GET /api/games` sort whitelist. */
 export const GAME_SORTS = [
@@ -134,7 +141,15 @@ export interface GameDetail extends GameSummary {
   sizeOnDiskBytes: number | null;
 }
 
-export type SteamCollectionKind = "favorite" | "hidden" | "user" | "tag" | "system" | "other";
+export const STEAM_COLLECTION_KINDS = [
+  "favorite",
+  "hidden",
+  "user",
+  "tag",
+  "system",
+  "other",
+] as const;
+export type SteamCollectionKind = (typeof STEAM_COLLECTION_KINDS)[number];
 
 /** Read-only Steam Collection metadata; never contains a filterSpec. */
 export interface SteamCollectionSummary {
@@ -192,9 +207,14 @@ export interface GameDetailResponse {
   data: GameDetail;
 }
 
-export type RefreshScope = "library" | "ownership" | "metadata" | "all";
-export type RefreshMode = "fetch" | "full";
-export type RefreshStatus = "queued" | "running" | "succeeded" | "partial" | "failed";
+export const REFRESH_SCOPES = ["library", "ownership", "metadata", "all"] as const;
+export type RefreshScope = (typeof REFRESH_SCOPES)[number];
+
+export const REFRESH_MODES = ["fetch", "full"] as const;
+export type RefreshMode = (typeof REFRESH_MODES)[number];
+
+export const REFRESH_STATUSES = ["queued", "running", "succeeded", "partial", "failed"] as const;
+export type RefreshStatus = (typeof REFRESH_STATUSES)[number];
 
 /** The documented `appIds` selection cap (§4.4). */
 export const MAX_REFRESH_APP_IDS = 5_000;

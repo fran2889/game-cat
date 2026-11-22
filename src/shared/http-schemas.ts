@@ -7,7 +7,19 @@
  */
 
 import { RULE_FIELDS, RULE_OPERATORS, RULE_PREFIXES } from "./rules.ts";
-import { LOG_LEVELS } from "./types.ts";
+import {
+  LIBRARY_SCAN_STATUSES,
+  LOG_LEVELS,
+  OWNERSHIP_STATES,
+  OWNERSHIP_STATUSES,
+  REFRESH_MODES,
+  REFRESH_SCOPES,
+  REFRESH_STATUSES,
+  SOURCE_ORDER,
+  SOURCE_STATUSES,
+  STEAM_COLLECTION_KINDS,
+  STEAM_STATES,
+} from "./types.ts";
 
 const TIMESTAMP_PATTERN = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$";
 
@@ -137,7 +149,7 @@ const gameSummary = {
   properties: {
     appId: { type: "integer", minimum: 1 },
     name: { type: "string", minLength: 1 },
-    ownershipStatus: { type: "string", enum: ["owned", "local_only", "unknown"] },
+    ownershipStatus: { type: "string", enum: [...OWNERSHIP_STATUSES] },
     installed: { type: ["boolean", "null"] },
     playtimeMinutes: { type: "integer", minimum: 0 },
     lastPlayedAt: { $ref: "#/definitions/nullableTimestamp" },
@@ -189,7 +201,7 @@ const gameDetail = {
   properties: {
     appId: { type: "integer", minimum: 1 },
     name: { type: "string", minLength: 1 },
-    ownershipStatus: { type: "string", enum: ["owned", "local_only", "unknown"] },
+    ownershipStatus: { type: "string", enum: [...OWNERSHIP_STATUSES] },
     installed: { type: ["boolean", "null"] },
     playtimeMinutes: { type: "integer", minimum: 0 },
     lastPlayedAt: { $ref: "#/definitions/nullableTimestamp" },
@@ -216,10 +228,7 @@ const gameDetail = {
         properties: {
           id: { type: "string", minLength: 1 },
           name: { type: "string", minLength: 1 },
-          kind: {
-            type: "string",
-            enum: ["favorite", "hidden", "user", "tag", "system", "other"],
-          },
+          kind: { type: "string", enum: [...STEAM_COLLECTION_KINDS] },
         },
         additionalProperties: false,
       },
@@ -263,7 +272,7 @@ const steamCollectionSummary = {
   properties: {
     id: { type: "string", minLength: 1 },
     name: { type: "string", minLength: 1 },
-    kind: { type: "string", enum: ["favorite", "hidden", "user", "tag", "system", "other"] },
+    kind: { type: "string", enum: [...STEAM_COLLECTION_KINDS] },
     isDynamic: { type: "boolean" },
     gameCount: { type: ["integer", "null"], minimum: 0 },
   },
@@ -318,14 +327,11 @@ const refreshRun = {
   ],
   properties: {
     id: { type: "string", pattern: "^\\d+$" },
-    scope: { type: "string", enum: ["library", "ownership", "metadata", "all"] },
+    scope: { type: "string", enum: [...REFRESH_SCOPES] },
     mode: {
-      anyOf: [{ type: "string", enum: ["fetch", "full"] }, { type: "null" }],
+      anyOf: [{ type: "string", enum: [...REFRESH_MODES] }, { type: "null" }],
     },
-    status: {
-      type: "string",
-      enum: ["queued", "running", "succeeded", "partial", "failed"],
-    },
+    status: { type: "string", enum: [...REFRESH_STATUSES] },
     startedAt: { $ref: "#/definitions/timestamp" },
     finishedAt: { $ref: "#/definitions/nullableTimestamp" },
     total: { type: ["integer", "null"], minimum: 0 },
@@ -384,26 +390,8 @@ const sourceHealth = {
   type: "object",
   required: ["name", "status", "lastSuccessAt", "lastAttemptAt", "retryAfterAt", "lastError"],
   properties: {
-    name: {
-      type: "string",
-      enum: ["steam_local", "steam_web_api", "steamspy", "storefront", "steam_reviews"],
-    },
-    status: {
-      type: "string",
-      enum: [
-        "unknown",
-        "ok",
-        "partial",
-        "empty",
-        "stale",
-        "not_configured",
-        "invalid_key",
-        "rate_limited",
-        "blocked",
-        "offline",
-        "error",
-      ],
-    },
+    name: { type: "string", enum: [...SOURCE_ORDER] },
+    status: { type: "string", enum: [...SOURCE_STATUSES] },
     lastSuccessAt: { $ref: "#/definitions/nullableTimestamp" },
     lastAttemptAt: { $ref: "#/definitions/nullableTimestamp" },
     retryAfterAt: { $ref: "#/definitions/nullableTimestamp" },
@@ -438,7 +426,7 @@ const status = {
       type: "object",
       required: ["state", "root", "ambiguous", "account"],
       properties: {
-        state: { type: "string", enum: ["ready", "not_found", "no_account", "error"] },
+        state: { type: "string", enum: [...STEAM_STATES] },
         root: { type: ["string", "null"] },
         ambiguous: { type: "boolean" },
         account: {
@@ -451,19 +439,7 @@ const status = {
       type: "object",
       required: ["state", "gameCount", "counts", "lastSuccessAt", "lastAttemptAt", "error"],
       properties: {
-        state: {
-          type: "string",
-          enum: [
-            "unknown",
-            "ok",
-            "partial",
-            "empty",
-            "not_configured",
-            "invalid_key",
-            "rate_limited",
-            "error",
-          ],
-        },
+        state: { type: "string", enum: [...OWNERSHIP_STATES] },
         gameCount: { type: "integer", minimum: 0 },
         counts: {
           type: "object",
@@ -490,10 +466,7 @@ const status = {
         gameCount: { type: "integer", minimum: 0 },
         installedCount: { type: "integer", minimum: 0 },
         lastScanAt: { $ref: "#/definitions/nullableTimestamp" },
-        lastScanStatus: {
-          type: "string",
-          enum: ["never", "ok", "partial", "failed"],
-        },
+        lastScanStatus: { type: "string", enum: [...LIBRARY_SCAN_STATUSES] },
       },
       additionalProperties: false,
     },
