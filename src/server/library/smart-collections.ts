@@ -98,12 +98,14 @@ function serializedRuleValue(rule: Rule): string {
 
 export class SmartCollectionsRepository {
   private readonly now: () => number;
+  private readonly readLibrary: typeof readLibrary;
 
   constructor(
     private readonly db: BetterSqlite3.Database,
-    options: { now?: () => number } = {},
+    options: { now?: () => number; readLibrary?: typeof readLibrary } = {},
   ) {
     this.now = options.now ?? (() => Math.floor(Date.now() / 1000));
+    this.readLibrary = options.readLibrary ?? readLibrary;
   }
 
   list(query: SmartCollectionsQuery): SmartCollectionsResponse {
@@ -132,7 +134,7 @@ export class SmartCollectionsRepository {
     );
 
     // One Library pass supplies every matchCount on this page (§4.2).
-    const library = rows.length === 0 ? null : readLibrary(this.db);
+    const library = rows.length === 0 ? null : this.readLibrary(this.db);
     const rulesByCollection = this.readRules(rows.map((row) => row.id));
     const data: SmartCollectionListItem[] = rows.map((row) => {
       const rules = rulesByCollection.get(row.id) ?? [];
@@ -255,7 +257,7 @@ export class SmartCollectionsRepository {
     if (collection === null) {
       return null;
     }
-    const library = readLibrary(this.db);
+    const library = this.readLibrary(this.db);
     const matched = evaluateLibrary(library, collection.rules);
     const page = pageMatches(this.db, matched, query);
     return {

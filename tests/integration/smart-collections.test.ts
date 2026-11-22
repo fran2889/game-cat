@@ -2,11 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pino from "pino";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.ts";
 import { createHttpApp } from "../../src/server/http/app.ts";
 import { SteamCollectionsRepository } from "../../src/server/library/collections.ts";
 import { GamesRepository } from "../../src/server/library/games.ts";
+import { readLibrary } from "../../src/server/library/rule-library.ts";
 import { RulePreviewRepository } from "../../src/server/library/rule-preview.ts";
 import { RuleValuesRepository } from "../../src/server/library/rule-values.ts";
 import { SmartCollectionsRepository } from "../../src/server/library/smart-collections.ts";
@@ -36,7 +37,7 @@ interface Harness {
   tick(seconds: number): number;
 }
 
-function harness(): Harness {
+function harness(options: { readLibrary?: typeof readLibrary } = {}): Harness {
   const dir = mkdtempSync(join(tmpdir(), "game-cat-smart-collections-"));
   dataDirs.push(dir);
   const db = openAppDatabase({ dataDir: dir, steamWebApiConfigured: false });
@@ -50,7 +51,10 @@ function harness(): Harness {
     steamId64: null,
     now: () => clock,
   });
-  const smartCollections = new SmartCollectionsRepository(db.raw, { now: () => clock });
+  const smartCollections = new SmartCollectionsRepository(db.raw, {
+    now: () => clock,
+    ...options,
+  });
   const app = createHttpApp({
     port: PORT,
     clientDir: null,
@@ -462,29 +466,16 @@ describe("GET /api/smart-collections", () => {
   });
 
   it("computes every matchCount in one Library pass, without per-Collection requests", async () => {
-    const { db, app } = harness();
+    const reads = vi.fn(readLibrary);
+    const { app } = harness({ readLibrary: reads });
     for (let index = 0; index < 5; index += 1) {
       created(await create(app, { name: `Collection ${index}`, rules: [COOP] }));
     }
 
-    let libraryReads = 0;
-    const originalPrepare = db.raw.prepare.bind(db.raw);
-    (db.raw as unknown as { prepare(sql: string): unknown }).prepare = (sql: string) => {
-      // Kysely emits lowercase SQL; the guard is about the number of Library
-      // passes, not the statement's casing.
-      if (/from\s+"?v_games"?/i.test(sql)) {
-        libraryReads += 1;
-      }
-      return originalPrepare(sql);
-    };
-    try {
-      const response = await get(app, "/api/smart-collections?pageSize=200");
-      expect(response.statusCode).toBe(200);
-      expect((response.json() as SmartCollectionsResponse).data).toHaveLength(5);
-    } finally {
-      (db.raw as unknown as { prepare: typeof originalPrepare }).prepare = originalPrepare;
-    }
-    expect(libraryReads).toBe(1);
+    const response = await get(app, "/api/smart-collections?pageSize=200");
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as SmartCollectionsResponse).data).toHaveLength(5);
+    expect(reads).toHaveBeenCalledTimes(1);
   });
 
   it("returns an empty 200 list and the Create CTA contract", async () => {
