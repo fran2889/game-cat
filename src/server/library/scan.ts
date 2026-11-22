@@ -1,5 +1,5 @@
 import type BetterSqlite3 from "better-sqlite3";
-import { queryFor, runSync } from "../db/query.ts";
+import { allSync, excludedColumns, queryFor, runSync } from "../db/query.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import type { SteamCollectionRecord } from "../steam/collections.ts";
 import type { LocalLibrarySnapshot, LocalManifest, LocalPlaytimeEntry } from "../steam/local.ts";
@@ -120,9 +120,12 @@ export function bindAccount(
 ): void {
   const bound = readBoundSteamId64(db);
   if (bound === null) {
-    db.prepare("INSERT INTO account_state (singleton, steam_id64, bound_at) VALUES (1, ?, ?)").run(
-      steamId64,
-      now(),
+    runSync(
+      db,
+      queryFor(db)
+        .insertInto("account_state")
+        .values({ singleton: 1, steam_id64: steamId64, bound_at: now() })
+        .compile(),
     );
     return;
   }
@@ -239,7 +242,7 @@ function persistSnapshot(
   seenAt: number,
   stats: LibraryScanResult["stats"],
 ): { upserted: number; deleted: number } {
-  const existingRows = db.prepare("SELECT * FROM games").all() as GameRow[];
+  const existingRows = allSync<GameRow>(db, queryFor(db).selectFrom("games").selectAll().compile());
   const existing = new Map(existingRows.map((row) => [row.app_id, row]));
 
   const manifests = new Map<number, LocalManifest>(
@@ -276,62 +279,6 @@ function persistSnapshot(
     ...(localEntries === null ? [] : localEntries.keys()),
     ...memberAppIds,
   ]);
-
-  const upsert = db.prepare(`
-    INSERT INTO games (
-      app_id, name, name_key, name_source, ownership_status, installed,
-      library_path, install_dir, size_on_disk_bytes, state_flags,
-      local_playtime_minutes, local_playtime_2weeks_minutes,
-      playtime_minutes, playtime_2weeks_minutes,
-      manifest_last_played_at, localconfig_last_played_at, last_updated_at,
-      source_mask, first_seen_at, last_seen_at
-    ) VALUES (
-      @appId, @name, @nameKey, @nameSource, @ownershipStatus, @installed,
-      @libraryPath, @installDir, @sizeOnDiskBytes, @stateFlags,
-      @localPlaytimeMinutes, @localPlaytime2weeksMinutes,
-      @playtimeMinutes, @playtime2weeksMinutes,
-      @manifestLastPlayedAt, @localconfigLastPlayedAt, @lastUpdatedAt,
-      @sourceMask, @seenAt, @seenAt
-    )
-    ON CONFLICT(app_id) DO UPDATE SET
-      name = excluded.name,
-      name_key = excluded.name_key,
-      name_source = excluded.name_source,
-      ownership_status = excluded.ownership_status,
-      installed = excluded.installed,
-      library_path = excluded.library_path,
-      install_dir = excluded.install_dir,
-      size_on_disk_bytes = excluded.size_on_disk_bytes,
-      state_flags = excluded.state_flags,
-      local_playtime_minutes = excluded.local_playtime_minutes,
-      local_playtime_2weeks_minutes = excluded.local_playtime_2weeks_minutes,
-      playtime_minutes = excluded.playtime_minutes,
-      playtime_2weeks_minutes = excluded.playtime_2weeks_minutes,
-      manifest_last_played_at = excluded.manifest_last_played_at,
-      localconfig_last_played_at = excluded.localconfig_last_played_at,
-      last_updated_at = excluded.last_updated_at,
-      source_mask = excluded.source_mask,
-      last_seen_at = excluded.last_seen_at
-  `);
-
-  const updateUnseen = db.prepare(`
-    UPDATE games SET
-      installed = @installed,
-      library_path = @libraryPath,
-      install_dir = @installDir,
-      size_on_disk_bytes = @sizeOnDiskBytes,
-      state_flags = @stateFlags,
-      local_playtime_minutes = @localPlaytimeMinutes,
-      local_playtime_2weeks_minutes = @localPlaytime2weeksMinutes,
-      playtime_minutes = @playtimeMinutes,
-      playtime_2weeks_minutes = @playtime2weeksMinutes,
-      manifest_last_played_at = @manifestLastPlayedAt,
-      localconfig_last_played_at = @localconfigLastPlayedAt,
-      last_updated_at = @lastUpdatedAt,
-      source_mask = @sourceMask
-    WHERE app_id = @appId
-  `);
-  const remove = db.prepare("DELETE FROM games WHERE app_id = ?");
 
   let upserted = 0;
   for (const appId of [...seen].sort((left, right) => left - right)) {
@@ -443,12 +390,60 @@ function persistSnapshot(
       lastSeenAt: seenAt,
     };
 
-    upsert.run({
-      ...next,
-      playtimeMinutes: resolvePlaytime(localPlaytime, apiPlaytime),
-      playtime2weeksMinutes: resolveRecent(localRecent, apiRecent),
-      seenAt,
-    });
+    runSync(
+      db,
+      queryFor(db)
+        .insertInto("games")
+        .values({
+          app_id: next.appId,
+          name: next.name,
+          name_key: next.nameKey,
+          name_source: next.nameSource,
+          ownership_status: next.ownershipStatus,
+          installed: next.installed,
+          library_path: next.libraryPath,
+          install_dir: next.installDir,
+          size_on_disk_bytes: next.sizeOnDiskBytes,
+          state_flags: next.stateFlags,
+          local_playtime_minutes: next.localPlaytimeMinutes,
+          local_playtime_2weeks_minutes: next.localPlaytime2weeksMinutes,
+          playtime_minutes: resolvePlaytime(localPlaytime, apiPlaytime),
+          playtime_2weeks_minutes: resolveRecent(localRecent, apiRecent),
+          manifest_last_played_at: next.manifestLastPlayedAt,
+          localconfig_last_played_at: next.localconfigLastPlayedAt,
+          last_updated_at: next.lastUpdatedAt,
+          source_mask: next.sourceMask,
+          first_seen_at: seenAt,
+          last_seen_at: seenAt,
+        })
+        .onConflict((oc) =>
+          oc
+            .column("app_id")
+            .doUpdateSet(
+              excludedColumns([
+                "name",
+                "name_key",
+                "name_source",
+                "ownership_status",
+                "installed",
+                "library_path",
+                "install_dir",
+                "size_on_disk_bytes",
+                "state_flags",
+                "local_playtime_minutes",
+                "local_playtime_2weeks_minutes",
+                "playtime_minutes",
+                "playtime_2weeks_minutes",
+                "manifest_last_played_at",
+                "localconfig_last_played_at",
+                "last_updated_at",
+                "source_mask",
+                "last_seen_at",
+              ]),
+            ),
+        )
+        .compile(),
+    );
     upserted += 1;
   }
 
@@ -503,27 +498,33 @@ function persistSnapshot(
       (sourceMask & LOCAL_EVIDENCE_MASK) === 0 &&
       row.ownership_status !== "owned"
     ) {
-      remove.run(row.app_id);
+      runSync(db, queryFor(db).deleteFrom("games").where("app_id", "=", row.app_id).compile());
       deleted += 1;
       continue;
     }
 
-    updateUnseen.run({
-      appId: row.app_id,
-      installed,
-      libraryPath,
-      installDir,
-      sizeOnDiskBytes,
-      stateFlags,
-      localPlaytimeMinutes: localPlaytime,
-      localPlaytime2weeksMinutes: localRecent,
-      playtimeMinutes: resolvePlaytime(localPlaytime, row.api_playtime_minutes),
-      playtime2weeksMinutes: resolveRecent(localRecent, row.api_playtime_2weeks_minutes),
-      manifestLastPlayedAt,
-      localconfigLastPlayedAt,
-      lastUpdatedAt,
-      sourceMask,
-    });
+    runSync(
+      db,
+      queryFor(db)
+        .updateTable("games")
+        .set({
+          installed,
+          library_path: libraryPath,
+          install_dir: installDir,
+          size_on_disk_bytes: sizeOnDiskBytes,
+          state_flags: stateFlags,
+          local_playtime_minutes: localPlaytime,
+          local_playtime_2weeks_minutes: localRecent,
+          playtime_minutes: resolvePlaytime(localPlaytime, row.api_playtime_minutes),
+          playtime_2weeks_minutes: resolveRecent(localRecent, row.api_playtime_2weeks_minutes),
+          manifest_last_played_at: manifestLastPlayedAt,
+          localconfig_last_played_at: localconfigLastPlayedAt,
+          last_updated_at: lastUpdatedAt,
+          source_mask: sourceMask,
+        })
+        .where("app_id", "=", row.app_id)
+        .compile(),
+    );
   }
 
   if (collectionsComplete) {
@@ -546,43 +547,55 @@ function persistCollections(
     (ids.length === 0 ? removeCollections : removeCollections.where("id", "not in", ids)).compile(),
   );
 
-  const upsert = db.prepare(`
-    INSERT INTO steam_collections (
-      id, name, kind, is_dynamic, filter_spec_json, raw_value_json, imported_at
-    ) VALUES (
-      @id, @name, @kind, @isDynamic, @filterSpecJson, @rawValueJson, @importedAt
-    )
-    ON CONFLICT(id) DO UPDATE SET
-      name = excluded.name,
-      kind = excluded.kind,
-      is_dynamic = excluded.is_dynamic,
-      filter_spec_json = excluded.filter_spec_json,
-      raw_value_json = excluded.raw_value_json,
-      imported_at = excluded.imported_at
-  `);
-  const clearMembers = db.prepare(
-    "DELETE FROM steam_collection_games WHERE steam_collection_id = ?",
-  );
-  const insertMember = db.prepare(
-    "INSERT OR IGNORE INTO steam_collection_games (steam_collection_id, app_id) VALUES (?, ?)",
-  );
-
   for (const collection of collections) {
-    upsert.run({
-      id: collection.id,
-      name: collection.name,
-      kind: collection.kind,
-      isDynamic: collection.isDynamic ? 1 : 0,
-      filterSpecJson: collection.filterSpecJson,
-      rawValueJson: collection.rawValueJson,
-      importedAt,
-    });
-    clearMembers.run(collection.id);
+    runSync(
+      db,
+      queryFor(db)
+        .insertInto("steam_collections")
+        .values({
+          id: collection.id,
+          name: collection.name,
+          kind: collection.kind,
+          is_dynamic: collection.isDynamic ? 1 : 0,
+          filter_spec_json: collection.filterSpecJson,
+          raw_value_json: collection.rawValueJson,
+          imported_at: importedAt,
+        })
+        .onConflict((oc) =>
+          oc
+            .column("id")
+            .doUpdateSet(
+              excludedColumns([
+                "name",
+                "kind",
+                "is_dynamic",
+                "filter_spec_json",
+                "raw_value_json",
+                "imported_at",
+              ]),
+            ),
+        )
+        .compile(),
+    );
+    runSync(
+      db,
+      queryFor(db)
+        .deleteFrom("steam_collection_games")
+        .where("steam_collection_id", "=", collection.id)
+        .compile(),
+    );
     if (collection.isDynamic) {
       continue;
     }
     for (const appId of memberships.get(collection.id) ?? []) {
-      insertMember.run(collection.id, appId);
+      runSync(
+        db,
+        queryFor(db)
+          .insertInto("steam_collection_games")
+          .values({ steam_collection_id: collection.id, app_id: appId })
+          .onConflict((oc) => oc.columns(["steam_collection_id", "app_id"]).doNothing())
+          .compile(),
+      );
     }
   }
 }

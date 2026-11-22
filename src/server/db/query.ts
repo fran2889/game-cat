@@ -1,5 +1,5 @@
 import type BetterSqlite3 from "better-sqlite3";
-import { Kysely, SqliteDialect, type CompiledQuery } from "kysely";
+import { Kysely, SqliteDialect, sql, type CompiledQuery, type RawBuilder } from "kysely";
 import type { DatabaseSchema } from "./schema.ts";
 
 /**
@@ -23,15 +23,66 @@ export function allSync<T>(db: BetterSqlite3.Database, query: CompiledQuery): T[
   return db.prepare(query.sql).all(...query.parameters) as T[];
 }
 
-/** Run a compiled write and return the driver's change metadata. */
+/**
+ * Run a compiled write and return the driver's change metadata.
+ *
+ * The query is already compiled, so a per-row caller still builds and compiles
+ * one query per row; this helper only avoids re-preparing identical SQL.
+ */
 export function runSync(
   db: BetterSqlite3.Database,
   query: CompiledQuery,
 ): { changes: number; lastInsertRowid: number | bigint } {
-  return db.prepare(query.sql).run(...query.parameters);
+  return statementFor(db, query.sql).run(...query.parameters);
+}
+
+/**
+ * Reuse one prepared statement per write shape. Repositories replay the same
+ * statement once per row (a 20,000-Game scan, an ownership roster, a Tag set),
+ * and better-sqlite3 statements are immutable and safe to replay.
+ *
+ * Variable-length shapes (an `IN` list, a multi-row insert) produce one entry
+ * per distinct length, so the map is capped. Eviction is FIFO: a re-prepare is
+ * cheap and only happens when a connection outgrows the cap.
+ *
+ * Reads are not cached: `allSync` and `firstSync` prepare per call, including
+ * per-row lookups such as the Tags read in the SteamSpy writer.
+ */
+const MAX_CACHED_STATEMENTS = 128;
+const writeStatements = new WeakMap<BetterSqlite3.Database, Map<string, BetterSqlite3.Statement>>();
+
+function statementFor(db: BetterSqlite3.Database, sql: string): BetterSqlite3.Statement {
+  let statements = writeStatements.get(db);
+  if (statements === undefined) {
+    statements = new Map();
+    writeStatements.set(db, statements);
+  }
+  let statement = statements.get(sql);
+  if (statement === undefined) {
+    statement = db.prepare(sql);
+    if (statements.size >= MAX_CACHED_STATEMENTS) {
+      const oldest = statements.keys().next().value;
+      if (oldest !== undefined) {
+        statements.delete(oldest);
+      }
+    }
+    statements.set(sql, statement);
+  }
+  return statement;
 }
 
 /** Run a compiled read and take the first row, if any. */
 export function firstSync<T>(db: BetterSqlite3.Database, query: CompiledQuery): T | undefined {
   return db.prepare(query.sql).get(...query.parameters) as T | undefined;
+}
+
+/**
+ * Build a `DO UPDATE SET` payload that copies each column from `excluded`, the
+ * row the insert tried to write. Kysely needs one entry per column, so without
+ * this helper every upsert repeats its column list a second time.
+ */
+export function excludedColumns(columns: readonly string[]): Record<string, RawBuilder<any>> {
+  return Object.fromEntries(
+    columns.map((column): [string, RawBuilder<any>] => [column, sql.ref(`excluded.${column}`)]),
+  );
 }

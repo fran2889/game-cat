@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type BetterSqlite3 from "better-sqlite3";
+import { firstSync, queryFor, runSync } from "../../src/server/db/query.ts";
 import type { Rule } from "../../src/shared/rules.ts";
 
 /**
@@ -320,161 +321,209 @@ const FETCHED_AT = 1_700_000_000;
 export function seedPerfLibrary(db: BetterSqlite3.Database, options: SeedPerfOptions): void {
   const withMetadataRows = options.withMetadataRows ?? true;
   db.transaction(() => {
-    const insertGame = db.prepare(
-      `INSERT INTO games (
-         app_id, name, name_key, name_source, ownership_status, installed,
-         playtime_minutes, manifest_last_played_at, source_mask,
-         first_seen_at, last_seen_at
-       ) VALUES (?, ?, ?, 'local', ?, ?, ?, ?, 2, ?, ?)`,
-    );
-    const insertStorefront = db.prepare(
-      `INSERT INTO storefront_appdetails (
-         app_id, type, developers_json, publishers_json, genres_json, categories_json,
-         platforms_json, release_date_raw, release_year, metacritic_score,
-         store_status, store_fetched_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
-    );
-    const insertSteamSpy = db.prepare(
-      `INSERT INTO steamspy_appdetails (app_id, tags_status, tags_fetched_at, updated_at)
-       VALUES (?, ?, ?, ?)`,
-    );
-    const insertTag = db.prepare("INSERT OR IGNORE INTO tags (name, name_key) VALUES (?, ?)");
-    const findTag = db.prepare("SELECT id FROM tags WHERE name_key = ?");
-    const insertGameTag = db.prepare(
-      "INSERT INTO game_tags (app_id, tag_id, votes) VALUES (?, ?, ?)",
-    );
-    const insertReview = db.prepare(
-      `INSERT INTO steam_review_summaries (
-         app_id, review_positive, review_negative, review_total, review_tier,
-         review_status, review_fetched_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
-
     for (const game of options.games) {
-      insertGame.run(
-        game.appId,
-        game.name,
-        game.nameKey,
-        game.ownershipStatus,
-        game.installed === null ? null : game.installed ? 1 : 0,
-        game.playtimeMinutes,
-        game.lastPlayedAt,
-        FETCHED_AT,
-        FETCHED_AT,
+      runSync(
+        db,
+        queryFor(db)
+          .insertInto("games")
+          .values({
+            app_id: game.appId,
+            name: game.name,
+            name_key: game.nameKey,
+            name_source: "local",
+            ownership_status: game.ownershipStatus,
+            installed: game.installed === null ? null : game.installed ? 1 : 0,
+            playtime_minutes: game.playtimeMinutes,
+            manifest_last_played_at: game.lastPlayedAt,
+            source_mask: 2,
+            first_seen_at: FETCHED_AT,
+            last_seen_at: FETCHED_AT,
+          })
+          .compile(),
       );
       if (withMetadataRows) {
-        insertStorefront.run(
-          game.appId,
-          game.storefrontType,
-          JSON.stringify(game.developers),
-          JSON.stringify(game.publishers),
-          JSON.stringify(game.genres),
-          JSON.stringify(game.categories),
-          JSON.stringify(game.platforms),
-          game.releaseYear,
-          game.metacriticScore,
-          game.storefrontType === null ? "missing" : "ok",
-          game.storefrontType === null ? null : FETCHED_AT,
-          FETCHED_AT,
+        runSync(
+          db,
+          queryFor(db)
+            .insertInto("storefront_appdetails")
+            .values({
+              app_id: game.appId,
+              type: game.storefrontType,
+              developers_json: JSON.stringify(game.developers),
+              publishers_json: JSON.stringify(game.publishers),
+              genres_json: JSON.stringify(game.genres),
+              categories_json: JSON.stringify(game.categories),
+              platforms_json: JSON.stringify(game.platforms),
+              release_year: game.releaseYear,
+              metacritic_score: game.metacriticScore,
+              store_status: game.storefrontType === null ? "missing" : "ok",
+              store_fetched_at: game.storefrontType === null ? null : FETCHED_AT,
+              updated_at: FETCHED_AT,
+            })
+            .compile(),
         );
-        insertSteamSpy.run(
-          game.appId,
-          game.tags.length > 0 ? "ok" : "missing",
-          FETCHED_AT,
-          FETCHED_AT,
+        runSync(
+          db,
+          queryFor(db)
+            .insertInto("steamspy_appdetails")
+            .values({
+              app_id: game.appId,
+              tags_status: game.tags.length > 0 ? "ok" : "missing",
+              tags_fetched_at: FETCHED_AT,
+              updated_at: FETCHED_AT,
+            })
+            .compile(),
         );
       }
       for (const [tagIndex, tag] of game.tags.entries()) {
         const key = tag.toLowerCase();
-        insertTag.run(tag, key);
-        const row = findTag.get(key) as { id: number };
-        insertGameTag.run(game.appId, row.id, 1_000 - tagIndex * 10);
+        runSync(
+          db,
+          queryFor(db)
+            .insertInto("tags")
+            .values({ name: tag, name_key: key })
+            .onConflict((oc) => oc.column("name_key").doNothing())
+            .compile(),
+        );
+        const row = firstSync<{ id: number }>(
+          db,
+          queryFor(db).selectFrom("tags").select("id").where("name_key", "=", key).compile(),
+        );
+        if (row === undefined) {
+          throw new Error(`Tag ${key} was not readable after insert.`);
+        }
+        runSync(
+          db,
+          queryFor(db)
+            .insertInto("game_tags")
+            .values({ app_id: game.appId, tag_id: row.id, votes: 1_000 - tagIndex * 10 })
+            .compile(),
+        );
       }
       if (withMetadataRows) {
         if (game.reviewCount === null) {
-          insertReview.run(game.appId, null, null, null, null, "missing", null, FETCHED_AT);
+          runSync(
+            db,
+            queryFor(db)
+              .insertInto("steam_review_summaries")
+              .values({
+                app_id: game.appId,
+                review_status: "missing",
+                updated_at: FETCHED_AT,
+              })
+              .compile(),
+          );
         } else {
           const positive =
             game.reviewScore === null ? 0 : Math.round((game.reviewScore * game.reviewCount) / 100);
-          insertReview.run(
-            game.appId,
-            positive,
-            game.reviewCount - positive,
-            game.reviewCount,
-            game.reviewTier,
-            "ok",
-            FETCHED_AT,
-            FETCHED_AT,
+          runSync(
+            db,
+            queryFor(db)
+              .insertInto("steam_review_summaries")
+              .values({
+                app_id: game.appId,
+                review_positive: positive,
+                review_negative: game.reviewCount - positive,
+                review_total: game.reviewCount,
+                review_tier: game.reviewTier,
+                review_status: "ok",
+                review_fetched_at: FETCHED_AT,
+                updated_at: FETCHED_AT,
+              })
+              .compile(),
           );
         }
       }
     }
 
-    const insertSteamCollection = db.prepare(
-      `INSERT INTO steam_collections (
-         id, name, kind, is_dynamic, filter_spec_json, raw_value_json, imported_at
-       ) VALUES (?, ?, ?, ?, ?, '{}', ?)`,
-    );
-    const insertSteamMember = db.prepare(
-      "INSERT INTO steam_collection_games (steam_collection_id, app_id) VALUES (?, ?)",
-    );
     for (const collection of PERF_STEAM_COLLECTIONS) {
-      insertSteamCollection.run(
-        collection.id,
-        collection.name,
-        collection.kind,
-        collection.isDynamic ? 1 : 0,
-        collection.isDynamic ? '{"filter":true}' : null,
-        FETCHED_AT,
+      runSync(
+        db,
+        queryFor(db)
+          .insertInto("steam_collections")
+          .values({
+            id: collection.id,
+            name: collection.name,
+            kind: collection.kind,
+            is_dynamic: collection.isDynamic ? 1 : 0,
+            filter_spec_json: collection.isDynamic ? '{"filter":true}' : null,
+            raw_value_json: "{}",
+            imported_at: FETCHED_AT,
+          })
+          .compile(),
       );
       if (!collection.isDynamic) {
         for (const game of options.games) {
           if (game.steamCollections.includes(collection.id)) {
-            insertSteamMember.run(collection.id, game.appId);
+            runSync(
+              db,
+              queryFor(db)
+                .insertInto("steam_collection_games")
+                .values({ steam_collection_id: collection.id, app_id: game.appId })
+                .compile(),
+            );
           }
         }
       }
     }
 
-    const insertSmartCollection = db.prepare(
-      `INSERT INTO smart_collections (id, name, name_key, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    );
-    const insertRule = db.prepare(
-      `INSERT INTO rules (smart_collection_id, position, prefix, field, operator, value_json)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    );
     for (const collection of options.smartCollections ?? []) {
-      insertSmartCollection.run(
-        collection.id,
-        collection.name,
-        collection.name.toLowerCase(),
-        FETCHED_AT,
-        FETCHED_AT,
+      runSync(
+        db,
+        queryFor(db)
+          .insertInto("smart_collections")
+          .values({
+            id: collection.id,
+            name: collection.name,
+            name_key: collection.name.toLowerCase(),
+            created_at: FETCHED_AT,
+            updated_at: FETCHED_AT,
+          })
+          .compile(),
       );
-      collection.rules.forEach((rule, position) => {
-        insertRule.run(
-          collection.id,
-          position,
-          rule.prefix,
-          rule.field,
-          rule.operator,
-          JSON.stringify(rule.value),
+      for (const [position, rule] of collection.rules.entries()) {
+        runSync(
+          db,
+          queryFor(db)
+            .insertInto("rules")
+            .values({
+              smart_collection_id: collection.id,
+              position,
+              prefix: rule.prefix,
+              field: rule.field,
+              operator: rule.operator,
+              value_json: JSON.stringify(rule.value),
+            })
+            .compile(),
         );
-      });
+      }
     }
 
     // A completed library run gives every list a deterministic `dataAsOf`.
     if (withMetadataRows) {
-      db.prepare(
-        `INSERT INTO refresh_runs (scope, mode, status, started_at, finished_at, done)
-         VALUES ('library', NULL, 'succeeded', ?, ?, ?)`,
-      ).run(FETCHED_AT - 5, FETCHED_AT, options.games.length);
+      runSync(
+        db,
+        queryFor(db)
+          .insertInto("refresh_runs")
+          .values({
+            scope: "library",
+            mode: null,
+            status: "succeeded",
+            started_at: FETCHED_AT - 5,
+            finished_at: FETCHED_AT,
+            done: options.games.length,
+          })
+          .compile(),
+      );
       for (const name of ["steamspy", "storefront", "steam_reviews"] as const) {
-        db.prepare(
-          `UPDATE source_state SET status = 'ok', last_success_at = ?, last_attempt_at = ?
-           WHERE name = ?`,
-        ).run(FETCHED_AT, FETCHED_AT, name);
+        runSync(
+          db,
+          queryFor(db)
+            .updateTable("source_state")
+            .set({ status: "ok", last_success_at: FETCHED_AT, last_attempt_at: FETCHED_AT })
+            .where("name", "=", name)
+            .compile(),
+        );
       }
     }
   })();

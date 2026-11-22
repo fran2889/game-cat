@@ -1,5 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { normalizeNameKey } from "../../shared/names.ts";
+import { allSync, queryFor, runSync } from "../db/query.ts";
 import { bindAccount, LOCAL_EVIDENCE_MASK } from "../library/scan.ts";
 import type { OwnedGame } from "../steam/ownership.ts";
 
@@ -50,7 +51,10 @@ export function applyOwnershipRoster(options: ApplyOwnershipOptions): ApplyOwner
     // before any roster write is committed.
     bindAccount(db, steamId64, () => seenAt);
 
-    const existingRows = db.prepare("SELECT * FROM games").all() as GameRow[];
+    const existingRows = allSync<GameRow>(
+      db,
+      queryFor(db).selectFrom("games").selectAll().compile(),
+    );
     const existing = new Map(existingRows.map((row) => [row.app_id, row]));
     const roster = new Map<number, OwnedGame>();
     for (const game of games) {
@@ -59,66 +63,58 @@ export function applyOwnershipRoster(options: ApplyOwnershipOptions): ApplyOwner
       }
     }
 
-    const insert = db.prepare(`
-      INSERT INTO games (
-        app_id, name, name_key, name_source, ownership_status,
-        local_playtime_minutes, local_playtime_2weeks_minutes,
-        api_playtime_minutes, api_playtime_2weeks_minutes,
-        playtime_minutes, playtime_2weeks_minutes,
-        source_mask, first_seen_at, last_seen_at
-      ) VALUES (
-        @appId, @name, @nameKey, @nameSource, 'owned',
-        NULL, NULL,
-        @apiPlaytime, @apiRecent,
-        @playtime, @recent,
-        1, @seenAt, @seenAt
-      )
-    `);
-
-    const update = db.prepare(`
-      UPDATE games SET
-        name = @name,
-        name_key = @nameKey,
-        name_source = @nameSource,
-        ownership_status = 'owned',
-        api_playtime_minutes = @apiPlaytime,
-        api_playtime_2weeks_minutes = @apiRecent,
-        playtime_minutes = @playtime,
-        playtime_2weeks_minutes = @recent,
-        source_mask = @sourceMask,
-        last_seen_at = @seenAt
-      WHERE app_id = @appId
-    `);
-
-    const demote = db.prepare(`
-      UPDATE games SET ownership_status = 'local_only', source_mask = @sourceMask
-      WHERE app_id = @appId
-    `);
-    const clearOwnedBit = db.prepare(
-      "UPDATE games SET source_mask = @sourceMask WHERE app_id = @appId",
-    );
-    const remove = db.prepare("DELETE FROM games WHERE app_id = ?");
-
     let upserted = 0;
     for (const game of roster.values()) {
       const row = existing.get(game.appId);
       const name = nameFor(row, game.name, game.appId);
       const localPlaytime = row?.local_playtime_minutes ?? null;
       const localRecent = row?.local_playtime_2weeks_minutes ?? null;
-      const parameters = {
-        appId: game.appId,
-        ...name,
-        apiPlaytime: game.playtimeForeverMinutes,
-        apiRecent: game.playtime2WeeksMinutes,
-        playtime: localPlaytime ?? game.playtimeForeverMinutes,
-        recent: localRecent ?? game.playtime2WeeksMinutes,
-        sourceMask: (row?.source_mask ?? 0) | 1,
-        seenAt,
-      };
+      const playtime = localPlaytime ?? game.playtimeForeverMinutes;
+      const recent = localRecent ?? game.playtime2WeeksMinutes;
+      const sourceMask = (row?.source_mask ?? 0) | 1;
       if (row === undefined) {
-        insert.run(parameters);
+        runSync(
+          db,
+          queryFor(db)
+            .insertInto("games")
+            .values({
+              app_id: game.appId,
+              name: name.name,
+              name_key: name.nameKey,
+              name_source: name.nameSource,
+              ownership_status: "owned",
+              local_playtime_minutes: null,
+              local_playtime_2weeks_minutes: null,
+              api_playtime_minutes: game.playtimeForeverMinutes,
+              api_playtime_2weeks_minutes: game.playtime2WeeksMinutes,
+              playtime_minutes: playtime,
+              playtime_2weeks_minutes: recent,
+              source_mask: 1,
+              first_seen_at: seenAt,
+              last_seen_at: seenAt,
+            })
+            .compile(),
+        );
       } else {
-        update.run(parameters);
+        runSync(
+          db,
+          queryFor(db)
+            .updateTable("games")
+            .set({
+              name: name.name,
+              name_key: name.nameKey,
+              name_source: name.nameSource,
+              ownership_status: "owned",
+              api_playtime_minutes: game.playtimeForeverMinutes,
+              api_playtime_2weeks_minutes: game.playtime2WeeksMinutes,
+              playtime_minutes: playtime,
+              playtime_2weeks_minutes: recent,
+              source_mask: sourceMask,
+              last_seen_at: seenAt,
+            })
+            .where("app_id", "=", game.appId)
+            .compile(),
+        );
       }
       upserted += 1;
     }
@@ -132,14 +128,28 @@ export function applyOwnershipRoster(options: ApplyOwnershipOptions): ApplyOwner
         }
         const sourceMask = row.source_mask & ~1;
         if ((sourceMask & LOCAL_EVIDENCE_MASK) !== 0) {
-          demote.run({ appId: row.app_id, sourceMask });
+          runSync(
+            db,
+            queryFor(db)
+              .updateTable("games")
+              .set({ ownership_status: "local_only", source_mask: sourceMask })
+              .where("app_id", "=", row.app_id)
+              .compile(),
+          );
           demoted += 1;
         } else if (row.ownership_status === "owned") {
           // Metadata, Tag, and Collection membership rows cascade with the Game.
-          remove.run(row.app_id);
+          runSync(db, queryFor(db).deleteFrom("games").where("app_id", "=", row.app_id).compile());
           deleted += 1;
         } else {
-          clearOwnedBit.run({ appId: row.app_id, sourceMask });
+          runSync(
+            db,
+            queryFor(db)
+              .updateTable("games")
+              .set({ source_mask: sourceMask })
+              .where("app_id", "=", row.app_id)
+              .compile(),
+          );
         }
       }
     }

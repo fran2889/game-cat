@@ -1,6 +1,8 @@
 import type BetterSqlite3 from "better-sqlite3";
+import { sql } from "kysely";
 import { APP_NAME, APP_VERSION } from "../../shared/app.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
+import { excludedColumns, firstSync, queryFor, runSync } from "../db/query.ts";
 import type {
   MetadataSource,
   MetadataSourceContext,
@@ -122,17 +124,29 @@ function classifyBody(body: unknown, requestedAppId: number): ParsedBody {
 
 function hasLastKnownGoodTags(db: BetterSqlite3.Database, appId: number): boolean {
   return (
-    db.prepare("SELECT 1 AS present FROM game_tags WHERE app_id = ? LIMIT 1").get(appId) !==
-    undefined
+    firstSync(
+      db,
+      queryFor(db)
+        .selectFrom("game_tags")
+        .select(sql<number>`1`.as("present"))
+        .where("app_id", "=", appId)
+        .limit(1)
+        .compile(),
+    ) !== undefined
   );
 }
 
 function applyNameMatrix(db: BetterSqlite3.Database, appId: number, name: string): void {
   const nameKey = normalizeNameKey(name);
-  db.prepare(
-    `UPDATE games SET name = ?, name_key = ?, name_source = 'steamspy'
-     WHERE app_id = ? AND name_source IN ('placeholder', 'steamspy')`,
-  ).run(name, nameKey, appId);
+  runSync(
+    db,
+    queryFor(db)
+      .updateTable("games")
+      .set({ name, name_key: nameKey, name_source: "steamspy" })
+      .where("app_id", "=", appId)
+      .where("name_source", "in", ["placeholder", "steamspy"])
+      .compile(),
+  );
 }
 
 function recordFailure(
@@ -141,14 +155,23 @@ function recordFailure(
   message: string,
 ): void {
   const status = hasLastKnownGoodTags(db, context.game.appId) ? "stale" : "error";
-  db.prepare(
-    `INSERT INTO steamspy_appdetails (app_id, tags_status, tags_error, updated_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(app_id) DO UPDATE SET
-       tags_status = excluded.tags_status,
-       tags_error = excluded.tags_error,
-       updated_at = excluded.updated_at`,
-  ).run(context.game.appId, status, message, context.now);
+  runSync(
+    db,
+    queryFor(db)
+      .insertInto("steamspy_appdetails")
+      .values({
+        app_id: context.game.appId,
+        tags_status: status,
+        tags_error: message,
+        updated_at: context.now,
+      })
+      .onConflict((oc) =>
+        oc
+          .column("app_id")
+          .doUpdateSet(excludedColumns(["tags_status", "tags_error", "updated_at"])),
+      )
+      .compile(),
+  );
 }
 
 function storeSuccessfulResponse(
@@ -162,35 +185,67 @@ function storeSuccessfulResponse(
   const raw = JSON.stringify(parsed.raw);
 
   db.transaction(() => {
-    db.prepare("DELETE FROM game_tags WHERE app_id = ?").run(appId);
+    runSync(db, queryFor(db).deleteFrom("game_tags").where("app_id", "=", appId).compile());
     if (tags.length > 0) {
-      const insertTag = db.prepare(
-        "INSERT INTO tags (name, name_key) VALUES (?, ?) ON CONFLICT(name_key) DO NOTHING",
-      );
-      const selectTag = db.prepare("SELECT id FROM tags WHERE name_key = ?");
-      const insertGameTag = db.prepare(
-        "INSERT INTO game_tags (app_id, tag_id, votes) VALUES (?, ?, ?)",
-      );
       for (const tag of tags) {
-        insertTag.run(tag.name, tag.nameKey);
-        const row = selectTag.get(tag.nameKey) as { id: number };
-        insertGameTag.run(appId, row.id, tag.votes);
+        runSync(
+          db,
+          queryFor(db)
+            .insertInto("tags")
+            .values({ name: tag.name, name_key: tag.nameKey })
+            .onConflict((oc) => oc.column("name_key").doNothing())
+            .compile(),
+        );
+        const row = firstSync<{ id: number }>(
+          db,
+          queryFor(db)
+            .selectFrom("tags")
+            .select("id")
+            .where("name_key", "=", tag.nameKey)
+            .compile(),
+        );
+        if (row === undefined) {
+          throw new Error(`Tag ${tag.nameKey} was not readable after insert.`);
+        }
+        runSync(
+          db,
+          queryFor(db)
+            .insertInto("game_tags")
+            .values({ app_id: appId, tag_id: row.id, votes: tag.votes })
+            .compile(),
+        );
       }
     }
 
-    db.prepare(
-      `INSERT INTO steamspy_appdetails (
-         app_id, steamspy_name, tags_status, tags_fetched_at, tags_error,
-         raw_steamspy_json, updated_at
-       ) VALUES (?, ?, ?, ?, NULL, ?, ?)
-       ON CONFLICT(app_id) DO UPDATE SET
-         steamspy_name = COALESCE(excluded.steamspy_name, steamspy_appdetails.steamspy_name),
-         tags_status = excluded.tags_status,
-         tags_fetched_at = excluded.tags_fetched_at,
-         tags_error = NULL,
-         raw_steamspy_json = excluded.raw_steamspy_json,
-         updated_at = excluded.updated_at`,
-    ).run(appId, name, tags.length > 0 ? "ok" : "missing", context.now, raw, context.now);
+    runSync(
+      db,
+      queryFor(db)
+        .insertInto("steamspy_appdetails")
+        .values({
+          app_id: appId,
+          steamspy_name: name,
+          tags_status: tags.length > 0 ? "ok" : "missing",
+          tags_fetched_at: context.now,
+          tags_error: null,
+          raw_steamspy_json: raw,
+          updated_at: context.now,
+        })
+        .onConflict((oc) =>
+          oc.column("app_id").doUpdateSet({
+            steamspy_name: sql<
+              string | null
+            >`COALESCE(${sql.ref("excluded.steamspy_name")}, ${sql.ref("steamspy_appdetails.steamspy_name")})`,
+            ...excludedColumns([
+              "tags_status",
+              "tags_fetched_at",
+              "raw_steamspy_json",
+              "updated_at",
+            ]),
+            tags_error: null,
+          }),
+        )
+        .compile(),
+    );
 
     if (name !== null) {
       applyNameMatrix(db, appId, name);

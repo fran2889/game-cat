@@ -1,5 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { APP_NAME, APP_VERSION } from "../../shared/app.ts";
+import { excludedColumns, firstSync, queryFor, runSync } from "../db/query.ts";
 import { parseRetryAfter } from "../steam/retry-after.ts";
 import type { MetadataSource, MetadataSourceContext, MetadataSourceOutcome } from "./sources.ts";
 
@@ -115,9 +116,14 @@ export function parseReviewSummary(
 }
 
 function lkg(sqlite: BetterSqlite3.Database, appId: number): boolean {
-  const row = sqlite
-    .prepare("SELECT review_total FROM steam_review_summaries WHERE app_id = ?")
-    .get(appId) as { review_total: number | null } | undefined;
+  const row = firstSync<{ review_total: number | null }>(
+    sqlite,
+    queryFor(sqlite)
+      .selectFrom("steam_review_summaries")
+      .select("review_total")
+      .where("app_id", "=", appId)
+      .compile(),
+  );
   return row?.review_total !== null && row?.review_total !== undefined;
 }
 
@@ -136,27 +142,41 @@ function upsert(
     now: number;
   },
 ): void {
-  sqlite
-    .prepare(
-      `INSERT INTO steam_review_summaries (
-         app_id, review_positive, review_negative, review_total, review_tier,
-         review_status, review_fetched_at, review_error, raw_reviews_json, updated_at
-       ) VALUES (
-         @appId, @positive, @negative, @total, @tier,
-         @status, @fetchedAt, @error, @raw, @now
-       )
-       ON CONFLICT(app_id) DO UPDATE SET
-         review_positive = excluded.review_positive,
-         review_negative = excluded.review_negative,
-         review_total = excluded.review_total,
-         review_tier = excluded.review_tier,
-         review_status = excluded.review_status,
-         review_fetched_at = excluded.review_fetched_at,
-         review_error = excluded.review_error,
-         raw_reviews_json = excluded.raw_reviews_json,
-         updated_at = excluded.updated_at`,
-    )
-    .run({ appId, ...fields });
+  runSync(
+    sqlite,
+    queryFor(sqlite)
+      .insertInto("steam_review_summaries")
+      .values({
+        app_id: appId,
+        review_positive: fields.positive,
+        review_negative: fields.negative,
+        review_total: fields.total,
+        review_tier: fields.tier,
+        review_status: fields.status,
+        review_fetched_at: fields.fetchedAt,
+        review_error: fields.error,
+        raw_reviews_json: fields.raw,
+        updated_at: fields.now,
+      })
+      .onConflict((oc) =>
+        oc
+          .column("app_id")
+          .doUpdateSet(
+            excludedColumns([
+              "review_positive",
+              "review_negative",
+              "review_total",
+              "review_tier",
+              "review_status",
+              "review_fetched_at",
+              "review_error",
+              "raw_reviews_json",
+              "updated_at",
+            ]),
+          ),
+      )
+      .compile(),
+  );
 }
 
 /** Keep last-known-good values, or clear them when there is nothing to keep. */
@@ -167,13 +187,14 @@ function recordFailure(
   message: string,
 ): void {
   if (lkg(sqlite, appId)) {
-    sqlite
-      .prepare(
-        `UPDATE steam_review_summaries
-         SET review_status = 'stale', review_error = ?, updated_at = ?
-         WHERE app_id = ?`,
-      )
-      .run(message, now, appId);
+    runSync(
+      sqlite,
+      queryFor(sqlite)
+        .updateTable("steam_review_summaries")
+        .set({ review_status: "stale", review_error: message, updated_at: now })
+        .where("app_id", "=", appId)
+        .compile(),
+    );
     return;
   }
   upsert(sqlite, appId, {
@@ -231,13 +252,19 @@ function recordEmpty(
 ): void {
   const message = "Steam returned no usable review summary.";
   if (lkg(sqlite, appId)) {
-    sqlite
-      .prepare(
-        `UPDATE steam_review_summaries
-         SET review_status = 'stale', review_error = ?, raw_reviews_json = ?, updated_at = ?
-         WHERE app_id = ?`,
-      )
-      .run(message, raw, now, appId);
+    runSync(
+      sqlite,
+      queryFor(sqlite)
+        .updateTable("steam_review_summaries")
+        .set({
+          review_status: "stale",
+          review_error: message,
+          raw_reviews_json: raw,
+          updated_at: now,
+        })
+        .where("app_id", "=", appId)
+        .compile(),
+    );
     return;
   }
   upsert(sqlite, appId, {

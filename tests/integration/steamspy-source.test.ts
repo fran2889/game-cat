@@ -319,6 +319,31 @@ describe("SteamSpySource settled miss", () => {
     });
   });
 
+  it("keeps a prior SteamSpy name when a later settled miss has no name", async () => {
+    const db = openDatabase();
+    seedGame(db, 42, "Game 42", "placeholder");
+    const responses = [
+      { body: { appid: 42, name: "Spy Forty-Two", tags: { Action: 10 } } },
+      { body: { appid: 42, name: null, tags: [] } },
+    ];
+    let call = 0;
+    const adapter = source(fakeFetch(() => responses[call++]!).fetchImpl);
+
+    expect(await fetchGame(db, adapter, 42)).toEqual({ kind: "ok" });
+    expect(steamspyRow(db, 42)?.steamspy_name).toBe("Spy Forty-Two");
+
+    expect(await fetchGame(db, adapter, 42)).toEqual({ kind: "missing" });
+    expect(steamspyRow(db, 42)).toMatchObject({
+      steamspy_name: "Spy Forty-Two",
+      tags_status: "missing",
+      tags_error: null,
+    });
+    expect(db.raw.prepare("SELECT name, name_source FROM games WHERE app_id = 42").get()).toEqual({
+      name: "Spy Forty-Two",
+      name_source: "steamspy",
+    });
+  });
+
   it("accepts absent Tags as empty and refuses a null name", async () => {
     const db = openDatabase();
     seedGame(db, 1);

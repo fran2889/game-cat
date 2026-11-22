@@ -2,6 +2,7 @@ import type BetterSqlite3 from "better-sqlite3";
 import type { GameSummary, GameOrder, GameSort } from "../../shared/types.ts";
 import type { Rule } from "../../shared/rules.ts";
 import { readTagsForGames, toGameSummary, type GameListResult, type GamesRow } from "./games.ts";
+import { allSync, queryFor } from "../db/query.ts";
 import { pagination } from "./pagination.ts";
 import { compileRules, type RuleTarget } from "./rule-evaluator.ts";
 
@@ -122,21 +123,22 @@ export interface RuleLibrary {
 
 /** Read the Library projection once, including Tags and static membership. */
 export function readLibrary(db: BetterSqlite3.Database): RuleLibrary {
-  const rows = db.prepare("SELECT * FROM v_games").all() as GamesRow[];
+  const rows = allSync<GamesRow>(db, queryFor(db).selectFrom("v_games").selectAll().compile());
   const tags = readTagsForGames(
     db,
     rows.map((row) => row.app_id),
   );
   const collections = new Map<number, string[]>();
-  const membership = db
-    .prepare(
-      `SELECT scg.app_id AS app_id, scg.steam_collection_id AS steam_collection_id
-       FROM steam_collection_games scg
-       JOIN steam_collections c ON c.id = scg.steam_collection_id
-       WHERE c.is_dynamic = 0
-       ORDER BY scg.steam_collection_id ASC`,
-    )
-    .all() as CollectionMembership[];
+  const membership = allSync<CollectionMembership>(
+    db,
+    queryFor(db)
+      .selectFrom("steam_collection_games as scg")
+      .innerJoin("steam_collections as c", "c.id", "scg.steam_collection_id")
+      .select(["scg.app_id as app_id", "scg.steam_collection_id as steam_collection_id"])
+      .where("c.is_dynamic", "=", 0)
+      .orderBy("scg.steam_collection_id", "asc")
+      .compile(),
+  );
   for (const row of membership) {
     const ids = collections.get(row.app_id) ?? [];
     ids.push(row.steam_collection_id);

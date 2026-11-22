@@ -2,15 +2,22 @@ import type { Generated } from "kysely";
 import type { GamesRow } from "../library/games.ts";
 
 /**
- * The typed database schema Kysely builds queries against. Only the tables and
- * views read by the converted repositories are declared; later tickets extend
- * this interface as they convert more of the read and write paths.
+ * The typed database schema Kysely builds queries against. It models every
+ * table, view, and column the repositories read or write; migrations stay
+ * hand-written (§1.5, ADR 0004).
  *
  * Column names stay snake_case because the contract is the stored schema
  * (`CODING_STANDARDS.md`: camelCase at the API, snake_case in the database).
+ * Columns with a database default are `Generated` so an insert may omit them.
  */
+export interface AccountStateTable {
+  singleton: number;
+  steam_id64: string;
+  bound_at: number;
+}
+
 export interface TagsTable {
-  id: number;
+  id: Generated<number>;
   name: string;
   name_key: string;
 }
@@ -25,7 +32,7 @@ export interface SteamCollectionsTable {
   id: string;
   name: string;
   kind: string;
-  is_dynamic: number;
+  is_dynamic: Generated<number>;
   filter_spec_json: string | null;
   raw_value_json: string;
   imported_at: number;
@@ -40,42 +47,65 @@ export interface GamesTable {
   app_id: number;
   name: string;
   name_key: string;
-  ownership_status: string;
+  name_source: Generated<string>;
+  ownership_status: Generated<string>;
   installed: number | null;
-  playtime_minutes: number;
+  library_path: string | null;
+  install_dir: string | null;
+  size_on_disk_bytes: number | null;
+  state_flags: number | null;
+  local_playtime_minutes: number | null;
+  api_playtime_minutes: number | null;
+  playtime_minutes: Generated<number>;
+  local_playtime_2weeks_minutes: number | null;
+  api_playtime_2weeks_minutes: number | null;
+  playtime_2weeks_minutes: number | null;
+  manifest_last_played_at: number | null;
+  localconfig_last_played_at: number | null;
+  last_updated_at: number | null;
+  source_mask: Generated<number>;
+  first_seen_at: number;
+  last_seen_at: number;
 }
 
 export interface SteamspyAppdetailsTable {
   app_id: number;
-  tags_status: string;
+  steamspy_name: string | null;
+  tags_status: Generated<string>;
   tags_fetched_at: number | null;
+  tags_error: string | null;
+  raw_steamspy_json: string | null;
   updated_at: number;
 }
 
 export interface StorefrontAppdetailsTable {
   app_id: number;
   type: string | null;
-  developers_json: string | null;
-  publishers_json: string | null;
-  genres_json: string | null;
-  categories_json: string | null;
-  platforms_json: string | null;
+  developers_json: Generated<string>;
+  publishers_json: Generated<string>;
+  genres_json: Generated<string>;
+  categories_json: Generated<string>;
+  platforms_json: Generated<string>;
   release_date_raw: string | null;
   release_year: number | null;
   metacritic_score: number | null;
-  store_status: string;
+  store_status: Generated<string>;
   store_fetched_at: number | null;
+  store_error: string | null;
+  raw_store_json: string | null;
   updated_at: number;
 }
 
 export interface SteamReviewSummariesTable {
   app_id: number;
-  review_status: string;
-  review_fetched_at: number | null;
   review_positive: number | null;
   review_negative: number | null;
   review_total: number | null;
   review_tier: string | null;
+  review_status: Generated<string>;
+  review_fetched_at: number | null;
+  review_error: string | null;
+  raw_reviews_json: string | null;
   updated_at: number;
 }
 
@@ -97,7 +127,7 @@ export interface RefreshRunsTable {
   started_at: number;
   finished_at?: number | null;
   total?: number | null;
-  done: number;
+  done: Generated<number>;
   stats_json?: string | null;
   error_code?: string | null;
   error_message?: string | null;
@@ -113,6 +143,7 @@ export interface SmartCollectionsTable {
 }
 
 export interface RulesTable {
+  id: Generated<number>;
   smart_collection_id: string;
   position: number;
   prefix: string;
@@ -122,6 +153,7 @@ export interface RulesTable {
 }
 
 export interface DatabaseSchema {
+  account_state: AccountStateTable;
   games: GamesTable;
   steamspy_appdetails: SteamspyAppdetailsTable;
   storefront_appdetails: StorefrontAppdetailsTable;

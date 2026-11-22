@@ -2,6 +2,7 @@ import type BetterSqlite3 from "better-sqlite3";
 import { APP_NAME, APP_VERSION } from "../../shared/app.ts";
 import { normalizeNameKey } from "../../shared/names.ts";
 import { parseAppId } from "../app-id.ts";
+import { excludedColumns, firstSync, queryFor, runSync } from "../db/query.ts";
 import type {
   MetadataSource,
   MetadataSourceContext,
@@ -167,13 +168,25 @@ function hasStoreData(row: StorefrontRow | undefined): boolean {
 }
 
 function readStorefrontRow(db: BetterSqlite3.Database, appId: number): StorefrontRow | undefined {
-  return db
-    .prepare(
-      `SELECT type, developers_json, publishers_json, genres_json, categories_json,
-              platforms_json, release_date_raw, metacritic_score, raw_store_json, store_status
-       FROM storefront_appdetails WHERE app_id = ?`,
-    )
-    .get(appId) as StorefrontRow | undefined;
+  return firstSync<StorefrontRow>(
+    db,
+    queryFor(db)
+      .selectFrom("storefront_appdetails")
+      .select([
+        "type",
+        "developers_json",
+        "publishers_json",
+        "genres_json",
+        "categories_json",
+        "platforms_json",
+        "release_date_raw",
+        "metacritic_score",
+        "raw_store_json",
+        "store_status",
+      ])
+      .where("app_id", "=", appId)
+      .compile(),
+  );
 }
 
 /**
@@ -188,30 +201,49 @@ function recordFailure(
 ): void {
   db.transaction(() => {
     const status = hasStoreData(readStorefrontRow(db, appId)) ? "stale" : "error";
-    db.prepare(
-      `INSERT INTO storefront_appdetails (app_id, store_status, store_error, updated_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(app_id) DO UPDATE SET
-         store_status = excluded.store_status,
-         store_error = excluded.store_error,
-         updated_at = excluded.updated_at`,
-    ).run(appId, status, message, now);
+    runSync(
+      db,
+      queryFor(db)
+        .insertInto("storefront_appdetails")
+        .values({
+          app_id: appId,
+          store_status: status,
+          store_error: message,
+          updated_at: now,
+        })
+        .onConflict((oc) =>
+          oc
+            .column("app_id")
+            .doUpdateSet(excludedColumns(["store_status", "store_error", "updated_at"])),
+        )
+        .compile(),
+    );
   })();
 }
 
 /** A successful answer with no usable store data is a settled `unavailable`. */
 function recordUnavailable(db: BetterSqlite3.Database, appId: number, now: number): void {
   db.transaction(() => {
-    db.prepare(
-      `INSERT INTO storefront_appdetails (
-         app_id, store_status, store_fetched_at, store_error, updated_at
-       ) VALUES (?, 'unavailable', ?, NULL, ?)
-       ON CONFLICT(app_id) DO UPDATE SET
-         store_status = 'unavailable',
-         store_fetched_at = excluded.store_fetched_at,
-         store_error = NULL,
-         updated_at = excluded.updated_at`,
-    ).run(appId, now, now);
+    runSync(
+      db,
+      queryFor(db)
+        .insertInto("storefront_appdetails")
+        .values({
+          app_id: appId,
+          store_status: "unavailable",
+          store_fetched_at: now,
+          store_error: null,
+          updated_at: now,
+        })
+        .onConflict((oc) =>
+          oc.column("app_id").doUpdateSet({
+            store_status: "unavailable",
+            ...excludedColumns(["store_fetched_at", "updated_at"]),
+            store_error: null,
+          }),
+        )
+        .compile(),
+    );
   })();
 }
 
@@ -272,48 +304,64 @@ function persistSuccess(
   parsed: ParsedStorefront,
 ): void {
   db.transaction(() => {
-    db.prepare(
-      `INSERT INTO storefront_appdetails (
-         app_id, type, developers_json, publishers_json, genres_json, categories_json,
-         platforms_json, release_date_raw, release_year, metacritic_score,
-         store_status, store_fetched_at, store_error, raw_store_json, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?, NULL, ?, ?)
-       ON CONFLICT(app_id) DO UPDATE SET
-         type = excluded.type,
-         developers_json = excluded.developers_json,
-         publishers_json = excluded.publishers_json,
-         genres_json = excluded.genres_json,
-         categories_json = excluded.categories_json,
-         platforms_json = excluded.platforms_json,
-         release_date_raw = excluded.release_date_raw,
-         release_year = excluded.release_year,
-         metacritic_score = excluded.metacritic_score,
-         store_status = 'ok',
-         store_fetched_at = excluded.store_fetched_at,
-         store_error = NULL,
-         raw_store_json = excluded.raw_store_json,
-         updated_at = excluded.updated_at`,
-    ).run(
-      appId,
-      parsed.type,
-      JSON.stringify(parsed.developers),
-      JSON.stringify(parsed.publishers),
-      JSON.stringify(parsed.genres),
-      JSON.stringify(parsed.categories),
-      JSON.stringify(parsed.platforms),
-      parsed.releaseDateRaw,
-      parseReleaseYear(parsed.releaseDateRaw),
-      parsed.metacriticScore,
-      now,
-      parsed.raw,
-      now,
+    runSync(
+      db,
+      queryFor(db)
+        .insertInto("storefront_appdetails")
+        .values({
+          app_id: appId,
+          type: parsed.type,
+          developers_json: JSON.stringify(parsed.developers),
+          publishers_json: JSON.stringify(parsed.publishers),
+          genres_json: JSON.stringify(parsed.genres),
+          categories_json: JSON.stringify(parsed.categories),
+          platforms_json: JSON.stringify(parsed.platforms),
+          release_date_raw: parsed.releaseDateRaw,
+          release_year: parseReleaseYear(parsed.releaseDateRaw),
+          metacritic_score: parsed.metacriticScore,
+          store_status: "ok",
+          store_fetched_at: now,
+          store_error: null,
+          raw_store_json: parsed.raw,
+          updated_at: now,
+        })
+        .onConflict((oc) =>
+          oc.column("app_id").doUpdateSet({
+            ...excludedColumns([
+              "type",
+              "developers_json",
+              "publishers_json",
+              "genres_json",
+              "categories_json",
+              "platforms_json",
+              "release_date_raw",
+              "release_year",
+              "metacritic_score",
+              "store_fetched_at",
+              "raw_store_json",
+              "updated_at",
+            ]),
+            store_status: "ok",
+            store_error: null,
+          }),
+        )
+        .compile(),
     );
 
     // Storefront wins every name source, including its own prior value (§2.7).
     if (parsed.name !== null) {
-      db.prepare(
-        "UPDATE games SET name = ?, name_key = ?, name_source = 'storefront' WHERE app_id = ?",
-      ).run(parsed.name, normalizeNameKey(parsed.name), appId);
+      runSync(
+        db,
+        queryFor(db)
+          .updateTable("games")
+          .set({
+            name: parsed.name,
+            name_key: normalizeNameKey(parsed.name),
+            name_source: "storefront",
+          })
+          .where("app_id", "=", appId)
+          .compile(),
+      );
     }
   })();
 }

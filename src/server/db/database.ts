@@ -5,6 +5,7 @@ import { SOURCE_ORDER } from "../../shared/types.ts";
 import { StartupError } from "../errors.ts";
 import { runMigrations, type MigrateResult } from "./migrate.ts";
 import { loadMigrations, type Migration } from "./migrations.ts";
+import { firstSync, queryFor } from "./query.ts";
 
 export interface OpenDatabaseOptions {
   /** The data directory; the database lives at `<data-dir>/game-cat.sqlite`. */
@@ -118,8 +119,14 @@ export function seedSourceState(db: BetterSqlite3.Database, steamWebApiConfigure
 }
 
 export function readBoundSteamId64(db: BetterSqlite3.Database): string | null {
-  const row = db.prepare("SELECT steam_id64 FROM account_state WHERE singleton = 1").get() as
-    { steam_id64: string } | undefined;
+  const row = firstSync<{ steam_id64: string }>(
+    db,
+    queryFor(db)
+      .selectFrom("account_state")
+      .select("steam_id64")
+      .where("singleton", "=", 1)
+      .compile(),
+  );
   return row?.steam_id64 ?? null;
 }
 
