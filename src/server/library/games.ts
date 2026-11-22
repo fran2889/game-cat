@@ -224,8 +224,8 @@ export interface GameListResult {
   meta: { dataAsOf: string | null };
 }
 
-/** The typed column a sort key reads, shared with the other read paths. */
-export function sortColumn(sort: GameSort): keyof GamesRow & string {
+/** The typed column a sort key reads. */
+function sortColumn(sort: GameSort): keyof GamesRow & string {
   return SORT_COLUMNS[sort] as keyof GamesRow & string;
 }
 
@@ -276,6 +276,25 @@ export function gameOrderTerms(
     terms.push({ expression: sql.ref(column), direction: key.direction });
   }
   return terms;
+}
+
+/** The query surface the ordering helper needs; Kysely builders satisfy it. */
+interface GameOrderQuery<Q> {
+  orderBy(expression: RawBuilder<unknown>, direction: "asc" | "desc"): Q;
+}
+
+/** Apply the ordering terms to a Library or joined Collection read. */
+export function applyGameOrder<Q extends GameOrderQuery<Q>>(
+  query: Q,
+  sort: GameSort,
+  order: GameOrder,
+  appIdColumn = "app_id",
+): Q {
+  let next = query;
+  for (const term of gameOrderTerms(sort, order, appIdColumn)) {
+    next = next.orderBy(term.expression, term.direction);
+  }
+  return next;
 }
 
 /** Apply the same ordering keys in memory for the Rule read path. */
@@ -389,10 +408,11 @@ export class GamesRepository {
     );
     const total = Number(count?.count ?? 0);
 
-    let rowsQuery = withGameFilters(queryFor(this.db).selectFrom("v_games").selectAll(), query);
-    for (const term of gameOrderTerms(query.sort, query.order)) {
-      rowsQuery = rowsQuery.orderBy(term.expression, term.direction);
-    }
+    const rowsQuery = applyGameOrder(
+      withGameFilters(queryFor(this.db).selectFrom("v_games").selectAll(), query),
+      query.sort,
+      query.order,
+    );
     const rows = allSync<GamesRow>(
       this.db,
       rowsQuery
