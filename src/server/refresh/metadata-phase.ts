@@ -413,38 +413,38 @@ async function executeSourcePass(
   let attemptedAt: number | null = null;
   let paused = false;
 
+  const pausePass = (
+    index: number,
+    reason: "rate_limited" | "blocked",
+    details: { at: number; until: number; message: string },
+  ): void => {
+    const previous = hostPause.get(hostKey);
+    hostPause.set(hostKey, {
+      until: Math.max(previous?.until ?? 0, details.until),
+      reason,
+    });
+    updateMetadataSourceState(
+      source.name,
+      {
+        status: reason,
+        lastAttemptAt: details.at,
+        lastSuccessAt: null,
+        retryAfterAt: details.until,
+        lastError: details.message,
+      },
+      options,
+    );
+    paused = true;
+    skipFrom(plan, source.name, items, index);
+    persistIfNeeded();
+  };
+
   try {
     for (let index = 0; index < items.length; index += 1) {
       if (options.isStopping()) {
         return;
       }
       const item = items[index]!;
-      const pausePass = (pause: {
-        at: number;
-        until: number;
-        reason: "rate_limited" | "blocked";
-        message: string;
-      }): void => {
-        const previous = hostPause.get(hostKey);
-        hostPause.set(hostKey, {
-          until: Math.max(previous?.until ?? 0, pause.until),
-          reason: pause.reason,
-        });
-        updateMetadataSourceState(
-          source.name,
-          {
-            status: pause.reason,
-            lastAttemptAt: pause.at,
-            lastSuccessAt: null,
-            retryAfterAt: pause.until,
-            lastError: pause.message,
-          },
-          options,
-        );
-        skipFrom(plan, source.name, items, index);
-        paused = true;
-        persistIfNeeded();
-      };
       let attempt = 0;
 
       while (true) {
@@ -511,14 +511,14 @@ async function executeSourcePass(
           }
           const at = options.now();
           const until = outcome.retryAfterAt ?? at + backoffSeconds(attempt, options);
-          pausePass({ at, until, reason: "rate_limited", message: outcome.message });
+          pausePass(index, "rate_limited", { at, until, message: outcome.message });
           return;
         }
 
         if (outcome.kind === "blocked") {
           const at = options.now();
           const until = at + BLOCK_SECONDS;
-          pausePass({ at, until, reason: "blocked", message: outcome.message });
+          pausePass(index, "blocked", { at, until, message: outcome.message });
           return;
         }
 
