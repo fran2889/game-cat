@@ -110,6 +110,7 @@ export function startContractServer(): ContractServer {
 
 interface Response {
   statusCode: number;
+  headers: Record<string, string | string[] | number | undefined>;
   body: unknown;
 }
 
@@ -127,19 +128,32 @@ async function call(
     },
     ...(init.payload === undefined ? {} : { payload: init.payload }),
   });
-  return { statusCode: response.statusCode, body: response.json() };
+  return {
+    statusCode: response.statusCode,
+    headers: response.headers,
+    // A 204 has no body, so `inject().json()` would throw.
+    body: response.body === "" ? undefined : response.json(),
+  };
 }
 
 export interface CapturedResponse {
-  schema: ResponseSchemaName;
+  schema?: ResponseSchemaName;
   statusCode: number;
-  body: unknown;
+  /** Only the documented `Location` header is part of the response contract. */
+  headers?: { location: string };
+  body?: unknown;
 }
 
 export type CapturedResponses = Record<string, CapturedResponse>;
 
 const TIMESTAMP = new RegExp(TIMESTAMP_PATTERN);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID_IN_TEXT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
+
+/** A `Location` embeds a generated ID, so normalise the ID inside the path. */
+function normalizeLocation(location: string): string {
+  return location.replace(UUID_IN_TEXT, "00000000-0000-4000-8000-000000000000");
+}
 
 /**
  * Replace the values that legitimately change between captures with fixed,
@@ -185,14 +199,16 @@ export async function captureContractResponses(): Promise<CapturedResponses> {
 
   async function record(
     name: string,
-    schema: ResponseSchemaName,
+    schema: ResponseSchemaName | null,
     response: Promise<Response>,
   ): Promise<unknown> {
     const result = await response;
+    const location = result.headers.location;
     responses[name] = {
-      schema,
+      ...(schema === null ? {} : { schema }),
       statusCode: result.statusCode,
-      body: normalizeContractValue(result.body),
+      ...(typeof location === "string" ? { headers: { location: normalizeLocation(location) } } : {}),
+      ...(result.body === undefined ? {} : { body: normalizeContractValue(result.body) }),
     };
     return result.body;
   }
@@ -260,6 +276,18 @@ export async function captureContractResponses(): Promise<CapturedResponses> {
     const smartCollectionId = created.data.id;
 
     await record(
+      "smart-collection-name-conflict",
+      "errorResponse",
+      call(server, "/api/smart-collections", {
+        method: "POST",
+        payload: {
+          name: "Contract Collection",
+          rules: [{ prefix: "AND", field: "tag", operator: "has", value: "Co-op" }],
+        },
+      }),
+    );
+
+    await record(
       "smart-collection",
       "smartCollectionResponse",
       call(server, `/api/smart-collections/${smartCollectionId}`),
@@ -281,6 +309,16 @@ export async function captureContractResponses(): Promise<CapturedResponses> {
         method: "PATCH",
         payload: { name: "Renamed Contract Collection" },
       }),
+    );
+    await record(
+      "smart-collection-delete",
+      null,
+      call(server, `/api/smart-collections/${smartCollectionId}`, { method: "DELETE" }),
+    );
+    await record(
+      "smart-collection-delete-again",
+      "errorResponse",
+      call(server, `/api/smart-collections/${smartCollectionId}`, { method: "DELETE" }),
     );
 
     const started = (await record(

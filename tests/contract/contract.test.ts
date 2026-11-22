@@ -140,13 +140,19 @@ describe("captured golden responses", () => {
 
   it("validate every golden body against the production response schema", () => {
     for (const [name, response] of Object.entries(golden)) {
-      expectValid(response.schema, response.body, name);
+      if (response.body === undefined) {
+        continue;
+      }
+      expectValid(response.schema!, response.body, name);
     }
   });
 
   it("rejects a deliberately corrupted response schema", () => {
     for (const [name, response] of Object.entries(golden)) {
-      const schema = structuredClone(envelopeSchemas[response.schema]!) as {
+      if (response.body === undefined) {
+        continue;
+      }
+      const schema = structuredClone(envelopeSchemas[response.schema!]!) as {
         properties: Record<string, unknown>;
       };
       const first = Object.keys(schema.properties)[0]!;

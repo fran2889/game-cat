@@ -399,7 +399,6 @@
         "playtimeMinutes": 3602,
         "lastPlayedAt": "2000-01-01T00:00:00Z",
         "releaseYear": 2012,
-        "releaseDateRaw": null,
         "metacriticScore": null,
         "reviewScore": 85,
         "reviewTier": "Very Positive",
@@ -410,6 +409,25 @@
           "mac": false,
           "linux": true
         },
+        "tags": [
+          {
+            "name": "FPS",
+            "votes": 100
+          },
+          {
+            "name": "Shooter",
+            "votes": 100
+          }
+        ],
+        "metadata": {
+          "tagsStatus": "ok",
+          "storeStatus": "ok",
+          "reviewStatus": "ok",
+          "tagsFetchedAt": "2000-01-01T00:00:00Z",
+          "storeFetchedAt": "2000-01-01T00:00:00Z",
+          "reviewFetchedAt": "2000-01-01T00:00:00Z"
+        },
+        "releaseDateRaw": null,
         "developers": [
           "Valve"
         ],
@@ -423,16 +441,6 @@
         "categories": [
           "Multi-player"
         ],
-        "tags": [
-          {
-            "name": "FPS",
-            "votes": 100
-          },
-          {
-            "name": "Shooter",
-            "votes": 100
-          }
-        ],
         "steamCollections": [
           {
             "id": "favorite",
@@ -440,15 +448,7 @@
             "kind": "favorite"
           }
         ],
-        "sizeOnDiskBytes": null,
-        "metadata": {
-          "tagsStatus": "ok",
-          "storeStatus": "ok",
-          "reviewStatus": "ok",
-          "tagsFetchedAt": "2000-01-01T00:00:00Z",
-          "storeFetchedAt": "2000-01-01T00:00:00Z",
-          "reviewFetchedAt": "2000-01-01T00:00:00Z"
-        }
+        "sizeOnDiskBytes": null
       }
     }
   },
@@ -464,26 +464,13 @@
         "playtimeMinutes": 0,
         "lastPlayedAt": null,
         "releaseYear": null,
-        "releaseDateRaw": null,
         "metacriticScore": null,
         "reviewScore": null,
         "reviewTier": null,
         "reviewCount": null,
         "type": null,
         "platforms": null,
-        "developers": [],
-        "publishers": [],
-        "genres": [],
-        "categories": [],
         "tags": [],
-        "steamCollections": [
-          {
-            "id": "hidden",
-            "name": "Hidden",
-            "kind": "hidden"
-          }
-        ],
-        "sizeOnDiskBytes": null,
         "metadata": {
           "tagsStatus": "missing",
           "storeStatus": "missing",
@@ -491,7 +478,20 @@
           "tagsFetchedAt": "2000-01-01T00:00:00Z",
           "storeFetchedAt": null,
           "reviewFetchedAt": "2000-01-01T00:00:00Z"
-        }
+        },
+        "releaseDateRaw": null,
+        "developers": [],
+        "publishers": [],
+        "genres": [],
+        "categories": [],
+        "steamCollections": [
+          {
+            "id": "hidden",
+            "name": "Hidden",
+            "kind": "hidden"
+          }
+        ],
+        "sizeOnDiskBytes": null
       }
     }
   },
@@ -801,6 +801,9 @@
   "smart-collection-create": {
     "schema": "smartCollectionResponse",
     "statusCode": 201,
+    "headers": {
+      "location": "/api/smart-collections/00000000-0000-4000-8000-000000000000"
+    },
     "body": {
       "data": {
         "id": "00000000-0000-4000-8000-000000000000",
@@ -815,6 +818,20 @@
         ],
         "createdAt": "2000-01-01T00:00:00Z",
         "updatedAt": "2000-01-01T00:00:00Z"
+      }
+    }
+  },
+  "smart-collection-name-conflict": {
+    "schema": "errorResponse",
+    "statusCode": 409,
+    "body": {
+      "error": {
+        "code": "NAME_CONFLICT",
+        "message": "A Smart Collection with that name already exists.",
+        "requestId": "request-id",
+        "details": {
+          "conflictingId": "00000000-0000-4000-8000-000000000000"
+        }
       }
     }
   },
@@ -934,9 +951,29 @@
       }
     }
   },
+  "smart-collection-delete": {
+    "statusCode": 204
+  },
+  "smart-collection-delete-again": {
+    "schema": "errorResponse",
+    "statusCode": 404,
+    "body": {
+      "error": {
+        "code": "NOT_FOUND",
+        "message": "The requested Smart Collection was not found.",
+        "requestId": "request-id",
+        "details": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        }
+      }
+    }
+  },
   "refresh-start": {
     "schema": "refreshStartResponse",
     "statusCode": 202,
+    "headers": {
+      "location": "/api/refresh/1"
+    },
     "body": {
       "data": {
         "id": "1",

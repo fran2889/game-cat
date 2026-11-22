@@ -27,7 +27,8 @@ schema.
   - `tests/contract/golden.json` holds responses captured from the live HTTP boundary by
     `npm run contract:golden`. Only volatile values (timestamps, generated UUIDs, request IDs, the
     temporary data directory) are normalised to fixed placeholder values.
-  - The contract suite compares every current response and status code against the fixture.
+  - The contract suite compares every current response, status code, and documented `Location`
+    header against the fixture.
   - The fixture is also validated against the shared response schema.
   - A permanent test deliberately corrupts a copy of each response schema and proves the fixture is
     then rejected.
