@@ -34,6 +34,33 @@ function expectValid(name: string, value: unknown, label: string): void {
   expect(valid, `${label}: ${ajv.errorsText(validate.errors)}`).toBe(true);
 }
 
+interface Envelope {
+  properties: Record<string, { $ref?: string; items?: { $ref?: string } }>;
+}
+
+/** The `data` (or `error`) definition an envelope is built around. */
+function primaryDefinition(schema: object): string {
+  const envelope = schema as Envelope;
+  const payload = envelope.properties.data ?? envelope.properties.error;
+  const ref = payload?.$ref ?? payload?.items?.$ref;
+  if (ref === undefined) {
+    throw new Error("Envelope has no data or error definition");
+  }
+  return ref.replace("#/definitions/", "");
+}
+
+/**
+ * Definitions a response always evaluates. A list can legitimately be empty,
+ * so its required pagination is corrupted alongside the item definition.
+ */
+function alwaysEvaluated(schema: object): string[] {
+  const names = [primaryDefinition(schema)];
+  if ((schema as Envelope).properties.pagination !== undefined) {
+    names.push("pagination");
+  }
+  return names;
+}
+
 const spec = readFileSync(new URL("../../docs/specs/game-cat-v1.md", import.meta.url), "utf8");
 
 /** The Nth fenced JSON block after an exact Markdown heading. */
@@ -147,17 +174,25 @@ describe("captured golden responses", () => {
     }
   });
 
-  it("rejects a deliberately corrupted response schema", () => {
+  /**
+   * Corrupt the shared definition behind each envelope, not the envelope's
+   * top-level property, so this exercises the nested shapes that Fastify and
+   * the contract suite actually share.
+   */
+  it("rejects fixtures when a shared definition drifts", () => {
     for (const [name, response] of Object.entries(golden)) {
       if (response.body === undefined) {
         continue;
       }
-      const schema = structuredClone(envelopeSchemas[response.schema!]!) as {
-        properties: Record<string, unknown>;
-      };
-      const first = Object.keys(schema.properties)[0]!;
-      schema.properties[first] = { type: "boolean" };
-      expect(compile(schema)(response.body), name).toBe(false);
+      const schema = envelopeSchemas[response.schema!]!;
+      const corrupted = Object.fromEntries(
+        alwaysEvaluated(schema).map((definition) => [definition, { not: {} }]),
+      );
+      const validate = ajv.compile({
+        ...schema,
+        definitions: { ...httpSchemaDefinitions, ...corrupted },
+      });
+      expect(validate(response.body), `${name}: ${Object.keys(corrupted).join(", ")}`).toBe(false);
     }
   });
 });

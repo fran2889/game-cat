@@ -30,8 +30,8 @@ schema.
   - The contract suite compares every current response, status code, and documented `Location`
     header against the fixture.
   - The fixture is also validated against the shared response schema.
-  - A permanent test deliberately corrupts a copy of each response schema and proves the fixture is
-    then rejected.
+  - A permanent test deliberately corrupts the shared definition behind each envelope and proves
+    the fixture is then rejected.
 - The documented JSON examples in [the v1 spec](../specs/game-cat-v1.md) remain a second independent
   check: prose and schemas must still agree.
 - Recapture goldens only for an intentional response change, review the diff, and commit the fixture
