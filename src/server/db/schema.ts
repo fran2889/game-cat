@@ -127,7 +127,7 @@ export interface RefreshRunsTable {
   started_at: number;
   finished_at?: number | null;
   total?: number | null;
-  done: number;
+  done: Generated<number>;
   stats_json?: string | null;
   error_code?: string | null;
   error_message?: string | null;
