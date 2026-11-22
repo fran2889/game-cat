@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { Ajv, type ValidateFunction } from "ajv";
 import { describe, expect, it } from "vitest";
 import { httpSchemaDefinitions, responseSchemas } from "../../src/shared/http-schemas.ts";
-import { captureContractResponses, type CapturedResponses } from "./harness.ts";
+import { captureContractResponses, type CapturedResponses } from "../helpers/contract-harness.ts";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validators = new Map<string, ValidateFunction>();

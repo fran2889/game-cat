@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { responseSchemas } from "../../src/shared/http-schemas.ts";
-import { captureContractResponses, type CapturedResponses } from "../../tests/contract/harness.ts";
+import { captureContractResponses, type CapturedResponses } from "../../tests/helpers/contract-harness.ts";
 
 /**
  * Recapture `tests/contract/golden.json` from the current HTTP API.

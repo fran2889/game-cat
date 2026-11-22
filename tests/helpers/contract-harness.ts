@@ -16,8 +16,8 @@ import { buildStatus } from "../../src/server/status.ts";
 import type { SteamDiscovery } from "../../src/server/steam/discovery.ts";
 import { TIMESTAMP_PATTERN, type ResponseSchemaName } from "../../src/shared/http-schemas.ts";
 import type { Config } from "../../src/shared/types.ts";
-import { seedWorkedLibrary } from "../helpers/rule-db.ts";
-import { TEST_STEAM_ID64 } from "../helpers/steam-fixture.ts";
+import { seedWorkedLibrary } from "./rule-db.ts";
+import { TEST_STEAM_ID64 } from "./steam-fixture.ts";
 
 const PORT = 4780;
 const HOST = `127.0.0.1:${PORT}`;
