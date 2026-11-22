@@ -312,6 +312,9 @@ export interface StatusResponse {
 }
 
 /** Public configuration. Never contains the Steam Web API key. */
+export const STEAM_API_KEY_SOURCES = ["file", "env", "none"] as const;
+export type SteamApiKeySource = (typeof STEAM_API_KEY_SOURCES)[number];
+
 export interface Config {
   dataDir: string;
   steamRoot: string | null;
@@ -321,7 +324,7 @@ export interface Config {
   openBrowser: boolean;
   logLevel: LogLevel;
   steamApiKeySet: boolean;
-  steamApiKeySource: "file" | "env" | "none";
+  steamApiKeySource: SteamApiKeySource;
 }
 
 export interface ConfigResponse {

@@ -17,6 +17,7 @@ import {
   REFRESH_STATUSES,
   SOURCE_ORDER,
   SOURCE_STATUSES,
+  STEAM_API_KEY_SOURCES,
   STEAM_COLLECTION_KINDS,
   STEAM_STATES,
 } from "./types.ts";
@@ -510,7 +511,7 @@ const config = {
     openBrowser: { type: "boolean" },
     logLevel: { type: "string", enum: [...LOG_LEVELS] },
     steamApiKeySet: { type: "boolean" },
-    steamApiKeySource: { type: "string", enum: ["file", "env", "none"] },
+    steamApiKeySource: { type: "string", enum: [...STEAM_API_KEY_SOURCES] },
   },
   additionalProperties: false,
 };
