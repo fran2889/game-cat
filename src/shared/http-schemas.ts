@@ -264,13 +264,6 @@ const errorDetail = {
   additionalProperties: false,
 };
 
-const errorResponse = {
-  type: "object",
-  required: ["error"],
-  properties: { error: { $ref: "#/definitions/errorDetail" } },
-  additionalProperties: false,
-};
-
 const sourceCounters = {
   type: "object",
   required: ["candidates", "done", "failed", "skipped"],
@@ -539,7 +532,6 @@ export const httpSchemaDefinitions = {
   smartCollectionListItem,
   steamCollectionSummary,
   errorDetail,
-  errorResponse,
   sourceCounters,
   refreshRun,
   steamAccount,
