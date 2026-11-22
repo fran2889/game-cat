@@ -34,9 +34,13 @@ export function runSync(
 /**
  * Reuse one prepared statement per write shape. Repositories replay the same
  * statement once per row (a 20,000-Game scan, an ownership roster, a Tag set),
- * and better-sqlite3 statements are immutable and safe to replay. Reads stay
- * uncached because they are issued once per request, not once per row.
+ * and better-sqlite3 statements are immutable and safe to replay.
+ *
+ * Variable-length shapes (an `IN` list, a multi-row insert) produce one entry
+ * per distinct length, so the map is capped. Eviction is FIFO: a re-prepare is
+ * cheap and only happens when a connection outgrows the cap.
  */
+const MAX_CACHED_STATEMENTS = 128;
 const writeStatements = new WeakMap<BetterSqlite3.Database, Map<string, BetterSqlite3.Statement>>();
 
 function statementFor(db: BetterSqlite3.Database, sql: string): BetterSqlite3.Statement {
@@ -48,6 +52,12 @@ function statementFor(db: BetterSqlite3.Database, sql: string): BetterSqlite3.St
   let statement = statements.get(sql);
   if (statement === undefined) {
     statement = db.prepare(sql);
+    if (statements.size >= MAX_CACHED_STATEMENTS) {
+      const oldest = statements.keys().next().value;
+      if (oldest !== undefined) {
+        statements.delete(oldest);
+      }
+    }
     statements.set(sql, statement);
   }
   return statement;
