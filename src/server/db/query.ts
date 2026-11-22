@@ -39,6 +39,9 @@ export function runSync(
  * Variable-length shapes (an `IN` list, a multi-row insert) produce one entry
  * per distinct length, so the map is capped. Eviction is FIFO: a re-prepare is
  * cheap and only happens when a connection outgrows the cap.
+ *
+ * Reads are not cached: `allSync` and `firstSync` prepare per call, including
+ * per-row lookups such as the Tags read in the SteamSpy writer.
  */
 const MAX_CACHED_STATEMENTS = 128;
 const writeStatements = new WeakMap<BetterSqlite3.Database, Map<string, BetterSqlite3.Statement>>();
