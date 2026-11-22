@@ -89,6 +89,7 @@ npm start          # production-shaped single process
 npm run test:e2e   # Playwright with headless Chromium
 npm run test:package # pack, global-install, and smoke-test the tarball
 npm run test:perf  # fixed 20,000-Game / 1,300-Game performance budgets
+npm run contract:golden # recapture tests/contract/golden.json from the HTTP API
 npm run lint       # fail on focused/skipped tests, keys, AccountName, or raw user paths
 ```
 

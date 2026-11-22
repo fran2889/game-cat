@@ -1,4 +1,17 @@
 import type { FastifyRequest } from "fastify";
+import type { ConfigPatchField } from "../../shared/config.ts";
+import {
+  METADATA_STATUSES,
+  TAGS_STATUSES,
+  type MetadataStatus,
+  type TagsStatus,
+} from "../../shared/http-schemas.ts";
+import {
+  RULE_FIELDS,
+  RULE_OPERATORS,
+  RULE_PREFIXES,
+  RULE_VALUE_FIELDS,
+} from "../../shared/rules.ts";
 import {
   GAME_SORTS,
   LOG_LEVELS,
@@ -6,240 +19,20 @@ import {
   type GameSort,
   type RuleValueField,
 } from "../../shared/types.ts";
-import type { ConfigPatchField } from "../../shared/config.ts";
-import {
-  RULE_FIELDS,
-  RULE_OPERATORS,
-  RULE_PREFIXES,
-  RULE_VALUE_FIELDS,
-} from "../../shared/rules.ts";
 import { validationError } from "../request.ts";
 
 /**
- * Fastify/AJV schemas for the HTTP boundary. The response definitions mirror
- * `tests/contract/schemas.json` exactly, so the contract suite and production
- * serialisation enforce the same shapes.
+ * Fastify/AJV schemas for the HTTP request boundary. Response shapes live once
+ * in `src/shared/http-schemas.ts`, where both production serialisation and the
+ * contract suite consume them.
  */
 
-const TIMESTAMP_PATTERN = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$";
-
-const TAGS_STATUSES = ["ok", "missing", "stale", "error"] as const;
-const METADATA_STATUSES = ["ok", "unavailable", "missing", "stale", "error"] as const;
+export type { MetadataStatus, TagsStatus };
 
 /** An empty query value means the filter is absent; the handler maps it to null. */
 const EMPTY = "";
 
 type Empty = typeof EMPTY;
-
-export type TagsStatus = (typeof TAGS_STATUSES)[number];
-export type MetadataStatus = (typeof METADATA_STATUSES)[number];
-
-const nullableTimestamp = {
-  anyOf: [{ $ref: "#/definitions/timestamp" }, { type: "null" }],
-};
-
-/** The contract's `definitions` for every shape the Games endpoints serialise. */
-export const gameContractDefinitions = {
-  pagination: {
-    type: "object",
-    required: ["page", "pageSize", "totalItems", "totalPages"],
-    properties: {
-      page: { type: "integer", minimum: 1 },
-      pageSize: { type: "integer", minimum: 1, maximum: 200 },
-      totalItems: { type: "integer", minimum: 0 },
-      totalPages: { type: "integer", minimum: 0 },
-    },
-    additionalProperties: false,
-  },
-  timestamp: {
-    type: "string",
-    pattern: TIMESTAMP_PATTERN,
-  },
-  nullableTimestamp,
-  gameTag: {
-    type: "object",
-    required: ["name", "votes"],
-    properties: {
-      name: { type: "string", minLength: 1 },
-      votes: { type: "integer", minimum: 0 },
-    },
-    additionalProperties: false,
-  },
-  gamePlatforms: {
-    type: "object",
-    properties: {
-      windows: { type: "boolean" },
-      mac: { type: "boolean" },
-      linux: { type: "boolean" },
-    },
-    additionalProperties: false,
-  },
-  gameMetadata: {
-    type: "object",
-    required: ["tagsStatus", "storeStatus", "reviewStatus"],
-    properties: {
-      tagsStatus: { type: "string", enum: [...TAGS_STATUSES] },
-      storeStatus: { type: "string", enum: [...METADATA_STATUSES] },
-      reviewStatus: { type: "string", enum: [...METADATA_STATUSES] },
-      tagsFetchedAt: { $ref: "#/definitions/nullableTimestamp" },
-      storeFetchedAt: { $ref: "#/definitions/nullableTimestamp" },
-      reviewFetchedAt: { $ref: "#/definitions/nullableTimestamp" },
-    },
-    additionalProperties: false,
-  },
-  gameSummary: {
-    type: "object",
-    required: [
-      "appId",
-      "name",
-      "ownershipStatus",
-      "installed",
-      "playtimeMinutes",
-      "lastPlayedAt",
-      "releaseYear",
-      "metacriticScore",
-      "reviewScore",
-      "reviewTier",
-      "reviewCount",
-      "type",
-      "platforms",
-      "tags",
-      "metadata",
-    ],
-    properties: {
-      appId: { type: "integer", minimum: 1 },
-      name: { type: "string", minLength: 1 },
-      ownershipStatus: { type: "string", enum: ["owned", "local_only", "unknown"] },
-      installed: { type: ["boolean", "null"] },
-      playtimeMinutes: { type: "integer", minimum: 0 },
-      lastPlayedAt: { $ref: "#/definitions/nullableTimestamp" },
-      releaseYear: { type: ["integer", "null"], minimum: 1000, maximum: 9999 },
-      metacriticScore: { type: ["integer", "null"], minimum: 0, maximum: 100 },
-      reviewScore: { type: ["integer", "null"], minimum: 0, maximum: 100 },
-      reviewTier: { type: ["string", "null"] },
-      reviewCount: { type: ["integer", "null"], minimum: 0 },
-      type: { type: ["string", "null"] },
-      platforms: {
-        anyOf: [{ $ref: "#/definitions/gamePlatforms" }, { type: "null" }],
-      },
-      tags: {
-        type: "array",
-        maxItems: 3,
-        items: { $ref: "#/definitions/gameTag" },
-      },
-      metadata: { $ref: "#/definitions/gameMetadata" },
-    },
-    additionalProperties: false,
-  },
-  gameDetail: {
-    type: "object",
-    required: [
-      "appId",
-      "name",
-      "ownershipStatus",
-      "installed",
-      "playtimeMinutes",
-      "lastPlayedAt",
-      "releaseYear",
-      "releaseDateRaw",
-      "metacriticScore",
-      "reviewScore",
-      "reviewTier",
-      "reviewCount",
-      "type",
-      "platforms",
-      "developers",
-      "publishers",
-      "genres",
-      "categories",
-      "tags",
-      "steamCollections",
-      "sizeOnDiskBytes",
-      "metadata",
-    ],
-    properties: {
-      appId: { type: "integer", minimum: 1 },
-      name: { type: "string", minLength: 1 },
-      ownershipStatus: { type: "string", enum: ["owned", "local_only", "unknown"] },
-      installed: { type: ["boolean", "null"] },
-      playtimeMinutes: { type: "integer", minimum: 0 },
-      lastPlayedAt: { $ref: "#/definitions/nullableTimestamp" },
-      releaseYear: { type: ["integer", "null"], minimum: 1000, maximum: 9999 },
-      releaseDateRaw: { type: ["string", "null"] },
-      metacriticScore: { type: ["integer", "null"], minimum: 0, maximum: 100 },
-      reviewScore: { type: ["integer", "null"], minimum: 0, maximum: 100 },
-      reviewTier: { type: ["string", "null"] },
-      reviewCount: { type: ["integer", "null"], minimum: 0 },
-      type: { type: ["string", "null"] },
-      platforms: {
-        anyOf: [{ $ref: "#/definitions/gamePlatforms" }, { type: "null" }],
-      },
-      developers: { type: "array", items: { type: "string" } },
-      publishers: { type: "array", items: { type: "string" } },
-      genres: { type: "array", items: { type: "string" } },
-      categories: { type: "array", items: { type: "string" } },
-      tags: { type: "array", items: { $ref: "#/definitions/gameTag" } },
-      steamCollections: {
-        type: "array",
-        items: {
-          type: "object",
-          required: ["id", "name", "kind"],
-          properties: {
-            id: { type: "string", minLength: 1 },
-            name: { type: "string", minLength: 1 },
-            kind: {
-              type: "string",
-              enum: ["favorite", "hidden", "user", "tag", "system", "other"],
-            },
-          },
-          additionalProperties: false,
-        },
-      },
-      sizeOnDiskBytes: { type: ["integer", "null"], minimum: 0 },
-      metadata: { $ref: "#/definitions/gameMetadata" },
-    },
-    additionalProperties: false,
-  },
-};
-
-export const gamesResponseSchema = {
-  type: "object",
-  required: ["data", "pagination", "meta"],
-  properties: {
-    data: { type: "array", items: { $ref: "#/definitions/gameSummary" } },
-    pagination: { $ref: "#/definitions/pagination" },
-    meta: {
-      type: "object",
-      required: ["dataAsOf"],
-      properties: {
-        dataAsOf: { $ref: "#/definitions/nullableTimestamp" },
-      },
-      additionalProperties: false,
-    },
-  },
-  additionalProperties: false,
-  definitions: gameContractDefinitions,
-};
-
-export const gameDetailResponseSchema = {
-  type: "object",
-  required: ["data"],
-  properties: {
-    data: { $ref: "#/definitions/gameDetail" },
-  },
-  additionalProperties: false,
-  definitions: gameContractDefinitions,
-};
-
-/** `GET /api/games/{appId}`; a non-positive or non-decimal App ID is a 404. */
-export const gameIdParamsSchema = {
-  type: "object",
-  required: ["appId"],
-  properties: {
-    appId: { type: "string", pattern: "^[1-9][0-9]*$" },
-  },
-  additionalProperties: false,
-};
 
 function emptyIsAbsent<T>(schema: object): object {
   return { anyOf: [schema, { type: "string", enum: [EMPTY] }] };
@@ -294,6 +87,16 @@ export interface GamesListQuery {
   pageSize: number | Empty;
 }
 
+/** `GET /api/games/{appId}`; a non-positive or non-decimal App ID is a 404. */
+export const gameIdParamsSchema = {
+  type: "object",
+  required: ["appId"],
+  properties: {
+    appId: { type: "string", pattern: "^[1-9][0-9]*$" },
+  },
+  additionalProperties: false,
+};
+
 /**
  * Query parameters are single-valued, as every hand-written parser assumed.
  * Fastify would otherwise hand an array to AJV; reject it with the documented
@@ -340,110 +143,6 @@ export function rejectNonCanonicalIntegers(
     }
   };
 }
-
-const tagSummary = {
-  type: "object",
-  required: ["name", "gameCount"],
-  properties: {
-    name: { type: "string", minLength: 1 },
-    gameCount: { type: "integer", minimum: 1 },
-  },
-  additionalProperties: false,
-};
-
-const ruleValue = {
-  type: "object",
-  required: ["value", "gameCount"],
-  properties: {
-    value: { type: "string", minLength: 1 },
-    gameCount: { type: "integer", minimum: 1 },
-  },
-  additionalProperties: false,
-};
-
-const steamCollectionSummary = {
-  type: "object",
-  required: ["id", "name", "kind", "isDynamic", "gameCount"],
-  properties: {
-    id: { type: "string", minLength: 1 },
-    name: { type: "string", minLength: 1 },
-    kind: { type: "string", enum: ["favorite", "hidden", "user", "tag", "system", "other"] },
-    isDynamic: { type: "boolean" },
-    gameCount: { type: ["integer", "null"], minimum: 0 },
-  },
-  additionalProperties: false,
-};
-
-/** The contract definitions shared by the library read endpoints. */
-export const libraryContractDefinitions = {
-  ...gameContractDefinitions,
-  tagSummary,
-  ruleValue,
-  steamCollectionSummary,
-};
-
-export const tagsResponseSchema = {
-  type: "object",
-  required: ["data", "pagination"],
-  properties: {
-    data: { type: "array", items: { $ref: "#/definitions/tagSummary" } },
-    pagination: { $ref: "#/definitions/pagination" },
-  },
-  additionalProperties: false,
-  definitions: libraryContractDefinitions,
-};
-
-export const ruleValuesResponseSchema = {
-  type: "object",
-  required: ["data", "pagination"],
-  properties: {
-    data: { type: "array", items: { $ref: "#/definitions/ruleValue" } },
-    pagination: { $ref: "#/definitions/pagination" },
-  },
-  additionalProperties: false,
-  definitions: libraryContractDefinitions,
-};
-
-export const steamCollectionsResponseSchema = {
-  type: "object",
-  required: ["data", "pagination"],
-  properties: {
-    data: { type: "array", items: { $ref: "#/definitions/steamCollectionSummary" } },
-    pagination: { $ref: "#/definitions/pagination" },
-  },
-  additionalProperties: false,
-  definitions: libraryContractDefinitions,
-};
-
-export const steamCollectionResponseSchema = {
-  type: "object",
-  required: ["data"],
-  properties: {
-    data: { $ref: "#/definitions/steamCollectionSummary" },
-  },
-  additionalProperties: false,
-  definitions: libraryContractDefinitions,
-};
-
-export const steamCollectionGamesResponseSchema = {
-  type: "object",
-  required: ["data", "pagination", "meta"],
-  properties: {
-    data: { type: "array", items: { $ref: "#/definitions/gameSummary" } },
-    pagination: { $ref: "#/definitions/pagination" },
-    meta: {
-      type: "object",
-      required: ["dataAsOf", "dynamic"],
-      properties: {
-        dataAsOf: { $ref: "#/definitions/nullableTimestamp" },
-        dynamic: { type: "boolean" },
-      },
-      additionalProperties: false,
-    },
-  },
-  additionalProperties: false,
-  definitions: libraryContractDefinitions,
-};
 
 function pageProperty(fallback: number, maximum: number): object {
   return {
@@ -508,101 +207,6 @@ export interface SteamCollectionGamesQuery extends PageQuery {
   sort: GameSort;
   order: GameOrder;
 }
-
-const rule = {
-  type: "object",
-  required: ["prefix", "field", "operator", "value"],
-  properties: {
-    prefix: { type: "string", enum: [...RULE_PREFIXES] },
-    field: {
-      type: "string",
-      enum: [...RULE_FIELDS],
-    },
-    operator: { type: "string", enum: [...RULE_OPERATORS] },
-    value: {
-      anyOf: [
-        { type: "string" },
-        { type: "number" },
-        { type: "boolean" },
-        { type: "array", items: { type: "integer", minimum: 1 } },
-      ],
-    },
-  },
-  additionalProperties: false,
-};
-
-const smartCollection = {
-  type: "object",
-  required: ["id", "name", "rules", "createdAt", "updatedAt"],
-  properties: {
-    id: { type: "string", minLength: 1 },
-    name: { type: "string", minLength: 1, maxLength: 80 },
-    rules: { type: "array", maxItems: 100, items: { $ref: "#/definitions/rule" } },
-    createdAt: { $ref: "#/definitions/timestamp" },
-    updatedAt: { $ref: "#/definitions/timestamp" },
-  },
-  additionalProperties: false,
-};
-
-const smartCollectionListItem = {
-  type: "object",
-  required: ["id", "name", "ruleCount", "matchCount", "createdAt", "updatedAt"],
-  properties: {
-    id: { type: "string", minLength: 1 },
-    name: { type: "string", minLength: 1, maxLength: 80 },
-    ruleCount: { type: "integer", minimum: 0, maximum: 100 },
-    matchCount: { type: "integer", minimum: 0 },
-    createdAt: { $ref: "#/definitions/timestamp" },
-    updatedAt: { $ref: "#/definitions/timestamp" },
-  },
-  additionalProperties: false,
-};
-
-export const smartCollectionContractDefinitions = {
-  ...gameContractDefinitions,
-  rule,
-  smartCollection,
-  smartCollectionListItem,
-};
-
-const dataAsOfMeta = {
-  type: "object",
-  required: ["dataAsOf"],
-  properties: { dataAsOf: { $ref: "#/definitions/nullableTimestamp" } },
-  additionalProperties: false,
-};
-
-export const smartCollectionsResponseSchema = {
-  type: "object",
-  required: ["data", "pagination", "meta"],
-  properties: {
-    data: { type: "array", items: { $ref: "#/definitions/smartCollectionListItem" } },
-    pagination: { $ref: "#/definitions/pagination" },
-    meta: dataAsOfMeta,
-  },
-  additionalProperties: false,
-  definitions: smartCollectionContractDefinitions,
-};
-
-export const smartCollectionResponseSchema = {
-  type: "object",
-  required: ["data"],
-  properties: { data: { $ref: "#/definitions/smartCollection" } },
-  additionalProperties: false,
-  definitions: smartCollectionContractDefinitions,
-};
-
-export const smartCollectionGamesResponseSchema = {
-  type: "object",
-  required: ["data", "pagination", "meta"],
-  properties: {
-    data: { type: "array", items: { $ref: "#/definitions/gameSummary" } },
-    pagination: { $ref: "#/definitions/pagination" },
-    meta: dataAsOfMeta,
-  },
-  additionalProperties: false,
-  definitions: smartCollectionContractDefinitions,
-};
 
 export const smartCollectionsListQuerySchema = {
   type: "object",

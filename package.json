@@ -37,6 +37,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:contract": "vitest run tests/contract",
+    "contract:golden": "tsx scripts/contract/capture-golden.ts",
     "test:e2e": "npm run build && playwright test",
     "test:package": "node scripts/verify-package.mjs",
     "test:perf": "npm run build && tsx scripts/perf/run.ts",
