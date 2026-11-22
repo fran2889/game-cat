@@ -23,7 +23,12 @@ export function allSync<T>(db: BetterSqlite3.Database, query: CompiledQuery): T[
   return db.prepare(query.sql).all(...query.parameters) as T[];
 }
 
-/** Run a compiled write and return the driver's change metadata. */
+/**
+ * Run a compiled write and return the driver's change metadata.
+ *
+ * The query is already compiled, so a per-row caller still builds and compiles
+ * one query per row; this helper only avoids re-preparing identical SQL.
+ */
 export function runSync(
   db: BetterSqlite3.Database,
   query: CompiledQuery,
