@@ -240,7 +240,9 @@ export async function captureContractResponses(): Promise<CapturedResponses> {
     responses[name] = {
       ...(schema === null ? {} : { schema }),
       statusCode: result.statusCode,
-      ...(typeof location === "string" ? { headers: { location: normalizeLocation(location) } } : {}),
+      ...(typeof location === "string"
+        ? { headers: { location: normalizeLocation(location) } }
+        : {}),
       ...(result.body === undefined ? {} : { body: normalizeContractValue(result.body) }),
     };
     return result.body;

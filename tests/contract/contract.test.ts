@@ -142,9 +142,9 @@ describe("documented JSON examples", () => {
       { data: run, meta: { deduplicated: true } },
       "deduplicated start",
     );
-    expect(
-      validator("refreshStartResponse")({ data: run, meta: { deduplicated: false } }),
-    ).toBe(false);
+    expect(validator("refreshStartResponse")({ data: run, meta: { deduplicated: false } })).toBe(
+      false,
+    );
   });
 
   it("enforces required, enum, nullable, and camelCase fields", () => {
