@@ -130,6 +130,19 @@ describe("documented JSON examples", () => {
     expectValid("ruleValuesResponse", specExample("#### `GET /api/rule-values`"), "rule values");
   });
 
+  it("validates the non-deduplicated and deduplicated Refresh start envelopes", () => {
+    const run = specExample("#### `RefreshRun`");
+    expectValid("refreshStartResponse", { data: run }, "start");
+    expectValid(
+      "refreshStartResponse",
+      { data: run, meta: { deduplicated: true } },
+      "deduplicated start",
+    );
+    expect(
+      validator("refreshStartResponse")({ data: run, meta: { deduplicated: false } }),
+    ).toBe(false);
+  });
+
   it("enforces required, enum, nullable, and camelCase fields", () => {
     const game = specExample("#### `GameSummary`") as Record<string, unknown>;
     expectValid("gameSummary", game, "example");

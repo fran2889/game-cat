@@ -672,7 +672,7 @@ export const refreshStartResponseSchema = response({
     meta: {
       type: "object",
       required: ["deduplicated"],
-      properties: { deduplicated: { type: "boolean" } },
+      properties: { deduplicated: { const: true } },
       additionalProperties: false,
     },
   },
