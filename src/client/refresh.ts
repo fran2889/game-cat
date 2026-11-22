@@ -1,17 +1,19 @@
-import type {
-  MetadataSourceStatus,
-  RefreshRun,
-  RefreshStatus,
-  SourceHealth,
-  SourceName,
-  SourceStatus,
-  Status,
+import {
+  METADATA_SOURCE_NAMES,
+  type MetadataSourceName,
+  type MetadataSourceStatus,
+  type RefreshRun,
+  type RefreshStatus,
+  type SourceHealth,
+  type SourceName,
+  type SourceStatus,
+  type Status,
 } from "../shared/types.ts";
 import { fetchGames, type FetchGamesParams } from "./api.ts";
 
 export type RefreshPhase = "library" | "ownership" | "metadata";
 
-export type MetadataSource = "steamspy" | "storefront" | "steam_reviews";
+export type MetadataSource = MetadataSourceName;
 
 export const METADATA_SOURCE_LABELS: Record<MetadataSource, string> = {
   steamspy: "SteamSpy",
@@ -183,7 +185,7 @@ export function sourceStatusTone(status: SourceStatus): "ok" | "warning" | "erro
 }
 
 export function isMetadataSource(name: SourceName): name is MetadataSource {
-  return name === "steamspy" || name === "storefront" || name === "steam_reviews";
+  return (METADATA_SOURCE_NAMES as readonly SourceName[]).includes(name);
 }
 
 export interface AffectedAndPendingGames {

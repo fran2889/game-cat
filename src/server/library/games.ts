@@ -13,7 +13,7 @@ import {
 import { sql, type RawBuilder, type SelectQueryBuilder, type SqlBool } from "kysely";
 import { allSync, firstSync, queryFor } from "../db/query.ts";
 import type { DatabaseSchema } from "../db/schema.ts";
-import { METADATA_SOURCE_NAMES } from "../refresh/sources.ts";
+import { METADATA_SOURCE_NAMES } from "../../shared/types.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
 import { pagination } from "./pagination.ts";
 

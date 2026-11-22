@@ -1,6 +1,6 @@
 import type { ErrorDetail, RefreshMode, RefreshScope, RefreshStatus } from "../../shared/types.ts";
 import type { LibraryScanResult } from "../library/scan.ts";
-import type { MetadataSourceName } from "./sources.ts";
+import type { MetadataSourceName } from "../../shared/types.ts";
 
 /**
  * Internal shape shared by the Refresh worker and its phase modules. Nothing

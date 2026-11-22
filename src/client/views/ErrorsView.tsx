@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { Badge, Box, Button, DataList, Group, Paper, Stack, Text, Title } from "@mantine/core";
-import { SOURCE_ORDER, type SourceHealth } from "../../shared/types.ts";
+import { METADATA_SOURCE_NAMES, SOURCE_ORDER, type SourceHealth } from "../../shared/types.ts";
 import { useBrowse } from "../browse-context.tsx";
 import { formatCount, formatTimestamp } from "../format.ts";
 import { useRefresh } from "../refresh-context.tsx";
@@ -17,12 +17,12 @@ import {
 import { defineQuery } from "../query-client.ts";
 import type { ShellContext } from "../shell-context.ts";
 
-const METADATA_SOURCES: readonly MetadataSource[] = ["steamspy", "storefront", "steam_reviews"];
+const METADATA_SOURCES: readonly MetadataSource[] = METADATA_SOURCE_NAMES;
 
 type AffectedState = Record<MetadataSource, AffectedAndPendingGames | null>;
 
 function emptyAffected(): AffectedState {
-  return { steamspy: null, storefront: null, steam_reviews: null };
+  return Object.fromEntries(METADATA_SOURCE_NAMES.map((name) => [name, null])) as AffectedState;
 }
 
 const TONE_COLOR: Record<string, string> = {

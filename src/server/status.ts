@@ -3,6 +3,7 @@ import { sql } from "kysely";
 import { allSync, firstSync, queryFor } from "./db/query.ts";
 import { APP_VERSION, DB_SCHEMA_VERSION } from "../shared/app.ts";
 import {
+  METADATA_SOURCE_NAMES,
   SOURCE_ORDER,
   type ErrorDetail,
   type OwnershipState,
@@ -11,7 +12,6 @@ import {
   type SourceStatus,
 } from "../shared/types.ts";
 import { GamesRepository, type OwnershipCounts } from "./library/games.ts";
-import { METADATA_SOURCE_NAMES } from "./refresh/sources.ts";
 import { readActiveRefresh, readLastRefresh } from "./refresh/service.ts";
 import type { SteamDiscovery } from "./steam/discovery.ts";
 import { toIsoTimestamp as toIso } from "./timestamps.ts";

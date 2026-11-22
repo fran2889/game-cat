@@ -1,6 +1,6 @@
 import { Alert, Badge, Button, Group, Paper, Stack, Text } from "@mantine/core";
 import { Link } from "react-router-dom";
-import type { RefreshRun, Status } from "../../shared/types.ts";
+import { METADATA_SOURCE_NAMES, type RefreshRun, type Status } from "../../shared/types.ts";
 import { useRefresh } from "../refresh-context.tsx";
 import { METADATA_SOURCE_LABELS, refreshModeLabel, refreshPhaseFromStatus } from "../refresh.ts";
 import { formatCount } from "../format.ts";
@@ -67,7 +67,7 @@ function RunningBanner({ run, status }: { run: RefreshRun; status: Status | null
           </div>
           {run.stats !== null && (
             <Group className="chip-row refresh-sources" gap={4}>
-              {(["steamspy", "storefront", "steam_reviews"] as const).map((name) => {
+              {METADATA_SOURCE_NAMES.map((name) => {
                 const counters = run.stats?.sources[name];
                 if (counters === undefined) {
                   return null;

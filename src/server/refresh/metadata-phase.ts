@@ -1,12 +1,14 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { sql, type CompiledQuery } from "kysely";
-import type { SourceStatus } from "../../shared/types.ts";
+import {
+  METADATA_SOURCE_NAMES,
+  type MetadataSourceName,
+  type SourceStatus,
+} from "../../shared/types.ts";
 import { allSync, firstSync, queryFor, runSync } from "../db/query.ts";
 import { parseAppIds, readRunRow, writeProgress as persistProgress } from "./run-persistence.ts";
 import {
-  METADATA_SOURCE_NAMES,
   type MetadataSource,
-  type MetadataSourceName,
   type MetadataSourceRegistry,
   type MetadataSourceOutcome,
 } from "./sources.ts";

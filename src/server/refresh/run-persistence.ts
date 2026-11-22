@@ -4,7 +4,7 @@ import type { ErrorDetail, RefreshMode, RefreshRun, RefreshScope } from "../../s
 import { allSync, firstSync, queryFor, runSync } from "../db/query.ts";
 import { asRecord } from "../../shared/records.ts";
 import { toIsoTimestamp as toIso } from "../timestamps.ts";
-import { METADATA_SOURCE_NAMES } from "./sources.ts";
+import { METADATA_SOURCE_NAMES } from "../../shared/types.ts";
 import { emptySourceCounters } from "./stats.ts";
 import type { InternalMetadataStats, RefreshRow } from "./types.ts";
 

@@ -12,15 +12,16 @@ export const LOG_LEVELS: readonly LogLevel[] = ["trace", "debug", "info", "warn"
 
 export type SteamState = "ready" | "not_found" | "no_account" | "error";
 
-export type SourceName =
-  "steam_local" | "steam_web_api" | "steamspy" | "storefront" | "steam_reviews";
+/** The Metadata sources, in their documented order (§6.1). */
+export const METADATA_SOURCE_NAMES = ["steamspy", "storefront", "steam_reviews"] as const;
+export type MetadataSourceName = (typeof METADATA_SOURCE_NAMES)[number];
+
+export type SourceName = "steam_local" | "steam_web_api" | MetadataSourceName;
 
 export const SOURCE_ORDER: readonly SourceName[] = [
   "steam_local",
   "steam_web_api",
-  "steamspy",
-  "storefront",
-  "steam_reviews",
+  ...METADATA_SOURCE_NAMES,
 ];
 
 export type SourceStatus =
@@ -227,7 +228,7 @@ export interface RefreshRun {
   appIds: number[] | null;
   stats: {
     sources: Record<
-      "steamspy" | "storefront" | "steam_reviews",
+      MetadataSourceName,
       { candidates: number; done: number; failed: number; skipped: number }
     >;
   } | null;

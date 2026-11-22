@@ -1,4 +1,4 @@
-import { METADATA_SOURCE_NAMES, type MetadataSourceName } from "./sources.ts";
+import { METADATA_SOURCE_NAMES, type MetadataSourceName } from "../../shared/types.ts";
 import type { InternalMetadataStats, SourceCounters } from "./types.ts";
 
 export function emptyCounters(): SourceCounters {
