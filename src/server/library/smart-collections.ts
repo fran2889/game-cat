@@ -282,6 +282,8 @@ export class SmartCollectionsRepository {
   }
 
   private insertRules(collectionId: string, rules: readonly Rule[]): void {
+    // One multi-row insert per Collection. MAX_RULES bounds the row count, so
+    // the statement stays well under SQLite's parameter limit.
     // Kysely cannot compile an empty `values` list; an empty Rules array
     // legitimately means no rows to insert.
     if (rules.length === 0) {
