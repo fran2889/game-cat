@@ -57,6 +57,6 @@ schema.
   `/api/rules/preview` reuses the Games list envelope. Those four envelopes are contract-only in
   this change: they replace the old `tests/contract/schemas.json` roots, but production does not
   serialise through them until #72 attaches them to their routes.
-- The implementation is +2,285 / -1,552 lines (net +733) before this record: it deletes the 749-line
-  schema file and the 119-line comparison test, and adds a 1,040-line golden fixture and a 315-line
+- The implementation is +2,450 / -1,585 lines (net +865) before this record: it deletes the 749-line
+  schema file and the 119-line comparison test, and adds a 1,077-line golden fixture and a 392-line
   contract harness.
