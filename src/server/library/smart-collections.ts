@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { sql, type SqlBool } from "kysely";
+import { sql } from "kysely";
 import type BetterSqlite3 from "better-sqlite3";
 import {
   MAX_RULE_NAME_CODE_POINTS,
@@ -271,7 +271,7 @@ export class SmartCollectionsRepository {
         .selectFrom("smart_collections")
         .select("id")
         .where("name_key", "=", normalizeNameKey(name))
-        .where(sql<SqlBool>`${sql.ref("id")} IS NOT ${exceptId}`)
+        .where("id", "is not", exceptId)
         .compile(),
     );
     if (row !== undefined) {
