@@ -225,7 +225,7 @@ export async function captureContractResponses(): Promise<CapturedResponses> {
 
     await record("games", "gamesResponse", call(server, "/api/games?pageSize=200"));
     await record("game-detail", "gameDetailResponse", call(server, "/api/games/10"));
-    await record("game-detail-empty", "gameDetailResponse", call(server, "/api/games/999"));
+    await record("game-detail-seeded-999", "gameDetailResponse", call(server, "/api/games/999"));
     await record("tags", "tagsResponse", call(server, "/api/tags"));
     await record("rule-values", "ruleValuesResponse", call(server, "/api/rule-values?field=genre"));
 

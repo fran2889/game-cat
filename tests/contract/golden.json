@@ -452,7 +452,7 @@
       }
     }
   },
-  "game-detail-empty": {
+  "game-detail-seeded-999": {
     "schema": "gameDetailResponse",
     "statusCode": 200,
     "body": {
