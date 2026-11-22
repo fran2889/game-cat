@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { responseSchemas } from "../../src/shared/http-schemas.ts";
-import { captureContractResponses, type CapturedResponses } from "../../tests/helpers/contract-harness.ts";
+import { captureContractResponses } from "../../tests/helpers/contract-harness.ts";
 
 /**
  * Recapture `tests/contract/golden.json` from the current HTTP API.
@@ -9,13 +9,7 @@ import { captureContractResponses, type CapturedResponses } from "../../tests/he
  * the diff, and commit both the code and the fixtures together. A schema that
  * drifts without a fixture update fails the contract suite.
  */
-const captured = await captureContractResponses();
-const golden: CapturedResponses = {};
-
-for (const [name, response] of Object.entries(captured)) {
-  golden[name] = response;
-}
-
+const golden = await captureContractResponses();
 const target = new URL("../../tests/contract/golden.json", import.meta.url);
 writeFileSync(target, `${JSON.stringify(golden, null, 2)}\n`);
 console.log(`Wrote ${Object.keys(golden).length} responses to ${target.pathname}`);

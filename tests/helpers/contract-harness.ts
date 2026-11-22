@@ -108,7 +108,7 @@ export function startContractServer(): ContractServer {
   };
 }
 
-interface Response {
+interface ContractResponse {
   statusCode: number;
   headers: Record<string, string | string[] | number | undefined>;
   body: unknown;
@@ -118,7 +118,7 @@ async function call(
   server: ContractServer,
   url: string,
   init: { method?: string; payload?: object } = {},
-): Promise<Response> {
+): Promise<ContractResponse> {
   const response = await server.app.inject({
     method: (init.method ?? "GET") as "GET" | "POST" | "PATCH" | "DELETE",
     url,
@@ -144,7 +144,40 @@ export interface CapturedResponse {
   body?: unknown;
 }
 
-export type CapturedResponses = Record<string, CapturedResponse>;
+/** Every fixture key the capture sequence must produce. */
+export const CONTRACT_RESPONSE_NAMES = [
+  "status",
+  "config",
+  "config-patch",
+  "steam-accounts",
+  "games",
+  "game-detail",
+  "game-detail-seeded-999",
+  "tags",
+  "rule-values",
+  "steam-collections",
+  "steam-collection",
+  "steam-collection-games",
+  "steam-collection-games-dynamic",
+  "rules-preview",
+  "smart-collection-create",
+  "smart-collection-name-conflict",
+  "smart-collection",
+  "smart-collections",
+  "smart-collection-games",
+  "smart-collection-patch",
+  "smart-collection-delete",
+  "smart-collection-delete-again",
+  "refresh-start",
+  "refresh-run",
+  "not-found",
+  "validation-error",
+  "smart-collection-not-found",
+] as const;
+
+export type ContractResponseName = (typeof CONTRACT_RESPONSE_NAMES)[number];
+
+export type CapturedResponses = Record<ContractResponseName, CapturedResponse>;
 
 const TIMESTAMP = new RegExp(TIMESTAMP_PATTERN);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -195,12 +228,12 @@ export function normalizeContractValue(value: unknown): unknown {
  */
 export async function captureContractResponses(): Promise<CapturedResponses> {
   const server = startContractServer();
-  const responses: CapturedResponses = {};
+  const responses: Partial<CapturedResponses> = {};
 
   async function record(
-    name: string,
+    name: ContractResponseName,
     schema: ResponseSchemaName | null,
-    response: Promise<Response>,
+    response: Promise<ContractResponse>,
   ): Promise<unknown> {
     const result = await response;
     const location = result.headers.location;
@@ -346,7 +379,11 @@ export async function captureContractResponses(): Promise<CapturedResponses> {
       call(server, "/api/smart-collections/missing"),
     );
 
-    return responses;
+    const missing = CONTRACT_RESPONSE_NAMES.filter((name) => responses[name] === undefined);
+    if (missing.length > 0) {
+      throw new Error(`Capture sequence skipped: ${missing.join(", ")}`);
+    }
+    return responses as CapturedResponses;
   } finally {
     await server.close();
   }

@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { Ajv, type ValidateFunction } from "ajv";
 import { describe, expect, it } from "vitest";
 import { httpSchemaDefinitions, responseSchemas } from "../../src/shared/http-schemas.ts";
-import { captureContractResponses, type CapturedResponses } from "../helpers/contract-harness.ts";
+import {
+  CONTRACT_RESPONSE_NAMES,
+  captureContractResponses,
+  type CapturedResponses,
+} from "../helpers/contract-harness.ts";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validators = new Map<string, ValidateFunction>();
@@ -173,8 +177,8 @@ describe("captured golden responses", () => {
   it("match the current API for every response and status code", async () => {
     const captured = await captureContractResponses();
     expect(Object.keys(captured).sort()).toEqual(Object.keys(golden).sort());
-    for (const [name, expected] of Object.entries(golden)) {
-      expect(captured[name], name).toEqual(expected);
+    for (const name of CONTRACT_RESPONSE_NAMES) {
+      expect(captured[name], name).toEqual(golden[name]);
     }
   });
 
