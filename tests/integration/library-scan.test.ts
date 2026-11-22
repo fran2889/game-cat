@@ -188,6 +188,34 @@ describe("local library scan persistence", () => {
     scan(steam, db2);
     expect(games(db2)[0]).toMatchObject({ library_path: second, installed: 1 });
   });
+
+  it("keeps first_seen_at and API playtime across a rescan", () => {
+    const steam = fixture();
+    steam.writeManifest(steam.root, 620, { name: "Portal 2" });
+    steam.writeLocalConfig({});
+    const db = database();
+    scan(steam, db, { now: () => 1_000 });
+
+    expect(games(db)[0]).toMatchObject({
+      first_seen_at: 1_000,
+      last_seen_at: 1_000,
+      api_playtime_minutes: null,
+    });
+
+    db.raw
+      .prepare("UPDATE games SET api_playtime_minutes = 42, api_playtime_2weeks_minutes = 7")
+      .run();
+    scan(steam, db, { now: () => 2_000 });
+
+    expect(games(db)[0]).toMatchObject({
+      first_seen_at: 1_000,
+      last_seen_at: 2_000,
+      api_playtime_minutes: 42,
+      api_playtime_2weeks_minutes: 7,
+      playtime_minutes: 42,
+      playtime_2weeks_minutes: 7,
+    });
+  });
 });
 
 describe("scan reconciliation", () => {
