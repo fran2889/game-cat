@@ -182,7 +182,7 @@ describe("captured golden responses", () => {
     }
   });
 
-  it("validate every golden body against the production response schema", () => {
+  it("validate every golden body against the shared response schema", () => {
     for (const [name, response] of Object.entries(golden)) {
       if (response.body === undefined) {
         continue;

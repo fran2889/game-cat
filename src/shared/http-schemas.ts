@@ -725,7 +725,13 @@ export const errorResponseSchema = response({
   additionalProperties: false,
 });
 
-/** Every implemented response envelope, keyed by its contract name. */
+/**
+ * Every implemented response envelope, keyed by its contract name.
+ *
+ * The status, config, Steam Account, and Refresh envelopes are contract-only
+ * for now: they migrate the old oracle and are attached to their Fastify
+ * routes by #72, which must not add a second definition.
+ */
 export const responseSchemas = {
   gamesResponse: gamesResponseSchema,
   gameDetailResponse: gameDetailResponseSchema,

@@ -54,7 +54,9 @@ schema.
   across the spec examples and golden fixtures.
 - [#72](https://github.com/fran2889/game-cat/issues/72) can attach the already-defined `status`,
   `config`, `steamAccounts`, and `refresh` response schemas without adding a second definition;
-  `/api/rules/preview` reuses the Games list envelope.
+  `/api/rules/preview` reuses the Games list envelope. Those four envelopes are contract-only in
+  this change: they replace the old `tests/contract/schemas.json` roots, but production does not
+  serialise through them until #72 attaches them to their routes.
 - The implementation is +2,285 / -1,552 lines (net +733) before this record: it deletes the 749-line
   schema file and the 119-line comparison test, and adds a 1,040-line golden fixture and a 315-line
   contract harness.
