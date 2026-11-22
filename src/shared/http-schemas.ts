@@ -21,7 +21,7 @@ import {
   STEAM_STATES,
 } from "./types.ts";
 
-const TIMESTAMP_PATTERN = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$";
+export const TIMESTAMP_PATTERN = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$";
 
 export const TAGS_STATUSES = ["ok", "missing", "stale", "error"] as const;
 export const METADATA_STATUSES = ["ok", "unavailable", "missing", "stale", "error"] as const;
@@ -172,53 +172,27 @@ const gameSummary = {
   additionalProperties: false,
 };
 
+/** A detail is a summary plus the fields only `GET /api/games/{appId}` returns. */
 const gameDetail = {
   type: "object",
   required: [
-    "appId",
-    "name",
-    "ownershipStatus",
-    "installed",
-    "playtimeMinutes",
-    "lastPlayedAt",
-    "releaseYear",
+    ...gameSummary.required,
     "releaseDateRaw",
-    "metacriticScore",
-    "reviewScore",
-    "reviewTier",
-    "reviewCount",
-    "type",
-    "platforms",
     "developers",
     "publishers",
     "genres",
     "categories",
-    "tags",
     "steamCollections",
     "sizeOnDiskBytes",
-    "metadata",
   ],
   properties: {
-    appId: { type: "integer", minimum: 1 },
-    name: { type: "string", minLength: 1 },
-    ownershipStatus: { type: "string", enum: [...OWNERSHIP_STATUSES] },
-    installed: { type: ["boolean", "null"] },
-    playtimeMinutes: { type: "integer", minimum: 0 },
-    lastPlayedAt: { $ref: "#/definitions/nullableTimestamp" },
-    releaseYear: { type: ["integer", "null"], minimum: 1000, maximum: 9999 },
+    ...gameSummary.properties,
     releaseDateRaw: { type: ["string", "null"] },
-    metacriticScore: { type: ["integer", "null"], minimum: 0, maximum: 100 },
-    reviewScore: { type: ["integer", "null"], minimum: 0, maximum: 100 },
-    reviewTier: { type: ["string", "null"] },
-    reviewCount: { type: ["integer", "null"], minimum: 0 },
-    type: { type: ["string", "null"] },
-    platforms: {
-      anyOf: [{ $ref: "#/definitions/gamePlatforms" }, { type: "null" }],
-    },
     developers: { type: "array", items: { type: "string" } },
     publishers: { type: "array", items: { type: "string" } },
     genres: { type: "array", items: { type: "string" } },
     categories: { type: "array", items: { type: "string" } },
+    // Detail returns the full tag list; the summary list is capped at three.
     tags: { type: "array", items: { $ref: "#/definitions/gameTag" } },
     steamCollections: {
       type: "array",
@@ -234,7 +208,6 @@ const gameDetail = {
       },
     },
     sizeOnDiskBytes: { type: ["integer", "null"], minimum: 0 },
-    metadata: { $ref: "#/definitions/gameMetadata" },
   },
   additionalProperties: false,
 };
@@ -400,6 +373,31 @@ const sourceHealth = {
   additionalProperties: false,
 };
 
+const tagCounters = {
+  type: "object",
+  required: ["ok", "missing", "stale", "error"],
+  properties: {
+    ok: { type: "integer", minimum: 0 },
+    missing: { type: "integer", minimum: 0 },
+    stale: { type: "integer", minimum: 0 },
+    error: { type: "integer", minimum: 0 },
+  },
+  additionalProperties: false,
+};
+
+const metadataCounters = {
+  type: "object",
+  required: ["ok", "unavailable", "missing", "stale", "error"],
+  properties: {
+    ok: { type: "integer", minimum: 0 },
+    unavailable: { type: "integer", minimum: 0 },
+    missing: { type: "integer", minimum: 0 },
+    stale: { type: "integer", minimum: 0 },
+    error: { type: "integer", minimum: 0 },
+  },
+  additionalProperties: false,
+};
+
 const status = {
   type: "object",
   required: [
@@ -474,41 +472,9 @@ const status = {
       type: "object",
       required: ["tags", "store", "reviews", "lastSuccessAt"],
       properties: {
-        tags: {
-          type: "object",
-          required: ["ok", "missing", "stale", "error"],
-          properties: {
-            ok: { type: "integer", minimum: 0 },
-            missing: { type: "integer", minimum: 0 },
-            stale: { type: "integer", minimum: 0 },
-            error: { type: "integer", minimum: 0 },
-          },
-          additionalProperties: false,
-        },
-        store: {
-          type: "object",
-          required: ["ok", "unavailable", "missing", "stale", "error"],
-          properties: {
-            ok: { type: "integer", minimum: 0 },
-            unavailable: { type: "integer", minimum: 0 },
-            missing: { type: "integer", minimum: 0 },
-            stale: { type: "integer", minimum: 0 },
-            error: { type: "integer", minimum: 0 },
-          },
-          additionalProperties: false,
-        },
-        reviews: {
-          type: "object",
-          required: ["ok", "unavailable", "missing", "stale", "error"],
-          properties: {
-            ok: { type: "integer", minimum: 0 },
-            unavailable: { type: "integer", minimum: 0 },
-            missing: { type: "integer", minimum: 0 },
-            stale: { type: "integer", minimum: 0 },
-            error: { type: "integer", minimum: 0 },
-          },
-          additionalProperties: false,
-        },
+        tags: { $ref: "#/definitions/tagCounters" },
+        store: { $ref: "#/definitions/metadataCounters" },
+        reviews: { $ref: "#/definitions/metadataCounters" },
         lastSuccessAt: { $ref: "#/definitions/nullableTimestamp" },
       },
       additionalProperties: false,
@@ -578,6 +544,8 @@ export const httpSchemaDefinitions = {
   refreshRun,
   steamAccount,
   sourceHealth,
+  tagCounters,
+  metadataCounters,
   status,
   config,
 } as const;

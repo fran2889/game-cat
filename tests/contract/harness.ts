@@ -14,7 +14,7 @@ import { TagsRepository } from "../../src/server/library/tags.ts";
 import { RefreshService } from "../../src/server/refresh/service.ts";
 import { buildStatus } from "../../src/server/status.ts";
 import type { SteamDiscovery } from "../../src/server/steam/discovery.ts";
-import type { ResponseSchemaName } from "../../src/shared/http-schemas.ts";
+import { TIMESTAMP_PATTERN, type ResponseSchemaName } from "../../src/shared/http-schemas.ts";
 import type { Config } from "../../src/shared/types.ts";
 import { seedWorkedLibrary } from "../helpers/rule-db.ts";
 import { TEST_STEAM_ID64 } from "../helpers/steam-fixture.ts";
@@ -138,7 +138,7 @@ export interface CapturedResponse {
 
 export type CapturedResponses = Record<string, CapturedResponse>;
 
-const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+const TIMESTAMP = new RegExp(TIMESTAMP_PATTERN);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
