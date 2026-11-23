@@ -12,6 +12,8 @@
  *    column counts.
  * 3. The custom Refresh progress bar, cover fallback, and detail banner
  *    gradient.
+ * 4. The detail dialog's scroll lock, a static class instead of the runtime
+ *    <style> sheet react-remove-scroll injects.
  *
  * Theme variables live in `theme.generated.css`, derived from `theme.ts` at
  * build time. Nothing here restates the theme. The prototype's stronger
@@ -311,6 +313,13 @@ main {
 .mono {
   font-family: var(--mantine-font-family-monospace);
   font-variant-numeric: tabular-nums;
+}
+
+/* Set by GameDetailDialog while the detail dialog is open; the component
+ * explains why this replaces Mantine's `lockScroll` (#96). */
+body.is-scroll-locked {
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 /* The detail banner fades its art into the page background; Mantine's

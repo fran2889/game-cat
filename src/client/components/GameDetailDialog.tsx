@@ -103,6 +103,25 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
     );
   };
 
+  // Mantine's `lockScroll` injects a runtime style sheet through
+  // react-remove-scroll, which the CSP blocks (#96). The static class locks the
+  // page; padding compensates for the removed scrollbar so the shell does not
+  // jump when the dialog opens. Declared before focus restoration so the
+  // cleanup unlocks the page first.
+  useEffect(() => {
+    const { body, documentElement } = document;
+    const scrollbarWidth = window.innerWidth - documentElement.clientWidth;
+    const previousPadding = body.style.paddingRight;
+    body.classList.add("is-scroll-locked");
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    return () => {
+      body.classList.remove("is-scroll-locked");
+      body.style.paddingRight = previousPadding;
+    };
+  }, []);
+
   // Mantine's Modal owns the focus trap, Escape handling, and overlay click.
   // Focus restoration is explicit here because closing navigates and unmounts
   // the modal in the same render; capturing the opener keeps the documented
@@ -135,6 +154,7 @@ export function GameDetailDialog({ appId, background }: GameDetailDialogProps) {
       trapFocus
       closeOnEscape
       returnFocus={false}
+      lockScroll={false}
       yOffset={0}
       transitionProps={{ duration: 0 }}
     >

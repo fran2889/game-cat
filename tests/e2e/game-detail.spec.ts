@@ -66,6 +66,32 @@ test("a deep link opens the detail dialog over the Library with every documented
   await expect(page.locator(".game-grid").first()).toBeVisible();
 });
 
+test("the dialog locks page scroll through the static stylesheet and releases it on close", async ({
+  page,
+}) => {
+  await page.goto(app.url);
+  const body = page.locator("body");
+  const scrollbarWidth = await page.evaluate(
+    () => window.innerWidth - document.documentElement.clientWidth,
+  );
+  const shellWidth = await page.locator(".app").evaluate((shell) => shell.clientWidth);
+  await expect(body).not.toHaveClass(/is-scroll-locked/);
+
+  await page.locator(".game-card .card-open").first().click();
+  const dialog = page.locator('[role="dialog"].detail-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(body).toHaveClass(/is-scroll-locked/);
+  await expect(body).toHaveCSS("overflow", "hidden");
+  await expect(body).toHaveCSS("padding-right", `${scrollbarWidth}px`);
+  // Reserving the removed scrollbar keeps the shell from widening.
+  expect(await page.locator(".app").evaluate((shell) => shell.clientWidth)).toBe(shellWidth);
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(body).not.toHaveClass(/is-scroll-locked/);
+  await expect(body).toHaveCSS("overflow", "visible");
+});
+
 test("closing restores focus to the card that opened the dialog", async ({ page }) => {
   await page.goto(app.url);
   const card = page.locator(".game-card .card-open").first();
