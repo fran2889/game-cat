@@ -1,10 +1,19 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { blockExternalRequests, startTestApp, type TestApp } from "./fixture.ts";
 
 let app: TestApp;
 
+async function expectNoRuntimeStyles(page: Page): Promise<void> {
+  // Mantine's provider no longer injects CSS variables or global classes.
+  await expect(page.locator("style[data-mantine-styles]")).toHaveCount(0);
+  expect(
+    await page.evaluate(() => (window as unknown as { __violations: string[] }).__violations),
+  ).toEqual([]);
+}
+
 test.beforeAll(async () => {
   app = await startTestApp({ games: 3 });
+  app.seedDetail(620);
 });
 
 test.afterAll(async () => {
@@ -15,7 +24,7 @@ test.beforeEach(async ({ context }) => {
   await blockExternalRequests(context);
 });
 
-test("the built app serves the generated theme CSS with no runtime style tags or CSP violations", async ({
+test("the built app serves the generated theme with no runtime style tags or CSP violations on any surface", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -27,9 +36,6 @@ test("the built app serves the generated theme CSS with no runtime style tags or
 
   await page.goto(app.url);
   await expect(page.locator(".game-grid .game-card").first()).toBeVisible();
-
-  // Mantine's provider no longer injects CSS variables or global classes.
-  await expect(page.locator("style[data-mantine-styles]")).toHaveCount(0);
 
   const variables = await page.evaluate(() => {
     const style = getComputedStyle(document.documentElement);
@@ -62,17 +68,23 @@ test("the built app serves the generated theme CSS with no runtime style tags or
   await expect(primary).toHaveCSS("background-color", "rgb(242, 181, 68)");
   await primary.hover();
   await expect(primary).toHaveCSS("background-color", "rgb(255, 200, 92)");
-
-  expect(
-    await page.evaluate(() => (window as unknown as { __violations: string[] }).__violations),
-  ).toEqual([]);
+  await expectNoRuntimeStyles(page);
 
   // The Smart editor is the other CSP-sensitive surface. It must mount with the
   // same generated theme and without any runtime style element or violation.
   await page.goto(`${app.url}smart/new`);
   await expect(page.getByTestId("prefix-counts")).toBeVisible();
-  await expect(page.locator("style[data-mantine-styles]")).toHaveCount(0);
-  expect(
-    await page.evaluate(() => (window as unknown as { __violations: string[] }).__violations),
-  ).toEqual([]);
+  await expectNoRuntimeStyles(page);
+
+  // The detail dialog is the third CSP-sensitive surface. Open and close it
+  // through the Library so its scroll lock is exercised on both edges. It used
+  // to inject a runtime style sheet through react-remove-scroll.
+  await page.goto(app.url);
+  await page.locator('.game-card a[href^="/games/620"]').click();
+  const dialog = page.locator('[role="dialog"].detail-dialog');
+  await expect(dialog.getByRole("heading", { name: "Portal 2" })).toBeVisible();
+  await expectNoRuntimeStyles(page);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expectNoRuntimeStyles(page);
 });
