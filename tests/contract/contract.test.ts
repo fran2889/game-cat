@@ -59,8 +59,10 @@ function primaryDefinition(schema: object): string {
  */
 function alwaysEvaluated(schema: object): string[] {
   const names = [primaryDefinition(schema)];
-  if ((schema as Envelope).properties.pagination !== undefined) {
-    names.push("pagination");
+  const pagination = (schema as Envelope).properties.pagination;
+  const ref = pagination?.$ref;
+  if (ref !== undefined) {
+    names.push(ref.replace("#/definitions/", ""));
   }
   return names;
 }
