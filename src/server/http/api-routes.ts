@@ -215,6 +215,13 @@ function currentStatus(status: Status | (() => Status)): Status {
   return typeof status === "function" ? status() : status;
 }
 
+/** The readiness route shared by the full app and the Library-less fallback. */
+export function registerStatusRoute(app: FastifyInstance, status: Status | (() => Status)): void {
+  app.get("/api/status", { schema: { response: { 200: statusResponseSchema } } }, async () => ({
+    data: currentStatus(status),
+  }));
+}
+
 /**
  * Map the schema-validated Games query onto the repository input. Validation
  * and bounds live in `gamesListQuerySchema`; this only resolves "empty means
@@ -243,9 +250,7 @@ function gamesQuery(query: GamesListQuery): GamesQuery {
 
 /** The documented Library and Refresh endpoints implemented by this slice. */
 export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOptions): void {
-  app.get("/api/status", { schema: { response: { 200: statusResponseSchema } } }, async () => ({
-    data: currentStatus(options.status),
-  }));
+  registerStatusRoute(app, options.status);
 
   app.get<{ Querystring: GamesListQuery }>(
     "/api/games",

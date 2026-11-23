@@ -9,7 +9,6 @@ import Fastify, {
   type FastifyRequest,
 } from "fastify";
 import type { Logger } from "pino";
-import { statusResponseSchema } from "../../shared/http-schemas.ts";
 import { ERROR_CODES, type ErrorDetail, type Status } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
 import type { GamesRepository } from "../library/games.ts";
@@ -20,7 +19,12 @@ import type { SmartCollectionsRepository } from "../library/smart-collections.ts
 import type { TagsRepository } from "../library/tags.ts";
 import { redactUrl } from "../logging/logger.ts";
 import type { RefreshService } from "../refresh/service.ts";
-import { registerApiRoutes, registerConfigRoutes, type ConfigRoutes } from "./api-routes.ts";
+import {
+  registerApiRoutes,
+  registerConfigRoutes,
+  registerStatusRoute,
+  type ConfigRoutes,
+} from "./api-routes.ts";
 
 export const REQUEST_BODY_LIMIT = 256 * 1024;
 
@@ -149,9 +153,7 @@ export function createHttpApp(options: CreateHttpAppOptions): FastifyInstance {
       refresh: options.library.refresh,
     });
   } else {
-    app.get("/api/status", { schema: { response: { 200: statusResponseSchema } } }, async () => ({
-      data: typeof options.status === "function" ? options.status() : options.status,
-    }));
+    registerStatusRoute(app, options.status);
   }
 
   if (options.config !== undefined) {
