@@ -9,6 +9,7 @@ import Fastify, {
   type FastifyRequest,
 } from "fastify";
 import type { Logger } from "pino";
+import { statusResponseSchema } from "../../shared/http-schemas.ts";
 import { ERROR_CODES, type ErrorDetail, type Status } from "../../shared/types.ts";
 import { HttpError } from "../errors.ts";
 import type { GamesRepository } from "../library/games.ts";
@@ -148,7 +149,7 @@ export function createHttpApp(options: CreateHttpAppOptions): FastifyInstance {
       refresh: options.library.refresh,
     });
   } else {
-    app.get("/api/status", async () => ({
+    app.get("/api/status", { schema: { response: { 200: statusResponseSchema } } }, async () => ({
       data: typeof options.status === "function" ? options.status() : options.status,
     }));
   }
