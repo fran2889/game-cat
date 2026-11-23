@@ -1,0 +1,1077 @@
+{
+  "status": {
+    "schema": "statusResponse",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "app": {
+          "version": "0.1.0",
+          "dbSchemaVersion": 1
+        },
+        "steam": {
+          "state": "ready",
+          "root": "/fixture/Steam",
+          "ambiguous": false,
+          "account": {
+            "steamId64": "76561198000000000",
+            "accountId": "39734272",
+            "personaName": "Player One"
+          }
+        },
+        "ownership": {
+          "state": "unknown",
+          "counts": {
+            "owned": 5,
+            "localOnly": 1,
+            "unknown": 1
+          },
+          "lastSuccessAt": null,
+          "lastAttemptAt": null,
+          "error": null,
+          "gameCount": 5
+        },
+        "library": {
+          "gameCount": 7,
+          "installedCount": 3,
+          "lastScanAt": null,
+          "lastScanStatus": "never"
+        },
+        "metadata": {
+          "tags": {
+            "ok": 5,
+            "missing": 2,
+            "stale": 0,
+            "error": 0
+          },
+          "store": {
+            "ok": 6,
+            "unavailable": 0,
+            "missing": 1,
+            "stale": 0,
+            "error": 0
+          },
+          "reviews": {
+            "ok": 5,
+            "unavailable": 0,
+            "missing": 2,
+            "stale": 0,
+            "error": 0
+          },
+          "lastSuccessAt": null
+        },
+        "sources": [
+          {
+            "name": "steam_local",
+            "status": "unknown",
+            "lastSuccessAt": null,
+            "lastAttemptAt": null,
+            "retryAfterAt": null,
+            "lastError": null
+          },
+          {
+            "name": "steam_web_api",
+            "status": "unknown",
+            "lastSuccessAt": null,
+            "lastAttemptAt": null,
+            "retryAfterAt": null,
+            "lastError": null
+          },
+          {
+            "name": "steamspy",
+            "status": "unknown",
+            "lastSuccessAt": null,
+            "lastAttemptAt": null,
+            "retryAfterAt": null,
+            "lastError": null
+          },
+          {
+            "name": "storefront",
+            "status": "unknown",
+            "lastSuccessAt": null,
+            "lastAttemptAt": null,
+            "retryAfterAt": null,
+            "lastError": null
+          },
+          {
+            "name": "steam_reviews",
+            "status": "unknown",
+            "lastSuccessAt": null,
+            "lastAttemptAt": null,
+            "retryAfterAt": null,
+            "lastError": null
+          }
+        ],
+        "activeRefresh": null,
+        "lastRefresh": null
+      }
+    }
+  },
+  "config": {
+    "schema": "configResponse",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "dataDir": "/contract/data",
+        "steamRoot": "/fixture/Steam",
+        "steamId64": "76561198000000000",
+        "port": 4780,
+        "listeningUrl": "http://127.0.0.1:4780/",
+        "openBrowser": false,
+        "logLevel": "info",
+        "steamApiKeySet": true,
+        "steamApiKeySource": "file"
+      }
+    }
+  },
+  "config-patch": {
+    "schema": "configPatchResponse",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "dataDir": "/contract/data",
+        "steamRoot": "/fixture/Steam",
+        "steamId64": "76561198000000000",
+        "port": 4780,
+        "listeningUrl": "http://127.0.0.1:4780/",
+        "openBrowser": false,
+        "logLevel": "info",
+        "steamApiKeySet": true,
+        "steamApiKeySource": "file"
+      },
+      "meta": {
+        "restartRequired": false
+      }
+    }
+  },
+  "steam-accounts": {
+    "schema": "steamAccountsResponse",
+    "statusCode": 200,
+    "body": {
+      "data": [
+        {
+          "steamId64": "76561198000000000",
+          "accountId": "39734272",
+          "personaName": "Player One"
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "pageSize": 1,
+        "totalItems": 1,
+        "totalPages": 1
+      }
+    }
+  },
+  "games": {
+    "schema": "gamesResponse",
+    "statusCode": 200,
+    "body": {
+      "data": [
+        {
+          "appId": 10,
+          "name": "Alpha",
+          "ownershipStatus": "owned",
+          "installed": true,
+          "playtimeMinutes": 3602,
+          "lastPlayedAt": "2000-01-01T00:00:00Z",
+          "releaseYear": 2012,
+          "metacriticScore": null,
+          "reviewScore": 85,
+          "reviewTier": "Very Positive",
+          "reviewCount": 1000,
+          "type": "game",
+          "platforms": {
+            "windows": true,
+            "mac": false,
+            "linux": true
+          },
+          "tags": [
+            {
+              "name": "FPS",
+              "votes": 100
+            },
+            {
+              "name": "Shooter",
+              "votes": 100
+            }
+          ],
+          "metadata": {
+            "tagsStatus": "ok",
+            "storeStatus": "ok",
+            "reviewStatus": "ok"
+          }
+        },
+        {
+          "appId": 4000,
+          "name": "Delta",
+          "ownershipStatus": "local_only",
+          "installed": false,
+          "playtimeMinutes": 0,
+          "lastPlayedAt": null,
+          "releaseYear": 2006,
+          "metacriticScore": null,
+          "reviewScore": null,
+          "reviewTier": null,
+          "reviewCount": null,
+          "type": "game",
+          "platforms": {
+            "windows": true,
+            "mac": true,
+            "linux": true
+          },
+          "tags": [
+            {
+              "name": "Sandbox",
+              "votes": 40000
+            }
+          ],
+          "metadata": {
+            "tagsStatus": "ok",
+            "storeStatus": "ok",
+            "reviewStatus": "missing"
+          }
+        },
+        {
+          "appId": 999,
+          "name": "Epsilon",
+          "ownershipStatus": "unknown",
+          "installed": null,
+          "playtimeMinutes": 0,
+          "lastPlayedAt": null,
+          "releaseYear": null,
+          "metacriticScore": null,
+          "reviewScore": null,
+          "reviewTier": null,
+          "reviewCount": null,
+          "type": null,
+          "platforms": null,
+          "tags": [],
+          "metadata": {
+            "tagsStatus": "missing",
+            "storeStatus": "missing",
+            "reviewStatus": "missing"
+          }
+        },
+        {
+          "appId": 570,
+          "name": "Gamma",
+          "ownershipStatus": "owned",
+          "installed": false,
+          "playtimeMinutes": 0,
+          "lastPlayedAt": null,
+          "releaseYear": 2013,
+          "metacriticScore": 90,
+          "reviewScore": 80,
+          "reviewTier": "Very Positive",
+          "reviewCount": 2000,
+          "type": "game",
+          "platforms": {
+            "windows": true,
+            "mac": true,
+            "linux": true
+          },
+          "tags": [
+            {
+              "name": "Free to Play",
+              "votes": 5700
+            },
+            {
+              "name": "MOBA",
+              "votes": 5700
+            }
+          ],
+          "metadata": {
+            "tagsStatus": "ok",
+            "storeStatus": "ok",
+            "reviewStatus": "ok"
+          }
+        },
+        {
+          "appId": 620,
+          "name": "Portal 2",
+          "ownershipStatus": "owned",
+          "installed": true,
+          "playtimeMinutes": 612,
+          "lastPlayedAt": "2000-01-01T00:00:00Z",
+          "releaseYear": 2011,
+          "metacriticScore": 95,
+          "reviewScore": 98,
+          "reviewTier": "Overwhelmingly Positive",
+          "reviewCount": 5000,
+          "type": "game",
+          "platforms": {
+            "windows": true,
+            "mac": true,
+            "linux": true
+          },
+          "tags": [
+            {
+              "name": "Co-op",
+              "votes": 6200
+            },
+            {
+              "name": "Puzzle",
+              "votes": 6200
+            }
+          ],
+          "metadata": {
+            "tagsStatus": "ok",
+            "storeStatus": "ok",
+            "reviewStatus": "ok"
+          }
+        },
+        {
+          "appId": 800,
+          "name": "Theta",
+          "ownershipStatus": "owned",
+          "installed": false,
+          "playtimeMinutes": 0,
+          "lastPlayedAt": null,
+          "releaseYear": 2019,
+          "metacriticScore": 80,
+          "reviewScore": null,
+          "reviewTier": null,
+          "reviewCount": 0,
+          "type": "game",
+          "platforms": {
+            "windows": true,
+            "mac": false,
+            "linux": false
+          },
+          "tags": [],
+          "metadata": {
+            "tagsStatus": "missing",
+            "storeStatus": "ok",
+            "reviewStatus": "ok"
+          }
+        },
+        {
+          "appId": 700,
+          "name": "Zeta",
+          "ownershipStatus": "owned",
+          "installed": true,
+          "playtimeMinutes": 120,
+          "lastPlayedAt": "2000-01-01T00:00:00Z",
+          "releaseYear": 2020,
+          "metacriticScore": 70,
+          "reviewScore": 60,
+          "reviewTier": "Mixed",
+          "reviewCount": 50,
+          "type": "dlc",
+          "platforms": {
+            "windows": true,
+            "mac": false,
+            "linux": false
+          },
+          "tags": [
+            {
+              "name": "Action",
+              "votes": 7000
+            }
+          ],
+          "metadata": {
+            "tagsStatus": "ok",
+            "storeStatus": "ok",
+            "reviewStatus": "ok"
+          }
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "pageSize": 200,
+        "totalItems": 7,
+        "totalPages": 1
+      },
+      "meta": {
+        "dataAsOf": null
+      }
+    }
+  },
+  "game-detail": {
+    "schema": "gameDetailResponse",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "appId": 10,
+        "name": "Alpha",
+        "ownershipStatus": "owned",
+        "installed": true,
+        "playtimeMinutes": 3602,
+        "lastPlayedAt": "2000-01-01T00:00:00Z",
+        "releaseYear": 2012,
+        "metacriticScore": null,
+        "reviewScore": 85,
+        "reviewTier": "Very Positive",
+        "reviewCount": 1000,
+        "type": "game",
+        "platforms": {
+          "windows": true,
+          "mac": false,
+          "linux": true
+        },
+        "tags": [
+          {
+            "name": "FPS",
+            "votes": 100
+          },
+          {
+            "name": "Shooter",
+            "votes": 100
+          }
+        ],
+        "metadata": {
+          "tagsStatus": "ok",
+          "storeStatus": "ok",
+          "reviewStatus": "ok",
+          "tagsFetchedAt": "2000-01-01T00:00:00Z",
+          "storeFetchedAt": "2000-01-01T00:00:00Z",
+          "reviewFetchedAt": "2000-01-01T00:00:00Z"
+        },
+        "releaseDateRaw": null,
+        "developers": [
+          "Valve"
+        ],
+        "publishers": [
+          "Valve"
+        ],
+        "genres": [
+          "Action",
+          "Free to Play"
+        ],
+        "categories": [
+          "Multi-player"
+        ],
+        "steamCollections": [
+          {
+            "id": "favorite",
+            "name": "Favorites",
+            "kind": "favorite"
+          }
+        ],
+        "sizeOnDiskBytes": null
+      }
+    }
+  },
+  "game-detail-seeded-999": {
+    "schema": "gameDetailResponse",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "appId": 999,
+        "name": "Epsilon",
+        "ownershipStatus": "unknown",
+        "installed": null,
+        "playtimeMinutes": 0,
+        "lastPlayedAt": null,
+        "releaseYear": null,
+        "metacriticScore": null,
+        "reviewScore": null,
+        "reviewTier": null,
+        "reviewCount": null,
+        "type": null,
+        "platforms": null,
+        "tags": [],
+        "metadata": {
+          "tagsStatus": "missing",
+          "storeStatus": "missing",
+          "reviewStatus": "missing",
+          "tagsFetchedAt": "2000-01-01T00:00:00Z",
+          "storeFetchedAt": null,
+          "reviewFetchedAt": "2000-01-01T00:00:00Z"
+        },
+        "releaseDateRaw": null,
+        "developers": [],
+        "publishers": [],
+        "genres": [],
+        "categories": [],
+        "steamCollections": [
+          {
+            "id": "hidden",
+            "name": "Hidden",
+            "kind": "hidden"
+          }
+        ],
+        "sizeOnDiskBytes": null
+      }
+    }
+  },
+  "tags": {
+    "schema": "tagsResponse",
+    "statusCode": 200,
+    "body": {
+      "data": [
+        {
+          "name": "Action",
+          "gameCount": 1
+        },
+        {
+          "name": "Co-op",
+          "gameCount": 1
+        },
+        {
+          "name": "FPS",
+          "gameCount": 1
+        },
+        {
+          "name": "Free to Play",
+          "gameCount": 1
+        },
+        {
+          "name": "MOBA",
+          "gameCount": 1
+        },
+        {
+          "name": "Puzzle",
+          "gameCount": 1
+        },
+        {
+          "name": "Sandbox",
+          "gameCount": 1
+        },
+        {
+          "name": "Shooter",
+          "gameCount": 1
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "pageSize": 20,
+        "totalItems": 8,
+        "totalPages": 1
+      }
+    }
+  },
+  "rule-values": {
+    "schema": "ruleValuesResponse",
+    "statusCode": 200,
+    "body": {
+      "data": [
+        {
+          "value": "Action",
+          "gameCount": 4
+        },
+        {
+          "value": "Indie",
+          "gameCount": 2
+        },
+        {
+          "value": "Adventure",
+          "gameCount": 1
+        },
+        {
+          "value": "Free to Play",
+          "gameCount": 1
+        },
+        {
+          "value": "Strategy",
+          "gameCount": 1
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "pageSize": 20,
+        "totalItems": 5,
+        "totalPages": 1
+      }
+    }
+  },
+  "steam-collections": {
+    "schema": "steamCollectionsResponse",
+    "statusCode": 200,
+    "body": {
+      "data": [
+        {
+          "id": "uc-coop",
+          "name": "Co-op",
+          "kind": "user",
+          "isDynamic": false,
+          "gameCount": 1
+        },
+        {
+          "id": "uc-dynamic",
+          "name": "Dynamic picks",
+          "kind": "user",
+          "isDynamic": true,
+          "gameCount": null
+        },
+        {
+          "id": "favorite",
+          "name": "Favorites",
+          "kind": "favorite",
+          "isDynamic": false,
+          "gameCount": 2
+        },
+        {
+          "id": "hidden",
+          "name": "Hidden",
+          "kind": "hidden",
+          "isDynamic": false,
+          "gameCount": 1
+        },
+        {
+          "id": "uc-moba",
+          "name": "MOBA",
+          "kind": "user",
+          "isDynamic": false,
+          "gameCount": 1
+        },
+        {
+          "id": "uc-sandbox",
+          "name": "Sandbox",
+          "kind": "user",
+          "isDynamic": false,
+          "gameCount": 1
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "pageSize": 60,
+        "totalItems": 6,
+        "totalPages": 1
+      }
+    }
+  },
+  "steam-collection": {
+    "schema": "steamCollectionResponse",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "id": "favorite",
+        "name": "Favorites",
+        "kind": "favorite",
+        "isDynamic": false,
+        "gameCount": 2
+      }
+    }
+  },
+  "steam-collection-games": {
+    "schema": "steamCollectionGamesResponse",
+    "statusCode": 200,
+    "body": {
+      "data": [
+        {
+          "appId": 10,
+          "name": "Alpha",
+          "ownershipStatus": "owned",
+          "installed": true,
+          "playtimeMinutes": 3602,
+          "lastPlayedAt": "2000-01-01T00:00:00Z",
+          "releaseYear": 2012,
+          "metacriticScore": null,
+          "reviewScore": 85,
+          "reviewTier": "Very Positive",
+          "reviewCount": 1000,
+          "type": "game",
+          "platforms": {
+            "windows": true,
+            "mac": false,
+            "linux": true
+          },
+          "tags": [
+            {
+              "name": "FPS",
+              "votes": 100
+            },
+            {
+              "name": "Shooter",
+              "votes": 100
+            }
+          ],
+          "metadata": {
+            "tagsStatus": "ok",
+            "storeStatus": "ok",
+            "reviewStatus": "ok"
+          }
+        },
+        {
+          "appId": 620,
+          "name": "Portal 2",
+          "ownershipStatus": "owned",
+          "installed": true,
+          "playtimeMinutes": 612,
+          "lastPlayedAt": "2000-01-01T00:00:00Z",
+          "releaseYear": 2011,
+          "metacriticScore": 95,
+          "reviewScore": 98,
+          "reviewTier": "Overwhelmingly Positive",
+          "reviewCount": 5000,
+          "type": "game",
+          "platforms": {
+            "windows": true,
+            "mac": true,
+            "linux": true
+          },
+          "tags": [
+            {
+              "name": "Co-op",
+              "votes": 6200
+            },
+            {
+              "name": "Puzzle",
+              "votes": 6200
+            }
+          ],
+          "metadata": {
+            "tagsStatus": "ok",
+            "storeStatus": "ok",
+            "reviewStatus": "ok"
+          }
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "pageSize": 60,
+        "totalItems": 2,
+        "totalPages": 1
+      },
+      "meta": {
+        "dataAsOf": null,
+        "dynamic": false
+      }
+    }
+  },
+  "steam-collection-games-dynamic": {
+    "schema": "steamCollectionGamesResponse",
+    "statusCode": 200,
+    "body": {
+      "data": [],
+      "pagination": {
+        "page": 1,
+        "pageSize": 60,
+        "totalItems": 0,
+        "totalPages": 0
+      },
+      "meta": {
+        "dataAsOf": null,
+        "dynamic": true
+      }
+    }
+  },
+  "rules-preview": {
+    "schema": "gamesResponse",
+    "statusCode": 200,
+    "body": {
+      "data": [
+        {
+          "appId": 620,
+          "name": "Portal 2",
+          "ownershipStatus": "owned",
+          "installed": true,
+          "playtimeMinutes": 612,
+          "lastPlayedAt": "2000-01-01T00:00:00Z",
+          "releaseYear": 2011,
+          "metacriticScore": 95,
+          "reviewScore": 98,
+          "reviewTier": "Overwhelmingly Positive",
+          "reviewCount": 5000,
+          "type": "game",
+          "platforms": {
+            "windows": true,
+            "mac": true,
+            "linux": true
+          },
+          "tags": [
+            {
+              "name": "Co-op",
+              "votes": 6200
+            },
+            {
+              "name": "Puzzle",
+              "votes": 6200
+            }
+          ],
+          "metadata": {
+            "tagsStatus": "ok",
+            "storeStatus": "ok",
+            "reviewStatus": "ok"
+          }
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "pageSize": 200,
+        "totalItems": 1,
+        "totalPages": 1
+      },
+      "meta": {
+        "dataAsOf": null
+      }
+    }
+  },
+  "smart-collection-create": {
+    "schema": "smartCollectionResponse",
+    "statusCode": 201,
+    "headers": {
+      "location": "/api/smart-collections/00000000-0000-4000-8000-000000000000"
+    },
+    "body": {
+      "data": {
+        "id": "00000000-0000-4000-8000-000000000000",
+        "name": "Contract Collection",
+        "rules": [
+          {
+            "prefix": "AND",
+            "field": "tag",
+            "operator": "has",
+            "value": "Co-op"
+          }
+        ],
+        "createdAt": "2000-01-01T00:00:00Z",
+        "updatedAt": "2000-01-01T00:00:00Z"
+      }
+    }
+  },
+  "smart-collection-name-conflict": {
+    "schema": "errorResponse",
+    "statusCode": 409,
+    "body": {
+      "error": {
+        "code": "NAME_CONFLICT",
+        "message": "A Smart Collection with that name already exists.",
+        "requestId": "request-id",
+        "details": {
+          "conflictingId": "00000000-0000-4000-8000-000000000000"
+        }
+      }
+    }
+  },
+  "smart-collection": {
+    "schema": "smartCollectionResponse",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "id": "00000000-0000-4000-8000-000000000000",
+        "name": "Contract Collection",
+        "rules": [
+          {
+            "prefix": "AND",
+            "field": "tag",
+            "operator": "has",
+            "value": "Co-op"
+          }
+        ],
+        "createdAt": "2000-01-01T00:00:00Z",
+        "updatedAt": "2000-01-01T00:00:00Z"
+      }
+    }
+  },
+  "smart-collections": {
+    "schema": "smartCollectionsResponse",
+    "statusCode": 200,
+    "body": {
+      "data": [
+        {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "name": "Contract Collection",
+          "ruleCount": 1,
+          "matchCount": 1,
+          "createdAt": "2000-01-01T00:00:00Z",
+          "updatedAt": "2000-01-01T00:00:00Z"
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "pageSize": 60,
+        "totalItems": 1,
+        "totalPages": 1
+      },
+      "meta": {
+        "dataAsOf": null
+      }
+    }
+  },
+  "smart-collection-games": {
+    "schema": "smartCollectionGamesResponse",
+    "statusCode": 200,
+    "body": {
+      "data": [
+        {
+          "appId": 620,
+          "name": "Portal 2",
+          "ownershipStatus": "owned",
+          "installed": true,
+          "playtimeMinutes": 612,
+          "lastPlayedAt": "2000-01-01T00:00:00Z",
+          "releaseYear": 2011,
+          "metacriticScore": 95,
+          "reviewScore": 98,
+          "reviewTier": "Overwhelmingly Positive",
+          "reviewCount": 5000,
+          "type": "game",
+          "platforms": {
+            "windows": true,
+            "mac": true,
+            "linux": true
+          },
+          "tags": [
+            {
+              "name": "Co-op",
+              "votes": 6200
+            },
+            {
+              "name": "Puzzle",
+              "votes": 6200
+            }
+          ],
+          "metadata": {
+            "tagsStatus": "ok",
+            "storeStatus": "ok",
+            "reviewStatus": "ok"
+          }
+        }
+      ],
+      "pagination": {
+        "page": 1,
+        "pageSize": 60,
+        "totalItems": 1,
+        "totalPages": 1
+      },
+      "meta": {
+        "dataAsOf": null
+      }
+    }
+  },
+  "smart-collection-patch": {
+    "schema": "smartCollectionResponse",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "id": "00000000-0000-4000-8000-000000000000",
+        "name": "Renamed Contract Collection",
+        "rules": [
+          {
+            "prefix": "AND",
+            "field": "tag",
+            "operator": "has",
+            "value": "Co-op"
+          }
+        ],
+        "createdAt": "2000-01-01T00:00:00Z",
+        "updatedAt": "2000-01-01T00:00:00Z"
+      }
+    }
+  },
+  "smart-collection-delete": {
+    "statusCode": 204
+  },
+  "smart-collection-delete-again": {
+    "schema": "errorResponse",
+    "statusCode": 404,
+    "body": {
+      "error": {
+        "code": "NOT_FOUND",
+        "message": "The requested Smart Collection was not found.",
+        "requestId": "request-id",
+        "details": {
+          "id": "00000000-0000-4000-8000-000000000000"
+        }
+      }
+    }
+  },
+  "refresh-start": {
+    "schema": "refreshStartResponse",
+    "statusCode": 202,
+    "headers": {
+      "location": "/api/refresh/1"
+    },
+    "body": {
+      "data": {
+        "id": "1",
+        "scope": "metadata",
+        "mode": "fetch",
+        "status": "queued",
+        "startedAt": "2000-01-01T00:00:00Z",
+        "finishedAt": null,
+        "total": null,
+        "done": 0,
+        "appIds": null,
+        "stats": null,
+        "error": null
+      }
+    }
+  },
+  "refresh-run": {
+    "schema": "refreshRunResponse",
+    "statusCode": 200,
+    "body": {
+      "data": {
+        "id": "1",
+        "scope": "metadata",
+        "mode": "fetch",
+        "status": "succeeded",
+        "startedAt": "2000-01-01T00:00:00Z",
+        "finishedAt": "2000-01-01T00:00:00Z",
+        "total": 0,
+        "done": 0,
+        "appIds": null,
+        "stats": {
+          "sources": {
+            "steamspy": {
+              "candidates": 0,
+              "done": 0,
+              "failed": 0,
+              "skipped": 0
+            },
+            "storefront": {
+              "candidates": 0,
+              "done": 0,
+              "failed": 0,
+              "skipped": 0
+            },
+            "steam_reviews": {
+              "candidates": 0,
+              "done": 0,
+              "failed": 0,
+              "skipped": 0
+            }
+          }
+        },
+        "error": null
+      }
+    }
+  },
+  "not-found": {
+    "schema": "errorResponse",
+    "statusCode": 404,
+    "body": {
+      "error": {
+        "code": "NOT_FOUND",
+        "message": "The requested resource was not found.",
+        "requestId": "request-id",
+        "details": {
+          "id": "999999"
+        }
+      }
+    }
+  },
+  "validation-error": {
+    "schema": "errorResponse",
+    "statusCode": 422,
+    "body": {
+      "error": {
+        "code": "VALIDATION_ERROR",
+        "message": "Request body is invalid",
+        "requestId": "request-id",
+        "details": {
+          "fieldErrors": {
+            "rules": "must be an array"
+          }
+        }
+      }
+    }
+  },
+  "smart-collection-not-found": {
+    "schema": "errorResponse",
+    "statusCode": 404,
+    "body": {
+      "error": {
+        "code": "NOT_FOUND",
+        "message": "The requested resource was not found.",
+        "requestId": "request-id",
+        "details": {
+          "id": "missing"
+        }
+      }
+    }
+  }
+}

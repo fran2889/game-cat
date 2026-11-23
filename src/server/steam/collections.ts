@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import type { SteamCollectionKind } from "../../shared/types.ts";
 import { readStable, type StableReadWarning } from "./read-stable.ts";
 
 /**
@@ -12,7 +13,7 @@ export const COLLECTION_KEY_PREFIX = "user-collections.";
 export const CLOUD_STORAGE_BASE = "cloud-storage-namespace-1.json";
 export const CLOUD_STORAGE_OVERLAY = "cloud-storage-namespace-1.modified.json";
 
-export type SteamCollectionKind = "favorite" | "hidden" | "user" | "tag" | "system" | "other";
+export type { SteamCollectionKind };
 
 export interface SteamCollectionRecord {
   id: string;

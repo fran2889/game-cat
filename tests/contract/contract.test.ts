@@ -1,50 +1,33 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { Ajv, type ValidateFunction } from "ajv";
-import pino from "pino";
-import { afterEach, describe, expect, it } from "vitest";
-import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.ts";
-import { createHttpApp } from "../../src/server/http/app.ts";
-import type { ConfigRoutes } from "../../src/server/http/api-routes.ts";
-import { SteamCollectionsRepository } from "../../src/server/library/collections.ts";
-import { GamesRepository } from "../../src/server/library/games.ts";
-import { RulePreviewRepository } from "../../src/server/library/rule-preview.ts";
-import { RuleValuesRepository } from "../../src/server/library/rule-values.ts";
-import { SmartCollectionsRepository } from "../../src/server/library/smart-collections.ts";
-import { TagsRepository } from "../../src/server/library/tags.ts";
-import { RefreshService } from "../../src/server/refresh/service.ts";
-import { buildStatus } from "../../src/server/status.ts";
-import type { SteamDiscovery } from "../../src/server/steam/discovery.ts";
-import type { Config } from "../../src/shared/types.ts";
-import { seedWorkedLibrary } from "../helpers/rule-db.ts";
-import { TEST_STEAM_ID64 } from "../helpers/steam-fixture.ts";
+import { describe, expect, it } from "vitest";
+import { httpSchemaDefinitions, responseSchemas } from "../../src/shared/http-schemas.ts";
+import {
+  CONTRACT_RESPONSE_NAMES,
+  captureContractResponses,
+  type CapturedResponses,
+} from "../helpers/contract-harness.ts";
 
-const PORT = 4780;
-const HOST = `127.0.0.1:${PORT}`;
-
-interface SchemaDocument {
-  definitions: Record<string, unknown>;
-  [name: string]: unknown;
-}
-
-const document = JSON.parse(
-  readFileSync(new URL("./schemas.json", import.meta.url), "utf8"),
-) as SchemaDocument;
-const { definitions, ...roots } = document;
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validators = new Map<string, ValidateFunction>();
+
+const definitionSchemas = httpSchemaDefinitions as Record<string, object>;
+const envelopeSchemas = responseSchemas as Record<string, object>;
+
+function compile(schema: object): ValidateFunction {
+  return ajv.compile({ definitions: httpSchemaDefinitions, ...schema });
+}
 
 function validator(name: string): ValidateFunction {
   const cached = validators.get(name);
   if (cached !== undefined) {
     return cached;
   }
-  const root = roots[name] ?? definitions[name];
+  const root = envelopeSchemas[name] ?? definitionSchemas[name];
   if (root === undefined) {
     throw new Error(`No contract schema named ${name}`);
   }
-  const compiled = ajv.compile({ definitions, ...(root as object) });
+  const compiled = compile(root);
   validators.set(name, compiled);
   return compiled;
 }
@@ -53,6 +36,33 @@ function expectValid(name: string, value: unknown, label: string): void {
   const validate = validator(name);
   const valid = validate(value);
   expect(valid, `${label}: ${ajv.errorsText(validate.errors)}`).toBe(true);
+}
+
+interface Envelope {
+  properties: Record<string, { $ref?: string; items?: { $ref?: string } }>;
+}
+
+/** The `data` (or `error`) definition an envelope is built around. */
+function primaryDefinition(schema: object): string {
+  const envelope = schema as Envelope;
+  const payload = envelope.properties.data ?? envelope.properties.error;
+  const ref = payload?.$ref ?? payload?.items?.$ref;
+  if (ref === undefined) {
+    throw new Error("Envelope has no data or error definition");
+  }
+  return ref.replace("#/definitions/", "");
+}
+
+/**
+ * Definitions a response always evaluates. A list can legitimately be empty,
+ * so its required pagination is corrupted alongside the item definition.
+ */
+function alwaysEvaluated(schema: object): string[] {
+  const names = [primaryDefinition(schema)];
+  if ((schema as Envelope).properties.pagination !== undefined) {
+    names.push("pagination");
+  }
+  return names;
 }
 
 const spec = readFileSync(new URL("../../docs/specs/game-cat-v1.md", import.meta.url), "utf8");
@@ -124,6 +134,19 @@ describe("documented JSON examples", () => {
     expectValid("ruleValuesResponse", specExample("#### `GET /api/rule-values`"), "rule values");
   });
 
+  it("validates the non-deduplicated and deduplicated Refresh start envelopes", () => {
+    const run = specExample("#### `RefreshRun`");
+    expectValid("refreshStartResponse", { data: run }, "start");
+    expectValid(
+      "refreshStartResponse",
+      { data: run, meta: { deduplicated: true } },
+      "deduplicated start",
+    );
+    expect(validator("refreshStartResponse")({ data: run, meta: { deduplicated: false } })).toBe(
+      false,
+    );
+  });
+
   it("enforces required, enum, nullable, and camelCase fields", () => {
     const game = specExample("#### `GameSummary`") as Record<string, unknown>;
     expectValid("gameSummary", game, "example");
@@ -140,224 +163,53 @@ describe("documented JSON examples", () => {
   });
 });
 
-const discovery: SteamDiscovery = {
-  root: "/fixture/Steam",
-  state: "ready",
-  accounts: [{ steamId64: TEST_STEAM_ID64, accountId: "39734272", personaName: "Player One" }],
-  account: { steamId64: TEST_STEAM_ID64, accountId: "39734272", personaName: "Player One" },
-  ambiguous: false,
-  error: null,
-};
+/**
+ * The golden fixtures are the independent oracle: they are captured response
+ * data, not a second schema. A drifted schema fails either this comparison
+ * (because Fastify no longer serialises the captured shape) or the validation
+ * below (because the schema rejects its own fixture).
+ */
+const golden = JSON.parse(
+  readFileSync(new URL("./golden.json", import.meta.url), "utf8"),
+) as CapturedResponses;
 
-interface Harness {
-  db: AppDatabase;
-  app: ReturnType<typeof createHttpApp>;
-}
-
-const dataDirs: string[] = [];
-const databases: AppDatabase[] = [];
-const apps: Array<ReturnType<typeof createHttpApp>> = [];
-
-afterEach(async () => {
-  while (apps.length > 0) {
-    await apps.pop()?.close();
-  }
-  while (databases.length > 0) {
-    databases.pop()?.close();
-  }
-  while (dataDirs.length > 0) {
-    rmSync(dataDirs.pop()!, { recursive: true, force: true });
-  }
-});
-
-function harness(): Harness {
-  const dataDir = mkdtempSync(join(tmpdir(), "game-cat-contract-"));
-  dataDirs.push(dataDir);
-  const db = openAppDatabase({ dataDir, steamWebApiConfigured: true });
-  databases.push(db);
-  seedWorkedLibrary(db.raw);
-
-  const config: Config = {
-    dataDir,
-    steamRoot: "/fixture/Steam",
-    steamId64: TEST_STEAM_ID64,
-    port: PORT,
-    listeningUrl: `http://${HOST}/`,
-    openBrowser: false,
-    logLevel: "info",
-    steamApiKeySet: true,
-    steamApiKeySource: "file",
-  };
-  const configRoutes: ConfigRoutes = {
-    get: () => config,
-    patch: () => ({ data: config, meta: { restartRequired: false } }),
-    accounts: () => [
-      { steamId64: TEST_STEAM_ID64, accountId: "39734272", personaName: "Player One" },
-    ],
-  };
-
-  const refresh = new RefreshService({
-    db: db.raw,
-    steamRoot: null,
-    steamId64: null,
-    steamApiKey: null,
-    sources: [],
-    sleep: async () => {},
-  });
-  const app = createHttpApp({
-    port: PORT,
-    clientDir: null,
-    logger: pino({ level: "silent" }),
-    status: () =>
-      buildStatus({
-        discovery,
-        steamApiKey: "SECRET_KEY",
-        configuredSteamId64: TEST_STEAM_ID64,
-        schemaVersion: db.schemaVersion,
-        db: db.raw,
-      }),
-    library: {
-      games: new GamesRepository(db.raw),
-      collections: new SteamCollectionsRepository(db.raw),
-      ruleValues: new RuleValuesRepository(db.raw),
-      rulePreview: new RulePreviewRepository(db.raw),
-      smartCollections: new SmartCollectionsRepository(db.raw),
-      tags: new TagsRepository(db.raw),
-      refresh,
-    },
-    config: configRoutes,
-  });
-  apps.push(app);
-  return { db, app };
-}
-
-async function request(
-  test: Harness,
-  url: string,
-  init: { method?: string; payload?: object } = {},
-): Promise<{ statusCode: number; body: unknown }> {
-  const response = await test.app.inject({
-    method: (init.method ?? "GET") as "GET" | "POST" | "PATCH",
-    url,
-    headers: {
-      host: HOST,
-      ...(init.payload === undefined ? {} : { "content-type": "application/json" }),
-    },
-    ...(init.payload === undefined ? {} : { payload: init.payload }),
-  });
-  return { statusCode: response.statusCode, body: response.json() };
-}
-
-describe("implemented handlers match the contract", () => {
-  it("validates status, config, and the Steam Account list", async () => {
-    const test = harness();
-
-    const status = await request(test, "/api/status");
-    expect(status.statusCode).toBe(200);
-    expectValid("statusResponse", status.body, "GET /api/status");
-
-    const config = await request(test, "/api/config");
-    expectValid("configResponse", config.body, "GET /api/config");
-
-    const patched = await request(test, "/api/config", { method: "PATCH", payload: {} });
-    expectValid("configPatchResponse", patched.body, "PATCH /api/config");
-
-    const accounts = await request(test, "/api/steam/accounts");
-    expectValid("steamAccountsResponse", accounts.body, "GET /api/steam/accounts");
+describe("captured golden responses", () => {
+  it("match the current API for every response and status code", async () => {
+    const captured = await captureContractResponses();
+    expect(Object.keys(captured).sort()).toEqual(Object.keys(golden).sort());
+    for (const name of CONTRACT_RESPONSE_NAMES) {
+      expect(captured[name], name).toEqual(golden[name]);
+    }
   });
 
-  it("validates Game, Tag, Rule-value, and Steam Collection responses", async () => {
-    const test = harness();
-
-    expectValid(
-      "gamesResponse",
-      (await request(test, "/api/games?pageSize=200")).body,
-      "GET /api/games",
-    );
-    expectValid(
-      "gameDetailResponse",
-      (await request(test, "/api/games/10")).body,
-      "GET /api/games/10",
-    );
-    expectValid("tagsResponse", (await request(test, "/api/tags")).body, "GET /api/tags");
-    expectValid(
-      "ruleValuesResponse",
-      (await request(test, "/api/rule-values?field=genre")).body,
-      "GET /api/rule-values",
-    );
-    expectValid(
-      "steamCollectionsResponse",
-      (await request(test, "/api/steam-collections")).body,
-      "GET /api/steam-collections",
-    );
-    expectValid(
-      "steamCollectionResponse",
-      (await request(test, "/api/steam-collections/favorite")).body,
-      "GET /api/steam-collections/favorite",
-    );
-    expectValid(
-      "steamCollectionGamesResponse",
-      (await request(test, "/api/steam-collections/favorite/games")).body,
-      "GET /api/steam-collections/favorite/games",
-    );
+  it("validate every golden body against the shared response schema", () => {
+    for (const [name, response] of Object.entries(golden)) {
+      if (response.body === undefined) {
+        continue;
+      }
+      expectValid(response.schema!, response.body, name);
+    }
   });
 
-  it("validates Smart Collection create, read, list, and games responses", async () => {
-    const test = harness();
-    const created = await request(test, "/api/smart-collections", {
-      method: "POST",
-      payload: {
-        name: "Contract Collection",
-        rules: [{ prefix: "AND", field: "tag", operator: "has", value: "Co-op" }],
-      },
-    });
-    expect(created.statusCode).toBe(201);
-    expectValid("smartCollectionResponse", created.body, "POST /api/smart-collections");
-    const id = (created.body as { data: { id: string } }).data.id;
-
-    expectValid(
-      "smartCollectionResponse",
-      (await request(test, `/api/smart-collections/${id}`)).body,
-      "GET /api/smart-collections/{id}",
-    );
-    expectValid(
-      "smartCollectionsResponse",
-      (await request(test, "/api/smart-collections")).body,
-      "GET /api/smart-collections",
-    );
-    expectValid(
-      "smartCollectionGamesResponse",
-      (await request(test, `/api/smart-collections/${id}/games`)).body,
-      "GET /api/smart-collections/{id}/games",
-    );
-  });
-
-  it("validates Refresh start, poll, and the error envelope", async () => {
-    const test = harness();
-    const started = await request(test, "/api/refresh", {
-      method: "POST",
-      payload: { scope: "metadata", mode: "fetch" },
-    });
-    expect(started.statusCode).toBe(202);
-    expectValid("refreshStartResponse", started.body, "POST /api/refresh");
-    const id = (started.body as { data: { id: string } }).data.id;
-
-    expectValid(
-      "refreshRunResponse",
-      (await request(test, `/api/refresh/${id}`)).body,
-      "GET /api/refresh/{id}",
-    );
-
-    const missing = await request(test, "/api/games/999999");
-    expect(missing.statusCode).toBe(404);
-    expectValid("errorResponse", missing.body, "404 error");
-    expect((missing.body as { error: { requestId?: string } }).error.requestId).toBeTruthy();
-
-    const invalid = await request(test, "/api/rules/preview", {
-      method: "POST",
-      payload: { rules: null },
-    });
-    expect(invalid.statusCode).toBe(422);
-    expectValid("errorResponse", invalid.body, "422 error");
+  /**
+   * Corrupt the shared definition behind each envelope, not the envelope's
+   * top-level property, so this exercises the nested shapes that Fastify and
+   * the contract suite actually share.
+   */
+  it("rejects fixtures when a shared definition drifts", () => {
+    for (const [name, response] of Object.entries(golden)) {
+      if (response.body === undefined) {
+        continue;
+      }
+      const schema = envelopeSchemas[response.schema!]!;
+      const corrupted = Object.fromEntries(
+        alwaysEvaluated(schema).map((definition) => [definition, { not: {} }]),
+      );
+      const validate = ajv.compile({
+        ...schema,
+        definitions: { ...httpSchemaDefinitions, ...corrupted },
+      });
+      expect(validate(response.body), `${name}: ${Object.keys(corrupted).join(", ")}`).toBe(false);
+    }
   });
 });

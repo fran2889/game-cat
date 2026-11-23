@@ -11,6 +11,10 @@ TypeScript end to end: a Fastify server and a React/Vite client in one Node proc
 - Commands: `npm run dev`, `npm test`, `npm run check`, `npm run build`, `npm start`,
   `npm run test:e2e`, `npm run test:package`, `npm run test:perf`. Use `GAME_CAT_DATA_DIR` to keep
   development data out of the OS data directory.
+- Contract fixtures: response shapes live once in `src/shared/http-schemas.ts`. The contract suite
+  validates `tests/contract/golden.json`, captured from the live HTTP boundary with
+  `npm run contract:golden`; recapture deliberately when a response changes, never to make a
+  failing schema agree with itself.
 - Performance: `npm run test:perf` enforces the §10.5 budgets against fixed 20,000-Game and
   1,300-Game fixtures; see [docs/perf.md](docs/perf.md). It runs in the nightly/manual `perf`
   workflow, not on every pull request.

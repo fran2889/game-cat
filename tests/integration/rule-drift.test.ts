@@ -20,7 +20,7 @@ import {
 } from "../../src/client/rule-editor.ts";
 import { openAppDatabase, type AppDatabase } from "../../src/server/db/database.ts";
 import { createHttpApp } from "../../src/server/http/app.ts";
-import { smartCollectionContractDefinitions } from "../../src/server/http/schemas.ts";
+import { httpSchemaDefinitions } from "../../src/shared/http-schemas.ts";
 import { SteamCollectionsRepository } from "../../src/server/library/collections.ts";
 import { GamesRepository } from "../../src/server/library/games.ts";
 import { RulePreviewRepository } from "../../src/server/library/rule-preview.ts";
@@ -122,7 +122,7 @@ function clientRejects(rule: unknown): boolean {
 
 describe("the editor and the API agree about Rule validity", () => {
   it("uses the shared Field, Operator, and Prefix lists in the server route schema", () => {
-    const schema = smartCollectionContractDefinitions.rule as {
+    const schema = httpSchemaDefinitions.rule as {
       properties: {
         prefix: { enum: string[] };
         field: { enum: string[] };

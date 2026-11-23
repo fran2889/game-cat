@@ -10,3 +10,4 @@ playwright-report/
 migrations/
 .idea/
 src/client/theme.generated.css
+tests/contract/golden.json
