@@ -46,6 +46,19 @@ const pagination = {
   additionalProperties: false,
 };
 
+/** `/api/steam/accounts` is a single page sized to the full Account list. */
+const singlePagePagination = {
+  type: "object",
+  required: ["page", "pageSize", "totalItems", "totalPages"],
+  properties: {
+    page: { type: "integer", minimum: 1 },
+    pageSize: { type: "integer", minimum: 1 },
+    totalItems: { type: "integer", minimum: 0 },
+    totalPages: { type: "integer", minimum: 0 },
+  },
+  additionalProperties: false,
+};
+
 const timestamp = {
   type: "string",
   pattern: TIMESTAMP_PATTERN,
@@ -519,6 +532,7 @@ const config = {
 /** Every shape a response may reference with `#/definitions/<name>`. */
 export const httpSchemaDefinitions = {
   pagination,
+  singlePagePagination,
   timestamp,
   nullableTimestamp,
   gameTag,
@@ -714,7 +728,7 @@ export const steamAccountsResponseSchema = response({
   required: ["data", "pagination"],
   properties: {
     data: { type: "array", items: { $ref: "#/definitions/steamAccount" } },
-    pagination: { $ref: "#/definitions/pagination" },
+    pagination: { $ref: "#/definitions/singlePagePagination" },
   },
   additionalProperties: false,
 });
@@ -729,9 +743,8 @@ export const errorResponseSchema = response({
 /**
  * Every implemented response envelope, keyed by its contract name.
  *
- * The status, config, Steam Account, and Refresh envelopes are contract-only
- * for now: they migrate the old oracle and are attached to their Fastify
- * routes by #72, which must not add a second definition.
+ * Fastify imports these objects for response serialisation, and the contract
+ * suite validates the golden fixtures against the same definitions.
  */
 export const responseSchemas = {
   gamesResponse: gamesResponseSchema,

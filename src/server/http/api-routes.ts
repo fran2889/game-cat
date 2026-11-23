@@ -22,12 +22,18 @@ import { type RuleValuesRepository } from "../library/rule-values.ts";
 import { type TagsRepository } from "../library/tags.ts";
 import type { RefreshService } from "../refresh/service.ts";
 import {
+  configPatchResponseSchema,
+  configResponseSchema,
   gameDetailResponseSchema,
   gamesResponseSchema,
+  refreshRunResponseSchema,
+  refreshStartResponseSchema,
   ruleValuesResponseSchema,
   smartCollectionGamesResponseSchema,
   smartCollectionResponseSchema,
   smartCollectionsResponseSchema,
+  statusResponseSchema,
+  steamAccountsResponseSchema,
   steamCollectionGamesResponseSchema,
   steamCollectionResponseSchema,
   steamCollectionsResponseSchema,
@@ -172,32 +178,48 @@ export interface ConfigRoutes {
 }
 
 export function registerConfigRoutes(app: FastifyInstance, config: ConfigRoutes): void {
-  app.get("/api/config", async () => ({ data: config.get() }));
+  app.get("/api/config", { schema: { response: { 200: configResponseSchema } } }, async () => ({
+    data: config.get(),
+  }));
 
   app.patch<{ Body: ConfigPatch }>(
     "/api/config",
-    { schema: { body: configPatchBodySchema }, preValidation: rejectCoercedConfigFields },
+    {
+      schema: { body: configPatchBodySchema, response: { 200: configPatchResponseSchema } },
+      preValidation: rejectCoercedConfigFields,
+    },
     async (request) => config.patch(request.body),
   );
 
   // The server is loopback-only with no authentication or LAN mode (spec §1.5,
   // §8.10), so this route is not reachable by remote clients and does not need
   // rate limiting.
-  app.get("/api/steam/accounts", async () => {
-    const accounts = config.accounts();
-    const pagination = {
-      page: 1,
-      pageSize: accounts.length === 0 ? 1 : accounts.length,
-      totalItems: accounts.length,
-      totalPages: accounts.length === 0 ? 0 : 1,
-    };
-    const response: SteamAccountsResponse = { data: accounts, pagination };
-    return response;
-  });
+  app.get(
+    "/api/steam/accounts",
+    { schema: { response: { 200: steamAccountsResponseSchema } } },
+    async () => {
+      const accounts = config.accounts();
+      const pagination = {
+        page: 1,
+        pageSize: accounts.length === 0 ? 1 : accounts.length,
+        totalItems: accounts.length,
+        totalPages: accounts.length === 0 ? 0 : 1,
+      };
+      const response: SteamAccountsResponse = { data: accounts, pagination };
+      return response;
+    },
+  );
 }
 
 function currentStatus(status: Status | (() => Status)): Status {
   return typeof status === "function" ? status() : status;
+}
+
+/** The readiness route shared by the full app and the Library-less fallback. */
+export function registerStatusRoute(app: FastifyInstance, status: Status | (() => Status)): void {
+  app.get("/api/status", { schema: { response: { 200: statusResponseSchema } } }, async () => ({
+    data: currentStatus(status),
+  }));
 }
 
 /**
@@ -228,7 +250,7 @@ function gamesQuery(query: GamesListQuery): GamesQuery {
 
 /** The documented Library and Refresh endpoints implemented by this slice. */
 export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOptions): void {
-  app.get("/api/status", async () => ({ data: currentStatus(options.status) }));
+  registerStatusRoute(app, options.status);
 
   app.get<{ Querystring: GamesListQuery }>(
     "/api/games",
@@ -354,19 +376,23 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     },
   );
 
-  app.post("/api/rules/preview", async (request) => {
-    const validated = validatePreviewRequest(request.body);
-    if (Object.keys(validated.fieldErrors).length > 0) {
-      throw validationError(validated.fieldErrors, "body");
-    }
-    return options.rulePreview.preview({
-      rules: validated.rules,
-      page: validated.page,
-      pageSize: validated.pageSize,
-      sort: validated.sort,
-      order: validated.order,
-    });
-  });
+  app.post(
+    "/api/rules/preview",
+    { schema: { response: { 200: gamesResponseSchema } } },
+    async (request) => {
+      const validated = validatePreviewRequest(request.body);
+      if (Object.keys(validated.fieldErrors).length > 0) {
+        throw validationError(validated.fieldErrors, "body");
+      }
+      return options.rulePreview.preview({
+        rules: validated.rules,
+        page: validated.page,
+        pageSize: validated.pageSize,
+        sort: validated.sort,
+        order: validated.order,
+      });
+    },
+  );
 
   app.get<{ Querystring: SmartCollectionsListQuery }>(
     "/api/smart-collections",
@@ -478,19 +504,26 @@ export function registerApiRoutes(app: FastifyInstance, options: ApiRoutesOption
     },
   );
 
-  app.get("/api/refresh/:id", async (request) => {
-    const { id } = request.params as { id: string };
-    const parsed = parseAppId(id);
-    const run = parsed === null ? null : options.refresh.get(parsed);
-    if (run === null) {
-      throw notFound(id);
-    }
-    return { data: run };
-  });
+  app.get(
+    "/api/refresh/:id",
+    { schema: { response: { 200: refreshRunResponseSchema } } },
+    async (request) => {
+      const { id } = request.params as { id: string };
+      const parsed = parseAppId(id);
+      const run = parsed === null ? null : options.refresh.get(parsed);
+      if (run === null) {
+        throw notFound(id);
+      }
+      return { data: run };
+    },
+  );
 
   app.post<{ Body: RefreshBody }>(
     "/api/refresh",
-    { schema: { body: refreshBodySchema }, preValidation: rejectCoercedRefreshFields },
+    {
+      schema: { body: refreshBodySchema, response: { 202: refreshStartResponseSchema } },
+      preValidation: rejectCoercedRefreshFields,
+    },
     async (request, reply) => {
       const result = await options.refresh.start(request.body);
       reply.header("location", `/api/refresh/${result.run.id}`);
